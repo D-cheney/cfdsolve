@@ -1,4 +1,5 @@
 <template>
+  <FluidBackground />
   <NuxtLayout>
     <NuxtPage />
   </NuxtLayout>

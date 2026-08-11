@@ -103,6 +103,7 @@ export const usePlatformStore = defineStore('platform', {
       this.user = { name, username: 'lin-cfd', role: '注册用户' }
       this.persist()
     },
+    updateProfile(name: string) { if (this.user) { this.user.name = name; this.persist() } },
     logout() { this.user = null; this.persist() },
     toggleBookmark(key: string) {
       this.bookmarks = this.bookmarks.includes(key) ? this.bookmarks.filter(v => v !== key) : [...this.bookmarks, key]
@@ -122,6 +123,7 @@ export const usePlatformStore = defineStore('platform', {
       const project: ModelicaProject = { id: uid('MDL-'), name, slug: name.toLowerCase().replace(/\s+/g, '-'), template, updatedAt: new Date().toISOString(), code: defaultModelicaCode.replaceAll('MassSpringDamper', template), status: 'ACTIVE', lastCompile: '未编译' }
       this.projects.unshift(project); this.persist(); return project
     },
-    saveProject(id: string, code: string) { const p = this.projects.find(x => x.id === id); if (p) { p.code = code; p.updatedAt = new Date().toISOString(); this.persist() } }
+    saveProject(id: string, code: string) { const p = this.projects.find(x => x.id === id); if (p) { p.code = code; p.updatedAt = new Date().toISOString(); this.persist() } },
+    deleteProject(id: string) { this.projects = this.projects.filter(x => x.id !== id); this.persist() }
   }
 })
