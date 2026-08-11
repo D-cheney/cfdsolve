@@ -1,0 +1,45 @@
+{
+  "name": "flowforge-cfd-platform",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "nuxt dev",
+    "build": "nuxt build",
+    "start": "node .output/server/index.mjs",
+    "deploy:local": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/deploy-local.ps1",
+    "local:start": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/start-local.ps1",
+    "local:stop": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/stop-local.ps1",
+    "local:status": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/status-local.ps1",
+    "audit:prod": "npm audit --omit=dev",
+    "typecheck": "nuxt typecheck",
+    "test:formula": "node --experimental-strip-types tests/formula-converter.test.mjs",
+    "test:knowledge": "tsx tests/knowledge-importer.test.mjs",
+    "db:init": "tsx scripts/init-database.mjs",
+    "db:check": "tsx scripts/check-database.mjs",
+    "db:backup": "tsx scripts/backup-database.mjs",
+    "knowledge:validate": "tsx scripts/import-knowledge.mjs --dry-run",
+    "knowledge:import": "tsx scripts/import-knowledge.mjs",
+    "generate": "nuxt generate",
+    "preview": "nuxt preview"
+  },
+  "dependencies": {
+    "@pinia/nuxt": "^0.11.2",
+    "gray-matter": "^4.0.3",
+    "katex": "^0.16.47",
+    "lucide-vue-next": "^0.468.0",
+    "markdown-it": "^14.3.0",
+    "nuxt": "^3.21.0",
+    "pinia": "^3.0.3",
+    "sanitize-html": "^2.17.6",
+    "vue": "^3.5.24"
+  },
+  "devDependencies": {
+    "@types/katex": "^0.16.8",
+    "@types/markdown-it": "^14.1.2",
+    "@types/node": "^24.13.3",
+    "@types/sanitize-html": "^2.16.1",
+    "tsx": "^4.23.5",
+    "typescript": "^5.9.3",
+    "vue-tsc": "^3.3.9"
+  }
+}

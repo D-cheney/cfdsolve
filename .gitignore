@@ -1,0 +1,10 @@
+node_modules/
+.nuxt/
+.output/
+.env
+data/*.sqlite-wal
+data/*.sqlite-shm
+backups/
+logs/
+.run/
+data/*.sqlite
