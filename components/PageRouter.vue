@@ -6,6 +6,7 @@ const component=computed(()=>{
   if(path.value==='/') return resolveComponent('PagesHomePage')
   if(path.value.startsWith('/knowledge')||path.value.startsWith('/algorithms')||path.value.startsWith('/formulas')||path.value.startsWith('/search')) return resolveComponent('PagesLibraryPage')
   if(path.value.startsWith('/simulation')) return resolveComponent('PagesSimulationPage')
+  if(path.value.startsWith('/utilities')) return resolveComponent('PagesUtilityPage')
   if(path.value.startsWith('/modelica')) return resolveComponent('PagesModelicaPage')
   if(path.value.startsWith('/forum')) return resolveComponent('PagesCommunityPage')
   if(path.value.startsWith('/login')||path.value.startsWith('/register')||path.value.startsWith('/me')||path.value.startsWith('/notifications')||path.value.startsWith('/admin')||path.value.startsWith('/user')) return resolveComponent('PagesAccountPage')

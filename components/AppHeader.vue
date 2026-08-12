@@ -11,7 +11,7 @@ const accountOpen = ref(false)
 const query = ref('')
 const nav = [
   { label: '知识库', to: '/knowledge' }, { label: '算法与公式', to: '/algorithms' },
-  { label: 'CFD 仿真', to: '/simulation' }, { label: 'Modelica', to: '/modelica' }, { label: '社区', to: '/forum' }
+  { label: 'CFD 仿真', to: '/simulation' }, { label: '实用工具', to: '/utilities' }, { label: 'Modelica', to: '/modelica' }, { label: '社区', to: '/forum' }
 ]
 const results = computed(() => {
   const q = query.value.trim().toLowerCase()
@@ -61,9 +61,14 @@ onBeforeUnmount(() => window.removeEventListener('keydown', handleKeys))
 
   <div v-if="mobileOpen" class="drawer-backdrop" @click.self="mobileOpen=false">
     <aside class="mobile-drawer">
-      <div class="drawer-head"><span>导航</span><button class="icon-button" @click="mobileOpen=false"><X :size="20" /></button></div>
+      <div class="drawer-head"><NuxtLink to="/" class="brand" @click="mobileOpen=false"><span class="brand-mark"><i></i><i></i><i></i></span><span>流研工坊<small>FLOWLAB</small></span></NuxtLink><button class="icon-button" aria-label="关闭导航" @click="mobileOpen=false"><X :size="20" /></button></div>
+      <button class="mobile-search-link" @click="mobileOpen=false; openSearch()"><Search :size="18" /><span>搜索知识、公式和工具</span></button>
+      <small class="mobile-nav-label">功能导航</small>
       <NuxtLink v-for="item in nav" :key="item.to" :to="item.to" @click="mobileOpen=false">{{ item.label }}</NuxtLink>
-      <NuxtLink to="/me/overview" @click="mobileOpen=false">个人中心</NuxtLink>
+      <small class="mobile-nav-label">账户</small>
+      <NuxtLink v-if="store.user" to="/me/overview" @click="mobileOpen=false">个人中心</NuxtLink>
+      <template v-else><NuxtLink to="/login" @click="mobileOpen=false">登录</NuxtLink><NuxtLink to="/register" class="mobile-register-link" @click="mobileOpen=false">创建账户</NuxtLink></template>
+      <footer><span>当前模式</span><strong>{{ store.databaseConnected ? '数据库已连接' : '浏览器本地存储' }}</strong></footer>
     </aside>
   </div>
 

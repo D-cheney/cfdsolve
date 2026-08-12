@@ -1,10 +1,14 @@
 <template>
-  <canvas ref="canvasEl" class="fluid-bg" aria-hidden="true"></canvas>
+  <div class="fluid-backdrop" aria-hidden="true">
+    <span class="ambient-orb orb-one"></span>
+    <span class="ambient-orb orb-two"></span>
+    <span class="ambient-orb orb-three"></span>
+  </div>
+  <canvas ref="canvasEl" class="fluid-canvas" aria-hidden="true"></canvas>
 </template>
 
 <script setup>
-// 全站鼠标跟随流体背景：粒子在噪声流场中漂移，沿速度方向绘制流线笔触，
-// 鼠标划过产生涡旋扰动与粒子迸发。每帧清空画布，不残留任何覆盖色膜。
+// 全站暖色流场背景：低密度粒子缓慢漂移，鼠标经过时只产生轻微扰动。
 const canvasEl = ref(null)
 
 let ctx = null
@@ -15,16 +19,17 @@ let particles = []
 let lastTs = 0
 let running = false
 let moveAccum = 0
+let trail = []
 
 const mouse = { x: -9999, y: -9999, vx: 0, vy: 0, px: -9999, py: -9999, seen: false }
 
-// 蓝灰为主的柔和配色（与站点品牌色一致），少量淡青点缀
+// 米金与暖橙，保持低透明度，避免影响正文阅读。
 const PALETTE = [
-  [23, 105, 170], // 品牌蓝
-  [64, 132, 186],
-  [128, 158, 186], // 灰蓝
-  [90, 148, 160], // 淡青
-  [150, 172, 194]
+  [230, 95, 24],
+  [240, 138, 75],
+  [206, 157, 113],
+  [181, 139, 103],
+  [225, 190, 158]
 ]
 
 // —— 简单值噪声（确定性，无外部依赖）——
@@ -58,8 +63,8 @@ function makeParticle(randomize) {
     y: Math.random() * H,
     vx: 0,
     vy: 0,
-    r: 1.2 + Math.random() * 2,
-    alpha: 0.12 + Math.random() * 0.24,
+    r: 0.8 + Math.random() * 1.45,
+    alpha: 0.045 + Math.random() * 0.1,
     hue: base
   }
 }
@@ -75,7 +80,7 @@ function spawnBurst(x, y, power) {
     p.vx = Math.cos(ang) * sp
     p.vy = Math.sin(ang) * sp
     particles.push(p)
-    if (particles.length > 220) particles.splice(0, particles.length - 220)
+    if (particles.length > 170) particles.splice(0, particles.length - 170)
   }
 }
 
@@ -95,12 +100,29 @@ function step(now) {
   ctx.globalCompositeOperation = 'lighter'
   ctx.lineCap = 'round'
 
+  // 鼠标移动形成柔和的暖橙流迹，约半秒内自然消散。
+  if (trail.length > 1) {
+    for (let i = 1; i < trail.length; i++) {
+      const a = trail[i - 1]
+      const b = trail[i]
+      const life = Math.min(a.life, b.life)
+      ctx.strokeStyle = `rgba(230,95,24,${life * 0.2})`
+      ctx.lineWidth = 2.4 + life * 9.6
+      ctx.beginPath()
+      ctx.moveTo(a.x, a.y)
+      ctx.quadraticCurveTo(a.x + a.vx * 1.6, a.y + a.vy * 1.6, b.x, b.y)
+      ctx.stroke()
+    }
+  }
+  trail.forEach(point => { point.life -= dt * 0.72 })
+  trail = trail.filter(point => point.life > 0)
+
   for (let i = 0; i < particles.length; i++) {
     const p = particles[i]
     // 流场漂移
     const ang = noise2(p.x * 0.0016, p.y * 0.0016 + t) * Math.PI * 4
-    p.vx += Math.cos(ang) * 0.014 * dt * 60
-    p.vy += Math.sin(ang) * 0.014 * dt * 60
+    p.vx += Math.cos(ang) * 0.009 * dt * 60
+    p.vy += Math.sin(ang) * 0.009 * dt * 60
 
     // 鼠标涡旋扰动
     const dx = p.x - mouse.x
@@ -110,8 +132,8 @@ function step(now) {
       const d = Math.sqrt(d2) || 1
       const fall = 1 - d / 260
       const spd = Math.min(2.6, Math.hypot(mouse.vx, mouse.vy) * 0.18 + 0.5)
-      p.vx += ((-dy / d) * 3.4 - (dx / d) * 0.7) * fall * spd * 0.075 * dt * 60
-      p.vy += ((dx / d) * 3.4 - (dy / d) * 0.7) * fall * spd * 0.075 * dt * 60
+      p.vx += ((-dy / d) * 2.4 - (dx / d) * 0.5) * fall * spd * 0.045 * dt * 60
+      p.vy += ((dx / d) * 2.4 - (dy / d) * 0.5) * fall * spd * 0.045 * dt * 60
     }
 
     // 阻尼与位移
@@ -131,13 +153,13 @@ function step(now) {
     const sx = p.x - p.vx * 2.4
     const sy = p.y - p.vy * 2.4
     ctx.strokeStyle = `rgba(${r},${g},${b},${p.alpha * 0.8})`
-    ctx.lineWidth = p.r * 1.4
+    ctx.lineWidth = p.r
     ctx.beginPath()
     ctx.moveTo(sx, sy)
     ctx.lineTo(p.x, p.y)
     ctx.stroke()
 
-    ctx.fillStyle = `rgba(${Math.min(255, r + 70)},${Math.min(255, g + 70)},${Math.min(255, b + 70)},${Math.min(0.55, p.alpha * 1.5)})`
+    ctx.fillStyle = `rgba(${Math.min(255, r + 42)},${Math.min(255, g + 42)},${Math.min(255, b + 42)},${Math.min(0.18, p.alpha * 1.25)})`
     ctx.beginPath()
     ctx.arc(p.x, p.y, p.r * 0.9, 0, Math.PI * 2)
     ctx.fill()
@@ -151,7 +173,7 @@ function init() {
   if (!canvas) return
   ctx = canvas.getContext('2d')
   resize()
-  const count = Math.round(Math.min(180, Math.max(90, (W * H) / 11000)))
+  const count = Math.round(Math.min(105, Math.max(52, (W * H) / 19000)))
   particles = []
   for (let i = 0; i < count; i++) particles.push(makeParticle(false))
   running = true
@@ -172,20 +194,24 @@ function resize() {
 }
 
 function onMove(e) {
-  const x = e.clientX
-  const y = e.clientY
+  const point = e.touches?.[0] || e
+  const x = point.clientX
+  const y = point.clientY
+  if (!Number.isFinite(x) || !Number.isFinite(y)) return
   if (mouse.seen) {
     mouse.vx = (mouse.vx + (x - mouse.px)) * 0.5
     mouse.vy = (mouse.vy + (y - mouse.py)) * 0.5
     // 移动超过阈值才迸发粒子，避免疯狂生成
     moveAccum += Math.abs(x - mouse.px) + Math.abs(y - mouse.py)
-    if (moveAccum > 14) {
+    if (moveAccum > 20) {
       spawnBurst(x, y, Math.hypot(mouse.vx, mouse.vy))
       moveAccum = 0
     }
   }
   mouse.x = x
   mouse.y = y
+  trail.push({ x, y, vx: mouse.vx, vy: mouse.vy, life: 1 })
+  if (trail.length > 56) trail.splice(0, trail.length - 56)
   mouse.px = x
   mouse.py = y
   mouse.seen = true
@@ -230,18 +256,67 @@ onBeforeUnmount(() => {
 </script>
 
 <style scoped>
-.fluid-bg {
+.fluid-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 0;
+  overflow: hidden;
+  pointer-events: none;
+  background: #fcfaf8;
+}
+.fluid-canvas {
   position: fixed;
   inset: 0;
   width: 100%;
   height: 100%;
-  z-index: 140;
+  z-index: 135;
   pointer-events: none;
-  opacity: 0.6;
+  opacity: 0.82;
+  mix-blend-mode: multiply;
+}
+.ambient-orb {
+  position: absolute;
+  display: block;
+  border-radius: 50%;
+  filter: blur(16px);
+  opacity: 0.34;
+  will-change: transform;
+}
+.orb-one {
+  width: 42vw;
+  height: 42vw;
+  top: -20vw;
+  right: -10vw;
+  background: radial-gradient(circle, rgba(255, 163, 99, 0.24), transparent 68%);
+  animation: orb-one 22s ease-in-out infinite alternate;
+}
+.orb-two {
+  width: 38vw;
+  height: 38vw;
+  left: -16vw;
+  top: 32vh;
+  background: radial-gradient(circle, rgba(215, 175, 137, 0.2), transparent 68%);
+  animation: orb-two 28s ease-in-out infinite alternate;
+}
+.orb-three {
+  width: 30vw;
+  height: 30vw;
+  right: 18vw;
+  bottom: -17vw;
+  background: radial-gradient(circle, rgba(240, 138, 75, 0.14), transparent 68%);
+  animation: orb-three 25s ease-in-out infinite alternate;
+}
+@keyframes orb-one {
+  to { transform: translate3d(-8vw, 9vh, 0) scale(1.12); }
+}
+@keyframes orb-two {
+  to { transform: translate3d(11vw, -8vh, 0) scale(0.9); }
+}
+@keyframes orb-three {
+  to { transform: translate3d(-6vw, -10vh, 0) scale(1.15); }
 }
 @media (prefers-reduced-motion: reduce) {
-  .fluid-bg {
-    display: none;
-  }
+  .fluid-canvas { display: none; }
+  .ambient-orb { animation: none; }
 }
 </style>
