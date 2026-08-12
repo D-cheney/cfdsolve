@@ -28,6 +28,7 @@
     "katex": "^0.16.47",
     "lucide-vue-next": "^0.468.0",
     "markdown-it": "^14.3.0",
+    "mysql2": "^3.23.3",
     "nuxt": "^3.21.0",
     "pinia": "^3.0.3",
     "sanitize-html": "^2.17.6",

@@ -4,26 +4,26 @@ function parseJson(value: unknown, fallback: unknown) {
   try { return JSON.parse(String(value ?? '')) } catch { return fallback }
 }
 
-export default defineEventHandler(() => {
-  const db = getDatabase()
-  const userRow = db.prepare(`SELECT display_name, username FROM users WHERE id = ?`).get(DEMO_USER_ID) as {
+export default defineEventHandler(async () => {
+  const db = await getDatabase()
+  const userRow = await db.get(`SELECT display_name, username FROM users WHERE id = ?`, DEMO_USER_ID) as {
     display_name: string
     username: string
   }
-  const bookmarks = db.prepare(`SELECT resource_key FROM bookmarks
-    WHERE user_id = ? ORDER BY created_at DESC`).all(DEMO_USER_ID) as Array<{ resource_key: string }>
-  const notifications = db.prepare(`SELECT id, title, body, is_read FROM notifications
-    WHERE user_id = ? ORDER BY created_at DESC`).all(DEMO_USER_ID) as Array<{ id: string; title: string; body: string; is_read: number }>
-  const tasks = db.prepare(`SELECT st.id, tool.slug AS tool, tool.name AS tool_name, st.status,
+  const bookmarks = await db.all(`SELECT resource_key FROM bookmarks
+    WHERE user_id = ? ORDER BY created_at DESC`, DEMO_USER_ID) as Array<{ resource_key: string }>
+  const notifications = await db.all(`SELECT id, title, body, is_read FROM notifications
+    WHERE user_id = ? ORDER BY created_at DESC`, DEMO_USER_ID) as Array<{ id: string; title: string; body: string; is_read: number }>
+  const tasks = await db.all(`SELECT st.id, tool.slug AS tool, tool.name AS tool_name, st.status,
       st.created_at, st.duration_ms, st.params_json, st.result_json, st.warnings_json
     FROM simulation_tasks st
     JOIN simulation_tools tool ON tool.id = st.tool_id
-    WHERE st.user_id = ? ORDER BY st.created_at DESC`).all(DEMO_USER_ID) as Array<Record<string, unknown>>
-  const projects = db.prepare(`SELECT p.id, p.name, p.slug, p.template, p.updated_at, p.status,
+    WHERE st.user_id = ? ORDER BY st.created_at DESC`, DEMO_USER_ID) as Array<Record<string, unknown>>
+  const projects = await db.all(`SELECT p.id, p.name, p.slug, p.template, p.updated_at, p.status,
       p.last_compile, COALESCE(f.content, '') AS code
     FROM modelica_projects p
     LEFT JOIN modelica_files f ON f.project_id = p.id AND f.path LIKE '%.mo'
-    WHERE p.user_id = ? ORDER BY p.updated_at DESC`).all(DEMO_USER_ID) as Array<Record<string, unknown>>
+    WHERE p.user_id = ? ORDER BY p.updated_at DESC`, DEMO_USER_ID) as Array<Record<string, unknown>>
 
   return {
     database: true,

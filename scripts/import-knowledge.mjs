@@ -41,7 +41,7 @@ if (!input) {
           console.log(`校验通过：${parsed.length} 个文件；未写入数据库。`)
         } else {
           for (const article of parsed) {
-            const result = importKnowledgeArticle(article)
+            const result = await importKnowledgeArticle(article)
             console.log(`[${result.action}] ${result.slug} | ${result.title} | ${result.status} | ${result.tags} tags`)
           }
           console.log(`导入完成：${parsed.length} 个文件。`)
@@ -50,7 +50,7 @@ if (!input) {
         console.error(error instanceof Error ? error.message : error)
         process.exitCode = 1
       } finally {
-        closeDatabase()
+        await closeDatabase()
       }
     }
   }

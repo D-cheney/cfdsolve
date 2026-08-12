@@ -3,7 +3,7 @@ import type { DatabaseSync } from 'node:sqlite'
 import matter from 'gray-matter'
 import MarkdownIt from 'markdown-it'
 import sanitizeHtml from 'sanitize-html'
-import { DEMO_USER_ID, getDatabase } from '../utils/database'
+import { DEMO_USER_ID, getDatabase, type Database } from '../utils/database'
 
 const TEMPLATE_VERSION = 'flowlab-knowledge/1.0'
 const slugPattern = /^[a-z0-9]+(?:-[a-z0-9]+)*$/
@@ -171,22 +171,22 @@ function stableId(prefix: string, value: string) {
   return `${prefix}-${createHash('sha256').update(value).digest('hex').slice(0, 16)}`
 }
 
-export function importKnowledgeArticle(article: ParsedKnowledgeArticle, db: DatabaseSync = getDatabase()): KnowledgeImportResult {
-  const existing = db.prepare(`SELECT id FROM content_items WHERE slug = ?`).get(article.slug) as { id: string } | undefined
+export async function importKnowledgeArticle(article: ParsedKnowledgeArticle, db?: Database): Promise<KnowledgeImportResult> {
+  const d = db || (await getDatabase())
+  const existing = await d.get(`SELECT id FROM content_items WHERE slug = ?`, article.slug) as { id: string } | undefined
   const action = existing ? 'updated' : 'created'
   const contentId = existing?.id || article.id || `content-${article.slug}`
 
-  db.exec('BEGIN IMMEDIATE')
-  try {
-    let category = db.prepare(`SELECT id FROM categories WHERE kind = 'knowledge' AND slug = ?`).get(article.category.slug) as { id: string } | undefined
+  return d.transaction(async () => {
+    let category = await d.get(`SELECT id FROM categories WHERE kind = 'knowledge' AND slug = ?`, article.category.slug) as { id: string } | undefined
     if (!category) {
       const categoryId = stableId('category-knowledge', article.category.slug)
-      db.prepare(`INSERT INTO categories (id, kind, slug, name, sort_order)
-        VALUES (?, 'knowledge', ?, ?, 100)`).run(categoryId, article.category.slug, article.category.name)
+      await d.run(`INSERT INTO categories (id, kind, slug, name, sort_order)
+        VALUES (?, 'knowledge', ?, ?, 100)`, categoryId, article.category.slug, article.category.name)
       category = { id: categoryId }
     }
 
-    const author = db.prepare('SELECT id FROM users WHERE username = ? AND status = ?').get(article.authorUsername, 'ACTIVE') as { id: string } | undefined
+    const author = await d.get('SELECT id FROM users WHERE username = ? AND status = ?', article.authorUsername, 'ACTIVE') as { id: string } | undefined
     if (!author) throw new KnowledgeTemplateError([`${article.sourceFile}: author_username ${article.authorUsername} 不存在或不可用`])
 
     const bodyJson = JSON.stringify({
@@ -199,7 +199,7 @@ export function importKnowledgeArticle(article: ParsedKnowledgeArticle, db: Data
       sourceFile: article.sourceFile
     })
 
-    db.prepare(`INSERT INTO content_items
+    await d.run(`INSERT INTO content_items
       (id, category_id, author_id, kind, slug, title, summary, body_json, body_html, status, published_at, updated_at)
       VALUES (?, ?, ?, 'article', ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
       ON CONFLICT(slug) DO UPDATE SET
@@ -212,43 +212,36 @@ export function importKnowledgeArticle(article: ParsedKnowledgeArticle, db: Data
         body_html = excluded.body_html,
         status = excluded.status,
         published_at = excluded.published_at,
-        updated_at = CURRENT_TIMESTAMP`).run(
-          contentId, category.id, author.id, article.slug, article.title, article.summary,
-          bodyJson, article.html, article.status, article.publishedAt
-        )
+        updated_at = CURRENT_TIMESTAMP`,
+      contentId, category.id, author.id, article.slug, article.title, article.summary,
+      bodyJson, article.html, article.status, article.publishedAt
+    )
 
-    db.prepare('DELETE FROM content_tags WHERE content_id = ?').run(contentId)
-    const findTag = db.prepare('SELECT id FROM tags WHERE slug = ? OR name = ? LIMIT 1')
-    const insertTag = db.prepare('INSERT INTO tags (id, slug, name) VALUES (?, ?, ?)')
-    const attachTag = db.prepare('INSERT OR IGNORE INTO content_tags (content_id, tag_id) VALUES (?, ?)')
+    await d.run('DELETE FROM content_tags WHERE content_id = ?', contentId)
     for (const tagName of article.tags) {
       const ascii = tagName.toLowerCase().normalize('NFKD').replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '')
       const tagSlug = ascii || stableId('tag', tagName).replace('tag-', 'unicode-')
-      let tag = findTag.get(tagSlug, tagName) as { id: string } | undefined
+      let tag = await d.get('SELECT id FROM tags WHERE slug = ? OR name = ? LIMIT 1', tagSlug, tagName) as { id: string } | undefined
       if (!tag) {
         const tagId = stableId('tag', tagName)
-        insertTag.run(tagId, tagSlug, tagName)
+        await d.run('INSERT INTO tags (id, slug, name) VALUES (?, ?, ?)', tagId, tagSlug, tagName)
         tag = { id: tagId }
       }
-      attachTag.run(contentId, tag.id)
+      await d.run('INSERT OR IGNORE INTO content_tags (content_id, tag_id) VALUES (?, ?)', contentId, tag.id)
     }
 
-    db.prepare(`INSERT INTO audit_logs
+    await d.run(`INSERT INTO audit_logs
       (id, actor_id, action, resource_type, resource_id, after_json, request_id)
-      VALUES (?, ?, ?, 'content_item', ?, ?, ?)`).run(
-        randomUUID(), author.id, `knowledge.import.${action}`, contentId,
-        JSON.stringify({ slug: article.slug, status: article.status, category: article.category.slug, tags: article.tags, sourceFile: article.sourceFile }),
-        randomUUID()
-      )
-    db.exec('COMMIT')
+      VALUES (?, ?, ?, 'content_item', ?, ?, ?)`,
+      randomUUID(), author.id, `knowledge.import.${action}`, contentId,
+      JSON.stringify({ slug: article.slug, status: article.status, category: article.category.slug, tags: article.tags, sourceFile: article.sourceFile }),
+      randomUUID()
+    )
     return { action, id: contentId, slug: article.slug, title: article.title, status: article.status, category: article.category.name, tags: article.tags.length }
-  } catch (error) {
-    db.exec('ROLLBACK')
-    throw error
-  }
+  })
 }
 
-export function parseAndImportKnowledge(source: string, sourceFile: string, db?: DatabaseSync) {
+export async function parseAndImportKnowledge(source: string, sourceFile: string, db?: Database): Promise<KnowledgeImportResult> {
   return importKnowledgeArticle(parseKnowledgeTemplate(source, sourceFile), db)
 }
 
