@@ -73,9 +73,28 @@ const subToNormal: Record<string, string> = { '₀':'0','₁':'1','₂':'2','₃
 
 function decodeEntities(text: string) {
   return text.replace(/&(#x[0-9a-f]+|#\d+|[a-zA-Z]+);/gi, (match, key: string) => {
-    if (key.startsWith('#x')) return String.fromCodePoint(Number.parseInt(key.slice(2), 16))
-    if (key.startsWith('#')) return String.fromCodePoint(Number.parseInt(key.slice(1), 10))
+    if (key.startsWith('#')) {
+      const hexadecimal = key.slice(0, 2).toLowerCase() === '#x'
+      const codePoint = Number.parseInt(key.slice(hexadecimal ? 2 : 1), hexadecimal ? 16 : 10)
+      const validScalar = Number.isInteger(codePoint) && codePoint >= 0 && codePoint <= 0x10ffff && !(codePoint >= 0xd800 && codePoint <= 0xdfff)
+      return validScalar ? String.fromCodePoint(codePoint) : match
+    }
     return htmlEntities[key] ?? match
+  })
+}
+
+function diagnoseNumericEntities(text: string, diagnostics: FormulaDiagnostic[]) {
+  const invalid = new Set<string>()
+  for (const match of text.matchAll(/&#(x[0-9a-f]+|\d+);/gi)) {
+    const key = match[1]
+    const hexadecimal = key[0].toLowerCase() === 'x'
+    const codePoint = Number.parseInt(key.slice(hexadecimal ? 1 : 0), hexadecimal ? 16 : 10)
+    if (!Number.isInteger(codePoint) || codePoint < 0 || codePoint > 0x10ffff || (codePoint >= 0xd800 && codePoint <= 0xdfff)) invalid.add(match[0])
+  }
+  if (invalid.size) diagnostics.push({
+    level: 'warning',
+    code: 'ENTITY_RANGE',
+    message: `检测到超出 Unicode 范围的数值实体，已保留原文：${[...invalid].join('、')}`
   })
 }
 
@@ -317,6 +336,7 @@ function renderLatex(latex: string, diagnostics: FormulaDiagnostic[]) {
 
 export function convertFormula(raw: string, selectedFormat: FormulaFormat = 'auto', preferredText?: string): FormulaConversion {
   const diagnostics: FormulaDiagnostic[] = []
+  diagnoseNumericEntities(raw, diagnostics)
   const candidates = buildRepairCandidates(raw)
   const repaired = preferredText ?? candidates[0]?.text ?? ''
   const detected = selectedFormat === 'auto' ? detectFormulaFormat(repaired) : selectedFormat

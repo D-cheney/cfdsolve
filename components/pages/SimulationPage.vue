@@ -42,6 +42,8 @@ const activeStage = ref('setup')
 const meshReady = ref(false)
 const geometryReady = ref(true)
 const meshRevision = ref(0)
+const geometrySnapshot = ref('')
+const meshSnapshot = ref('')
 const running = ref(false)
 const progress = ref(0)
 const phase = ref('等待提交')
@@ -93,6 +95,8 @@ const geometryKeys = computed(() => ({
   'pipe-flow': ['diameter', 'pipe_length'], 'turbulence-compare': ['char_length']
 }[slug.value] || []))
 const physicalFields = computed(() => fieldDefs.value.filter(field => !gridKeys.includes(field[0]) && !geometryKeys.value.includes(field[0])))
+const fieldUnit = (field: [string, string, string, number, number]) => field[0] === 'drive_value' && slug.value === 'pipe-flow'
+  ? (params.drive_mode === 'pressure_drop' ? 'Pa' : 'm/s') : field[2]
 const geometryFields = computed(() => fieldDefs.value.filter(field => geometryKeys.value.includes(field[0])))
 const meshFields = computed(() => fieldDefs.value.filter(field => ['nx', 'ny', 'samples', 'layers', 'growth_rate'].includes(field[0])))
 const solverFields = computed(() => fieldDefs.value.filter(field => ['max_iterations', 'tolerance', 'pressure_relaxation', 'velocity_relaxation'].includes(field[0])))
@@ -118,6 +122,11 @@ const preflight = computed(() => [
   { label: '求解器设置', pass: Number(params.tolerance || 1e-6) > 0, detail: `${numerics.coupling} · ${numerics.momentum}` }
 ])
 const canRun = computed(() => preflight.value.every(item => item.pass) && !running.value)
+const geometrySignature = computed(() => JSON.stringify(Object.fromEntries([...geometryKeys.value, ...physicalFields.value.map(field => field[0])].map(key => [key, params[key]]))))
+const meshSignature = computed(() => JSON.stringify({
+  geometry: geometrySignature.value,
+  mesh: Object.fromEntries(meshFields.value.map(field => [field[0], params[field[0]]]))
+}))
 const geometryInfo = computed(() => {
   if (slug.value === 'lid-driven-cavity') return { kind: '二维封闭方腔', dimensions: '1.0 × 1.0 m', boundaries: '1 个移动壁面 · 3 个无滑移壁面' }
   if (slug.value === 'pipe-flow') return { kind: '轴对称圆管', dimensions: `${params.pipe_length} × Ø${params.diameter} m`, boundaries: '速度/压力入口 · 压力出口 · 壁面' }
@@ -131,6 +140,17 @@ const boundaries = computed(() => {
   return [['left', '固定值', `φ = ${params.phi_left}`], ['right', '固定值', `φ = ${params.phi_right}`]]
 })
 const taskResult = computed(() => (task.value?.result || {}) as unknown as SolverResult)
+const resultChecks = computed(() => {
+  const mesh = taskResult.value.mesh
+  const residual = Number(taskResult.value.residuals?.continuity?.at(-1) ?? Infinity)
+  const tolerance = Number(task.value?.params?.tolerance || 1e-5)
+  return [
+    { label: '几何拓扑完整', pass: Boolean(taskResult.value.geometry) },
+    { label: '网格质量通过', pass: Boolean(mesh && mesh.minOrthogonalQuality > .2 && mesh.maxSkewness < .85) },
+    { label: '残差达到判据', pass: Number.isFinite(residual) && residual <= Math.max(tolerance, 1e-5) },
+    { label: '结果无阻断警告', pass: !(task.value?.warnings || []).some(text => /未收敛|失效|失败/.test(text)) }
+  ]
+})
 
 // 工具列表筛选
 const dimFilter = ref('全部'), typeFilter = ref('全部'), levelFilter = ref('全部'), listQuery = ref(''), cardView = ref(true)
@@ -148,14 +168,14 @@ function reset() {
   Object.keys(params).forEach(key => delete params[key])
   Object.assign(params, defaults[slug.value] || defaults['convection-diffusion'])
   caseName.value = `${tool.value.name} · 基准算例`
-  activeStage.value = 'setup'; meshReady.value = false; geometryReady.value = true
+  activeStage.value = 'setup'; meshReady.value = false; geometryReady.value = false; geometrySnapshot.value = ''; meshSnapshot.value = ''
   progress.value = 0; phase.value = '等待提交'; liveIterations.value = []; liveContinuity.value = []; liveMomentum.value = []
 }
 function applyPreset(preset: { name: string; values: Record<string, string | number> }) {
-  Object.assign(params, preset.values); caseName.value = `${tool.value.name} · ${preset.name}`; meshReady.value = false
+  Object.assign(params, preset.values); caseName.value = `${tool.value.name} · ${preset.name}`; meshReady.value = false; geometryReady.value = false
 }
-function generateGeometry() { geometryReady.value = paramsValid.value; activeStage.value = geometryReady.value ? 'mesh' : 'geometry' }
-function generateMesh() { meshRevision.value++; meshReady.value = paramsValid.value; activeStage.value = meshReady.value ? 'solve' : 'mesh' }
+function generateGeometry() { geometryReady.value = paramsValid.value; if (geometryReady.value) geometrySnapshot.value = geometrySignature.value; meshReady.value = false; activeStage.value = geometryReady.value ? 'mesh' : 'geometry' }
+function generateMesh() { meshRevision.value++; meshReady.value = paramsValid.value && geometryReady.value; if (meshReady.value) meshSnapshot.value = meshSignature.value; activeStage.value = meshReady.value ? 'solve' : 'mesh' }
 function stageState(id: string) {
   if (id === 'setup') return paramsValid.value ? 'complete' : 'current'
   if (id === 'geometry') return geometryReady.value ? 'complete' : activeStage.value === id ? 'current' : 'pending'
@@ -168,7 +188,8 @@ async function run() {
   const token = ++runToken.value
   running.value = true; progress.value = 4; phase.value = '执行预检'
   const runParams = { ...params, ...numerics, case_name: caseName.value }
-  const created = store.addTask({ tool: slug.value, toolName: tool.value.name, params: runParams })
+  const startedAt = performance.now()
+  const created = store.addTask({ tool: slug.value, toolName: tool.value.name, params: runParams, discipline: 'CFD' })
   activeTaskId.value = created.id
   const phases = [
     ['校验几何与边界', 12], ['生成计算网格', 24], ['检查网格质量', 34], ['初始化流场', 44],
@@ -185,10 +206,15 @@ async function run() {
     liveContinuity.value.push(2e-2 * Math.exp(-iteration / 1.7) + 2e-6)
     liveMomentum.value.push(5e-2 * Math.exp(-iteration / 1.5) + 8e-7)
   }
-  const result = solveTool(slug.value, runParams)
-  store.finishTask(created.id, result as unknown as Record<string, unknown>, result.warnings)
-  running.value = false; activeStage.value = 'post'
-  await router.push(`/simulation/tasks/${created.id}`)
+  try {
+    const result = solveTool(slug.value, runParams)
+    store.finishTask(created.id, result as unknown as Record<string, unknown>, result.warnings, performance.now() - startedAt)
+    running.value = false; activeStage.value = 'post'
+    await router.push(`/simulation/tasks/${created.id}`)
+  } catch (error) {
+    running.value = false; phase.value = '求解失败'
+    store.failTask(created.id, error instanceof Error ? error.message : '求解失败', performance.now() - startedAt)
+  }
 }
 function cancelRun() {
   runToken.value++; running.value = false; phase.value = '已取消'
@@ -216,12 +242,22 @@ function download(kind: 'json' | 'csv' | 'vtk') {
   const fields = result.fields
   if (!fields) return
   const values = fields[selectedField.value] || fields.velocity
-  const header = `# vtk DataFile Version 3.0\nFlowLab ${selectedField.value}\nASCII\nDATASET STRUCTURED_POINTS\nDIMENSIONS ${fields.nx} ${fields.ny} 1\nORIGIN 0 0 0\nSPACING 1 1 1\nPOINT_DATA ${fields.nx * fields.ny}\nSCALARS ${selectedField.value} float 1\nLOOKUP_TABLE default\n`
+  const geometry = result.geometry || {}
+  const width = Number(geometry.width || geometry.length || 1)
+  const height = Number(geometry.height || geometry.diameter || 1)
+  const dx = width / Math.max(1, fields.nx - 1), dy = height / Math.max(1, fields.ny - 1)
+  const header = `# vtk DataFile Version 3.0\nFlowLab ${selectedField.value}\nASCII\nDATASET STRUCTURED_POINTS\nDIMENSIONS ${fields.nx} ${fields.ny} 1\nORIGIN 0 0 0\nSPACING ${dx} ${dy} 1\nPOINT_DATA ${fields.nx * fields.ny}\nSCALARS ${selectedField.value} float 1\nLOOKUP_TABLE default\n`
   createBlob(header + values.join('\n'), 'text/plain', `${task.value.id}-${selectedField.value}.vtk`)
 }
 function downloadImage() { viewportRef.value?.downloadPng(`${task.value?.id || 'flowlab'}-${selectedField.value}.png`) }
 
 watch(slug, reset, { immediate: true })
+watch(geometrySignature, signature => {
+  if (geometrySnapshot.value && signature !== geometrySnapshot.value) { geometryReady.value = false; meshReady.value = false }
+})
+watch(meshSignature, signature => {
+  if (meshSnapshot.value && signature !== meshSnapshot.value) meshReady.value = false
+})
 onMounted(() => store.init())
 </script>
 
@@ -320,7 +356,7 @@ onMounted(() => store.init())
             <label v-if="slug==='convection-diffusion'">离散格式<select v-model="params.scheme"><option value="upwind">一阶迎风</option><option value="central">中心差分</option></select></label>
             <label v-if="slug==='pipe-flow'">驱动方式<select v-model="params.drive_mode"><option value="mean_velocity">指定平均速度</option><option value="pressure_drop">指定总压降</option></select></label>
             <label v-if="slug==='turbulence-compare'">流动类型<select v-model="params.flow_type"><option value="internal">内流</option><option value="external">外流</option></select></label>
-            <div class="property-fields"><label v-for="field in physicalFields" :key="field[0]">{{ field[1] }}<div class="unit-input"><input v-model.number="params[field[0]]" type="number" :min="field[3]" :max="field[4]" step="any"><span>{{ field[2] }}</span></div><small>{{ field[3] }} – {{ field[4] }}</small></label></div>
+            <div class="property-fields"><label v-for="field in physicalFields" :key="field[0]">{{ field[1] }}<div class="unit-input"><input v-model.number="params[field[0]]" type="number" :min="field[3]" :max="field[4]" step="any"><span>{{ fieldUnit(field) }}</span></div><small>{{ field[3] }} – {{ field[4] }}</small></label></div>
             <button type="button" class="button full" @click="activeStage='geometry'">检查计算域 <ArrowRight :size="16" /></button>
           </template>
           <template v-else-if="activeStage==='geometry'">
@@ -377,7 +413,7 @@ onMounted(() => store.init())
 
       <div class="result-tabs advanced-result-tabs"><button v-for="item in [{id:'field',label:'场预览'},{id:'convergence',label:'收敛历史'},{id:'profile',label:'剖面曲线'},{id:'table',label:'数据表'},{id:'log',label:'求解日志'}]" :key="item.id" :class="{active:resultTab===item.id}" @click="resultTab=item.id">{{ item.label }}</button></div>
       <section class="result-content advanced-result-content">
-        <div v-if="resultTab==='field'" class="result-overview-grid"><div><h2>结果可信度摘要</h2><p>本次计算已完成参数校验、网格质量门槛、残差监控和守恒检查。结果适用于当前模型假设和参数范围。</p><div class="result-checks"><span><CheckCircle2 :size="16" />几何拓扑完整</span><span><CheckCircle2 :size="16" />网格质量通过</span><span><CheckCircle2 :size="16" />残差达到判据</span><span><CheckCircle2 :size="16" />守恒检查完成</span></div></div><div><h2>导出与复现</h2><button @click="download('json')"><FileJson :size="18" /><span><strong>Case Manifest</strong><small>参数、几何、网格与监控量</small></span></button><button @click="download('csv')"><Table2 :size="18" /><span><strong>Profile CSV</strong><small>剖面或收敛采样数据</small></span></button><button @click="download('vtk')"><FileDown :size="18" /><span><strong>Legacy VTK</strong><small>结构化场数据</small></span></button></div></div>
+        <div v-if="resultTab==='field'" class="result-overview-grid"><div><h2>结果可信度摘要</h2><p>以下结论由本次任务的结构化结果实时判定；未通过的检查必须在工程使用前复核。</p><div class="result-checks"><span v-for="check in resultChecks" :key="check.label" :class="{failed:!check.pass}"><CheckCircle2 v-if="check.pass" :size="16" /><AlertTriangle v-else :size="16" />{{check.label}}</span></div></div><div><h2>导出与复现</h2><button @click="download('json')"><FileJson :size="18" /><span><strong>Case Manifest</strong><small>参数、几何、网格与监控量</small></span></button><button @click="download('csv')"><Table2 :size="18" /><span><strong>Profile CSV</strong><small>剖面或收敛采样数据</small></span></button><button @click="download('vtk')"><FileDown :size="18" /><span><strong>Legacy VTK</strong><small>带实际计算域间距的结构化场</small></span></button></div></div>
         <template v-else-if="resultTab==='convergence'"><div class="result-chart-head"><div><h2>残差收敛历史</h2><p>连续性与动量归一化残差</p></div></div><DataChart :x="taskResult.residuals?.iteration||[]" :y="taskResult.residuals?.continuity||[]" :y2="taskResult.residuals?.momentum||[]" log label="连续性" label2="动量" /></template>
         <template v-else-if="resultTab==='profile'"><div class="result-chart-head"><div><h2>采样剖面</h2><p>数值结果与参考数据</p></div><button class="button secondary small" @click="download('csv')"><Download :size="15" />CSV</button></div><DataChart :x="taskResult.x||[]" :y="taskResult.series||[]" :y2="taskResult.exact||[]" :log="task.tool==='lid-driven-cavity'" label="数值结果" label2="参考 / 动量" /></template>
         <div v-else-if="resultTab==='table'" class="data-table"><div><strong>x / step</strong><strong>value</strong><strong>reference</strong></div><div v-for="(value,index) in (taskResult.x||[]).slice(0,100)" :key="index"><span>{{ Number(value).toPrecision(6) }}</span><span>{{ Number(taskResult.series[index]).toPrecision(7) }}</span><span>{{ taskResult.exact?.[index]!==undefined?Number(taskResult.exact[index]).toPrecision(7):'—' }}</span></div></div>

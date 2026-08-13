@@ -111,13 +111,15 @@ export const usePlatformStore = defineStore('platform', {
     },
     markAllRead() { this.notifications.forEach(n => n.read = true); this.persist() },
     addTask(payload: Omit<SimulationTask, 'id' | 'createdAt' | 'status' | 'duration'>) {
-      const task: SimulationTask = { ...payload, id: uid('CFD-').toUpperCase(), createdAt: new Date().toISOString(), status: 'RUNNING', duration: 0 }
+      const prefix = payload.discipline && payload.discipline !== 'CFD' ? 'CAE-' : 'CFD-'
+      const task: SimulationTask = { ...payload, id: uid(prefix).toUpperCase(), createdAt: new Date().toISOString(), status: 'RUNNING', duration: 0 }
       this.tasks.unshift(task); this.persist(); return task
     },
-    finishTask(id: string, result: Record<string, unknown>, warnings: string[] = []) {
+    finishTask(id: string, result: Record<string, unknown>, warnings: string[] = [], duration = 0) {
       const task = this.tasks.find(t => t.id === id)
-      if (task) { task.status = 'SUCCEEDED'; task.duration = Math.round(500 + Math.random() * 1800); task.result = result; task.warnings = warnings; this.persist() }
+      if (task) { task.status = 'SUCCEEDED'; task.duration = Math.max(0, Math.round(duration)); task.result = result; task.warnings = warnings; this.persist() }
     },
+    failTask(id: string, message: string, duration = 0) { const task = this.tasks.find(t => t.id === id); if (task) { task.status = 'FAILED'; task.duration = Math.max(0, Math.round(duration)); task.warnings = [message]; this.persist() } },
     cancelTask(id: string) { const task = this.tasks.find(t => t.id === id); if (task) { task.status = 'CANCELLED'; this.persist() } },
     createProject(name: string, template = 'MassSpringDamper') {
       const project: ModelicaProject = { id: uid('MDL-'), name, slug: name.toLowerCase().replace(/\s+/g, '-'), template, updatedAt: new Date().toISOString(), code: defaultModelicaCode.replaceAll('MassSpringDamper', template), status: 'ACTIVE', lastCompile: '未编译' }

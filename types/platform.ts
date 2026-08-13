@@ -10,6 +10,7 @@ export interface SimulationTask {
   params: Record<string, string | number>
   result?: Record<string, unknown>
   warnings?: string[]
+  discipline?: 'CFD' | 'STRUCTURAL' | 'THERMAL' | 'MODAL'
 }
 
 export interface ModelicaProject {

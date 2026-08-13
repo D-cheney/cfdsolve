@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { Search, Bell, Menu, X, UserRound, ChevronDown } from 'lucide-vue-next'
-import { articles, algorithms, formulas, tools, forumTopics } from '~/utils/content'
+import { articles, algorithms, formulas, tools, caeTools, forumTopics } from '~/utils/content'
 
 const route = useRoute()
 const router = useRouter()
@@ -11,7 +11,7 @@ const accountOpen = ref(false)
 const query = ref('')
 const nav = [
   { label: '知识库', to: '/knowledge' }, { label: '算法与公式', to: '/algorithms' },
-  { label: 'CFD 仿真', to: '/simulation' }, { label: '实用工具', to: '/utilities' }, { label: 'Modelica', to: '/modelica' }, { label: '社区', to: '/forum' }
+  { label: 'CFD 仿真', to: '/simulation' }, { label: 'CAE 仿真', to: '/cae' }, { label: '实用工具', to: '/utilities' }, { label: 'Modelica', to: '/modelica' }, { label: '社区', to: '/forum' }
 ]
 const results = computed(() => {
   const q = query.value.trim().toLowerCase()
@@ -21,6 +21,7 @@ const results = computed(() => {
     ...algorithms.map(x => ({ type: '算法', title: x.name, to: '/algorithms' })),
     ...formulas.map(x => ({ type: '公式', title: x.name, to: '/formulas' })),
     ...tools.map(x => ({ type: '工具', title: x.name, to: `/simulation/${x.slug}` })),
+    ...caeTools.map(x => ({ type: 'CAE', title: x.name, to: `/cae/${x.slug}` })),
     ...forumTopics.map(x => ({ type: '社区', title: x.title, to: `/forum/posts/${x.id}` }))
   ].filter(x => x.title.toLowerCase().includes(q)).slice(0, 7)
 })

@@ -227,6 +227,28 @@ export const databaseMigrations: DatabaseMigration[] = [
       `CREATE INDEX IF NOT EXISTS idx_notifications_user_read ON notifications(user_id, is_read, created_at DESC)`,
       `CREATE INDEX IF NOT EXISTS idx_audit_logs_resource_created ON audit_logs(resource_type, resource_id, created_at DESC)`
     ]
+  },
+  {
+    version: 2,
+    name: 'add_cae_solver_catalog',
+    statements: [
+      `INSERT OR IGNORE INTO simulation_tools (id, slug, name, description, status) VALUES
+        ('tool-cae-bar', 'axial-bar', '轴向杆静力分析', '一维杆单元有限元、反力与平衡校核', 'ACTIVE')`,
+      `INSERT OR IGNORE INTO simulation_tools (id, slug, name, description, status) VALUES
+        ('tool-cae-beam', 'cantilever-beam', '悬臂梁弯曲分析', 'Euler-Bernoulli 梁单元与解析解校核', 'ACTIVE')`,
+      `INSERT OR IGNORE INTO simulation_tools (id, slug, name, description, status) VALUES
+        ('tool-cae-heat', 'heat-plate', '二维稳态热传导', '规则网格热传导、热流和能量平衡', 'ACTIVE')`,
+      `INSERT OR IGNORE INTO simulation_tools (id, slug, name, description, status) VALUES
+        ('tool-cae-modal', 'sdof-modal', '单自由度模态分析', '质量刚度广义特征值与模态残差', 'ACTIVE')`,
+      `INSERT OR IGNORE INTO simulation_tool_versions (id, tool_id, version, input_schema_json, result_schema_json, status) VALUES
+        ('tool-cae-bar-v1', 'tool-cae-bar', '1.0.0', '{"required":["length","area","elasticModulus","elements","endLoad"]}', '{"checks":["equilibrium","analytical-reference"]}', 'ACTIVE')`,
+      `INSERT OR IGNORE INTO simulation_tool_versions (id, tool_id, version, input_schema_json, result_schema_json, status) VALUES
+        ('tool-cae-beam-v1', 'tool-cae-beam', '1.0.0', '{"required":["length","elasticModulus","secondMoment","elements"]}', '{"checks":["force-moment-equilibrium","analytical-reference"]}', 'ACTIVE')`,
+      `INSERT OR IGNORE INTO simulation_tool_versions (id, tool_id, version, input_schema_json, result_schema_json, status) VALUES
+        ('tool-cae-heat-v1', 'tool-cae-heat', '1.0.0', '{"required":["width","height","conductivity","nx","ny"]}', '{"checks":["convergence","energy-balance"]}', 'ACTIVE')`,
+      `INSERT OR IGNORE INTO simulation_tool_versions (id, tool_id, version, input_schema_json, result_schema_json, status) VALUES
+        ('tool-cae-modal-v1', 'tool-cae-modal', '1.0.0', '{"required":["mass","stiffness"]}', '{"checks":["modal-residual","mass-orthogonality"]}', 'ACTIVE')`
+    ]
   }
 ]
 
