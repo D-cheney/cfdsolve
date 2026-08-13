@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ArrowRight, BookOpen, FlaskConical, Boxes, MessagesSquare, Check, Copy, Activity } from 'lucide-vue-next'
+import { ArrowRight, BookOpen, FlaskConical, Boxes, MessagesSquare, Check, Copy, Activity, Layers3 } from 'lucide-vue-next'
 import { articles, algorithms, formulas, tools, forumTopics } from '~/utils/content'
 const activeTool = ref(0)
 const copied = ref('')
@@ -29,11 +29,12 @@ async function copyFormula(text: string, name: string) { await navigator.clipboa
     <section class="section compact-top">
       <div class="container">
         <div class="section-heading"><div><span class="kicker">一体化工作流</span><h2>从原理到结果，不断链</h2></div><p>每个知识点都能连接到公式、算法、可运行案例和真实工程讨论。</p></div>
-        <div class="capability-grid">
+        <div class="capability-grid home-capability-grid">
           <NuxtLink to="/knowledge" class="capability-card"><div class="cap-icon"><BookOpen /></div><span>01</span><h3>系统化学习</h3><p>沿着控制方程、离散方法、耦合算法与验证路径建立知识结构。</p><div class="micro-tree"><i></i><b></b><b></b><b></b></div><strong class="card-link">进入知识库 <ArrowRight :size="16" /></strong></NuxtLink>
           <NuxtLink to="/simulation" class="capability-card"><div class="cap-icon"><FlaskConical /></div><span>02</span><h3>CFD 工具</h3><p>配置参数、观察收敛、核对解析解，并下载可复核的计算数据。</p><div class="micro-curve"><i></i></div><strong class="card-link">运行仿真 <ArrowRight :size="16" /></strong></NuxtLink>
-          <NuxtLink to="/modelica" class="capability-card"><div class="cap-icon"><Boxes /></div><span>03</span><h3>Modelica 建模</h3><p>编写模型、检查方程、配置实验，分析多物理系统动态响应。</p><div class="micro-nodes"><b></b><i></i><b></b><i></i><b></b></div><strong class="card-link">打开工作台 <ArrowRight :size="16" /></strong></NuxtLink>
-          <NuxtLink to="/forum" class="capability-card"><div class="cap-icon"><MessagesSquare /></div><span>04</span><h3>解决工程问题</h3><p>围绕算法、软件、论文和案例交换可以复现的分析过程。</p><div class="micro-discussion"><i></i><i></i><i></i></div><strong class="card-link">浏览社区 <ArrowRight :size="16" /></strong></NuxtLink>
+          <NuxtLink to="/cae" class="capability-card"><div class="cap-icon"><Layers3 /></div><span>03</span><h3>CAE 分析</h3><p>完成结构、热与模态的真实方程组装、结果检查和解析解校核。</p><div class="micro-curve"><i></i></div><strong class="card-link">创建分析 <ArrowRight :size="16" /></strong></NuxtLink>
+          <NuxtLink to="/modelica" class="capability-card"><div class="cap-icon"><Boxes /></div><span>04</span><h3>Modelica 建模</h3><p>编写模型、检查方程、配置实验，分析多物理系统动态响应。</p><div class="micro-nodes"><b></b><i></i><b></b><i></i><b></b></div><strong class="card-link">打开工作台 <ArrowRight :size="16" /></strong></NuxtLink>
+          <NuxtLink to="/forum" class="capability-card"><div class="cap-icon"><MessagesSquare /></div><span>05</span><h3>解决工程问题</h3><p>围绕算法、软件、论文和案例交换可以复现的分析过程。</p><div class="micro-discussion"><i></i><i></i><i></i></div><strong class="card-link">浏览社区 <ArrowRight :size="16" /></strong></NuxtLink>
         </div>
       </div>
     </section>

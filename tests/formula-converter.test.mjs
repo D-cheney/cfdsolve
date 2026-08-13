@@ -33,4 +33,15 @@ assert.equal(lost.diagnostics.some(item => item.code === 'DATA_LOST'), true)
 assert.equal(detectFormulaFormat('<math><mfrac><mi>a</mi><mi>b</mi></mfrac></math>'), 'mathml')
 assert.equal(detectFormulaFormat(String.raw`\sqrt{x}`), 'latex')
 
-console.log('formula converter: 7 scenarios passed')
+const numericEntity = convertFormula('π = &#x3c0;')
+assert.equal(numericEntity.repaired, 'π = π')
+
+const invalidEntity = convertFormula('x = &#999999999;')
+assert.match(invalidEntity.repaired, /&#999999999;/)
+assert.equal(invalidEntity.diagnostics.some(item => item.code === 'ENTITY_RANGE'), true)
+
+const surrogateEntity = convertFormula('x = &#55296;')
+assert.match(surrogateEntity.repaired, /&#55296;/)
+assert.equal(surrogateEntity.diagnostics.some(item => item.code === 'ENTITY_RANGE'), true)
+
+console.log('formula converter: 10 scenarios passed')

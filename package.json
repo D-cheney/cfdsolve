@@ -14,6 +14,7 @@
     "typecheck": "nuxt typecheck",
     "test:formula": "node --experimental-strip-types tests/formula-converter.test.mjs",
     "test:knowledge": "tsx tests/knowledge-importer.test.mjs",
+    "test:solvers": "tsx tests/solvers.test.mjs && tsx tests/cae-solvers.test.mjs",
     "db:init": "tsx scripts/init-database.mjs",
     "db:check": "tsx scripts/check-database.mjs",
     "db:backup": "tsx scripts/backup-database.mjs",

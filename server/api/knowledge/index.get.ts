@@ -8,7 +8,7 @@ export default defineEventHandler((event) => {
   const query = getQuery(event)
   const search = String(query.q || '').trim()
   const category = String(query.category || '').trim()
-  const limit = Math.min(100, Math.max(1, Number(query.limit) || 30))
+  const limit = Math.min(500, Math.max(1, Number(query.limit) || 60))
   const offset = Math.max(0, Number(query.offset) || 0)
   const db = getDatabase()
   const conditions = [`ci.kind = 'article'`, `ci.status = 'PUBLISHED'`]
@@ -22,7 +22,7 @@ export default defineEventHandler((event) => {
     params.push(category)
   }
   const where = conditions.join(' AND ')
-  const rows = db.prepare(`SELECT ci.id, ci.slug, ci.title, ci.summary, ci.body_json, ci.body_html,
+  const rows = db.prepare(`SELECT ci.id, ci.slug, ci.title, ci.summary, ci.body_json,
       ci.published_at, ci.updated_at, c.slug AS category_slug, c.name AS category,
       u.display_name AS author,
       COALESCE((SELECT json_group_array(t.name) FROM content_tags ct JOIN tags t ON t.id = ct.tag_id WHERE ct.content_id = ci.id), '[]') AS tags_json
@@ -50,7 +50,6 @@ export default defineEventHandler((event) => {
         read: `${Number(body.readingMinutes || 10)} 分钟`,
         author: row.author,
         tags: JSON.parse(String(row.tags_json || '[]')),
-        bodyHtml: row.body_html,
         publishedAt: row.published_at,
         updatedAt: row.updated_at
       }

@@ -30,17 +30,21 @@ export default defineEventHandler(() => {
     user: { name: userRow.display_name, username: userRow.username, role: '注册用户' },
     bookmarks: bookmarks.map(item => item.resource_key),
     notifications: notifications.map(item => ({ id: item.id, title: item.title, text: item.body, read: Boolean(item.is_read) })),
-    tasks: tasks.map(item => ({
-      id: item.id,
-      tool: item.tool,
-      toolName: item.tool_name,
-      status: item.status,
-      createdAt: item.created_at,
-      duration: Number(item.duration_ms || 0),
-      params: parseJson(item.params_json, {}),
-      result: item.result_json ? parseJson(item.result_json, {}) : undefined,
-      warnings: parseJson(item.warnings_json, [])
-    })),
+    tasks: tasks.map(item => {
+      const params = parseJson(item.params_json, {}) as Record<string, unknown>
+      return {
+        id: item.id,
+        tool: item.tool,
+        toolName: item.tool_name,
+        status: item.status,
+        createdAt: item.created_at,
+        duration: Number(item.duration_ms || 0),
+        params,
+        discipline: String(params.__discipline || 'CFD'),
+        result: item.result_json ? parseJson(item.result_json, {}) : undefined,
+        warnings: parseJson(item.warnings_json, [])
+      }
+    }),
     projects: projects.map(item => ({
       id: item.id,
       name: item.name,

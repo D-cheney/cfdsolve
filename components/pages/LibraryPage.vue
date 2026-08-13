@@ -1,6 +1,6 @@
 <script setup lang="ts">
-import { Search, SlidersHorizontal, Bookmark, BookmarkCheck, Copy, Check, ArrowRight, Clock, BookOpen, ChevronRight, Share2 } from 'lucide-vue-next'
-import { articles as fallbackArticles, algorithms, formulas as fallbackFormulas, tools, forumTopics } from '~/utils/content'
+import { Search, SlidersHorizontal, Bookmark, BookmarkCheck, Copy, Check, ArrowRight, Clock, BookOpen, ChevronRight, Share2, Layers3, Route, Grid2X2, List, Wrench, CheckCircle2 } from 'lucide-vue-next'
+import { articles as fallbackArticles, algorithms, formulas as fallbackFormulas, tools, caeTools, forumTopics, knowledgeModules, learningPaths } from '~/utils/content'
 const route = useRoute()
 const store = usePlatformStore()
 interface KnowledgeArticle {
@@ -15,7 +15,7 @@ interface KnowledgeArticle {
   author?: string
   updatedAt?: string
 }
-const { data: knowledgeData } = await useFetch<{ items: KnowledgeArticle[], total: number }>('/api/knowledge', { query: { limit: 100 } })
+const { data: knowledgeData, error: knowledgeError } = await useFetch<{ items: KnowledgeArticle[], total: number }>('/api/knowledge', { query: { limit: 500 } })
 const articles = computed<KnowledgeArticle[]>(() => {
   const merged = new Map<string, KnowledgeArticle>(fallbackArticles.map(item => [item.slug, item]))
   for (const item of knowledgeData.value?.items || []) {
@@ -30,7 +30,12 @@ const query = ref(String(route.query.q || ''))
 const category = ref('全部')
 const copied = ref('')
 const isDetail = computed(() => route.path.startsWith('/knowledge/') && route.path.split('/').length > 2)
-const article = computed(() => articles.value.find(a => a.slug === route.path.split('/')[2]) || articles.value[0])
+const articleSlug = computed(() => route.path.split('/')[2] || '')
+const { data: detailData } = await useFetch<KnowledgeArticle>(() => `/api/knowledge/${articleSlug.value}`, { immediate: isDetail.value })
+const article = computed(() => {
+  if (detailData.value?.slug === articleSlug.value) return detailData.value
+  return articles.value.find(a => a.slug === articleSlug.value)
+})
 const knowledgeCategoryOrder = ['知识库导航', '流体力学基础', '控制方程与物理建模', 'CFD 数值方法', '网格与离散质量', '边界条件与初始化', '湍流与近壁建模', '传热与可压缩流', '多相流与组分输运', '验证确认与后处理', 'Modelica 系统建模', '数值离散方法']
 const categories = computed(() => ['全部', ...[...new Set(articles.value.map(item => item.category).filter(Boolean))].sort((a, b) => {
   const aIndex = knowledgeCategoryOrder.indexOf(a)
@@ -38,7 +43,7 @@ const categories = computed(() => ['全部', ...[...new Set(articles.value.map(i
   return (aIndex < 0 ? 999 : aIndex) - (bIndex < 0 ? 999 : bIndex) || a.localeCompare(b, 'zh-CN')
 })])
 const categoryCounts = computed(() => Object.fromEntries(categories.value.map(item => [item, item === '全部' ? articles.value.length : articles.value.filter(articleItem => articleItem.category === item).length])))
-const relatedArticles = computed(() => articles.value.filter(item => item.category === article.value?.category).slice(0, 8))
+const relatedArticles = computed(() => articles.value.filter(item => item.category === article.value?.category && item.slug !== article.value?.slug).slice(0, 8))
 const filteredArticles = computed(() => articles.value.filter(a => (category.value==='全部'||a.category===category.value) && (!query.value || `${a.title}${a.summary}${a.tags.join('')}`.toLowerCase().includes(query.value.toLowerCase()))))
 const searchResults = computed(() => {
   const q = query.value.toLowerCase()
@@ -73,10 +78,10 @@ const filteredSearchResults=computed(()=>{
 // 算法筛选与对比
 const algoFilter=ref('全部用途')
 function algoUseOf(use:string){
-  if(use.includes('压力—速度')) return '压力—速度耦合'
+  if(use.includes('瞬态')) return '时间推进'
+  if(use.includes('不可压缩流')||use.includes('压力—速度')) return '压力—速度耦合'
   if(use.includes('离散')||use.includes('插值')) return '空间离散'
   if(use.includes('线性系统')) return '线性求解'
-  if(use.includes('瞬态')) return '时间推进'
   return '其他'
 }
 const filteredAlgorithms=computed(()=>algoFilter.value==='全部用途'?algorithms:algorithms.filter(a=>algoUseOf(a.use)===algoFilter.value))
@@ -89,15 +94,29 @@ function toggleAlgo(name:string){
 const compareItems=computed(()=>algorithms.filter(a=>selectedAlgos.value.includes(a.name)))
 // 知识库排序
 const sortBy=ref('推荐排序')
+const viewMode=ref<'cards'|'list'>('cards')
+const levelFilter=ref('全部级别')
+const activeModule=ref('全部模块')
 const sortedArticles=computed(()=>{
-  if(sortBy.value==='最近更新') return [...filteredArticles.value].sort((a,b)=>String(b.updatedAt||'').localeCompare(String(a.updatedAt||'')))
-  if(sortBy.value==='阅读时长') return [...filteredArticles.value].sort((a,b)=>parseInt(b.read) - parseInt(a.read))
-  return filteredArticles.value
+  let items=filteredArticles.value.filter(item=>levelFilter.value==='全部级别'||item.level===levelFilter.value)
+  if(activeModule.value!=='全部模块'){
+    const module=knowledgeModules.find(item=>item.id===activeModule.value)
+    items=items.filter(item=>module?.categories.includes(item.category))
+  }
+  if(sortBy.value==='最近更新') return [...items].sort((a,b)=>String(b.updatedAt||'').localeCompare(String(a.updatedAt||'')))
+  if(sortBy.value==='阅读时长') return [...items].sort((a,b)=>parseInt(a.read) - parseInt(b.read))
+  return items
 })
+const moduleArticleCount=(moduleId:string)=>{
+  const module=knowledgeModules.find(item=>item.id===moduleId)
+  return articles.value.filter(item=>module?.categories.includes(item.category)).length
+}
+function selectModule(id:string){activeModule.value=id;category.value='全部'}
 </script>
 
 <template>
-  <div v-if="isDetail" class="page reading-page">
+  <div v-if="isDetail && !article" class="page"><div class="container knowledge-not-found"><BookOpen :size="42"/><span class="kicker">ARTICLE NOT FOUND</span><h1>没有找到这篇知识文章</h1><p>链接可能已失效，或内容尚未发布。你可以返回知识地图继续浏览。</p><NuxtLink to="/knowledge" class="button">返回知识库</NuxtLink></div></div>
+  <div v-else-if="isDetail && article" class="page reading-page">
     <div class="container breadcrumb"><NuxtLink to="/knowledge">知识库</NuxtLink><ChevronRight :size="14"/><span>{{ article.category }}</span><ChevronRight :size="14"/><span>{{ article.title }}</span></div>
     <div class="container reading-layout">
       <aside class="chapter-tree"><small>专题知识路径</small><strong>{{ article.category }}</strong><NuxtLink v-for="(item,i) in relatedArticles" :key="item.slug" :to="`/knowledge/${item.slug}`" :class="{active:item.slug===article.slug}"><span>{{String(i+1).padStart(2,'0')}}</span>{{ item.title }}</NuxtLink></aside>
@@ -123,9 +142,14 @@ const sortedArticles=computed(()=>{
     </div>
   </div>
 
-  <div v-else-if="route.path==='/knowledge'" class="page discovery-page">
-    <section class="page-hero"><div class="container"><span class="kicker">KNOWLEDGE BASE</span><h1>体系化理解 CFD</h1><p>从物理守恒到工程验证，用结构化路径组织理论、算法与软件实践。</p><div class="page-search"><Search :size="19"/><input v-model="query" placeholder="搜索知识主题、概念或软件…"></div></div></section>
-    <div class="container discovery-layout"><aside class="filter-aside"><div class="aside-title"><strong>知识树</strong><SlidersHorizontal :size="17"/></div><button v-for="item in categories" :key="item" :class="{active:category===item}" @click="category=item"><span>{{item}}</span><small>{{categoryCounts[item]}}</small></button></aside><section class="content-list"><div class="list-toolbar"><div><strong>{{category}}</strong><span>共 {{filteredArticles.length}} 篇</span></div><select v-model="sortBy"><option>推荐排序</option><option>最近更新</option><option>阅读时长</option></select></div><NuxtLink v-for="item in sortedArticles" :key="item.slug" :to="`/knowledge/${item.slug}`" class="article-row"><div><span>{{item.category}}</span><h2>{{item.title}}</h2><p>{{item.summary}}</p><div><i v-for="tag in item.tags" :key="tag">{{tag}}</i></div></div><aside><strong>{{item.level}}</strong><small>{{item.read}}</small><ArrowRight :size="18"/></aside></NuxtLink><div v-if="!filteredArticles.length" class="empty-state"><BookOpen :size="34"/><h3>未找到匹配文章</h3><p>尝试清除筛选或使用更宽泛的关键词。</p><button class="button secondary" @click="query='';category='全部'">清除筛选</button></div></section><aside class="discovery-side"><div class="side-card"><small>推荐路径</small><strong>CFD 基础到验证</strong><p>9 个专题 · {{articles.length}} 篇内容</p><div class="progress"><i style="width:18%"></i></div><NuxtLink to="/knowledge/knowledge-library-roadmap">查看知识地图</NuxtLink></div><div class="side-card"><strong>热门标签</strong><div class="tag-cloud"><span>SIMPLE</span><span>y+</span><span>有限体积</span><span>RANS</span><span>网格</span><span>Modelica</span></div></div></aside></div>
+  <div v-else-if="route.path==='/knowledge'" class="page discovery-page knowledge-hub-page">
+    <section class="page-hero knowledge-hero"><div class="container"><span class="kicker">ENGINEERING KNOWLEDGE HUB</span><h1>把知识组织成工程能力</h1><p>按领域模块、学习路径和仿真工作流理解 CFD、CAE 与系统建模；每个主题都能回到可验证的计算实践。</p><div class="page-search"><Search :size="19"/><input v-model="query" placeholder="搜索概念、方法、物理模型或软件实践…"></div><div class="knowledge-hero-stats"><span><strong>{{articles.length}}</strong> 篇知识</span><span><strong>{{knowledgeModules.length}}</strong> 个领域模块</span><span><strong>{{learningPaths.length}}</strong> 条学习路径</span></div></div></section>
+    <div class="container knowledge-hub"><div v-if="knowledgeError" class="inline-alert info knowledge-offline-note"><BookOpen :size="18"/><span><strong>当前使用内置知识索引</strong> 数据库暂不可用，基础文章、分类与学习路径仍可浏览。</span></div>
+      <section class="knowledge-module-section"><div class="knowledge-section-head"><div><span class="kicker">MODULE MAP</span><h2>领域模块</h2><p>先选择问题所属领域，再深入概念、方法与工程检查。</p></div><button v-if="activeModule!=='全部模块'" class="text-button" @click="selectModule('全部模块')">查看全部模块</button></div><div class="knowledge-module-grid"><button v-for="(item,index) in knowledgeModules" :key="item.id" :class="{active:activeModule===item.id}" @click="selectModule(item.id)"><span class="module-index">0{{index+1}}</span><i :style="{background:item.color}"></i><div><small>{{item.level}} · {{moduleArticleCount(item.id)}} 篇</small><h3>{{item.name}}</h3><p>{{item.short}}</p></div><ArrowRight :size="17"/></button></div></section>
+      <section class="knowledge-path-section"><div class="knowledge-section-head"><div><span class="kicker">GUIDED PATHS</span><h2>按目标学习</h2></div></div><div class="knowledge-path-grid"><article v-for="(path,index) in learningPaths" :key="path.id"><header><span>PATH 0{{index+1}}</span><Route :size="20"/></header><h3>{{path.name}}</h3><p>{{path.description}}</p><div class="path-module-chain"><i v-for="module in path.modules" :key="module" :title="knowledgeModules.find(item=>item.id===module)?.name"></i></div><footer><span>{{path.audience}}</span><strong>{{path.duration}}</strong></footer></article></div></section>
+      <section class="knowledge-catalog"><aside class="filter-aside"><div class="aside-title"><strong>专题分类</strong><SlidersHorizontal :size="17"/></div><button v-for="item in categories" :key="item" :class="{active:category===item}" @click="category=item"><span>{{item}}</span><small>{{categoryCounts[item]}}</small></button></aside><section class="content-list" :class="`view-${viewMode}`"><div class="list-toolbar knowledge-toolbar"><div><strong>{{activeModule==='全部模块'?category:knowledgeModules.find(item=>item.id===activeModule)?.name}}</strong><span>共 {{sortedArticles.length}} 篇</span></div><div class="knowledge-toolbar-actions"><select v-model="levelFilter"><option>全部级别</option><option>入门</option><option>进阶</option><option>工程</option></select><select v-model="sortBy"><option>推荐排序</option><option>最近更新</option><option>阅读时长</option></select><span class="view-toggle"><button :class="{active:viewMode==='cards'}" aria-label="卡片视图" @click="viewMode='cards'"><Grid2X2 :size="15"/></button><button :class="{active:viewMode==='list'}" aria-label="列表视图" @click="viewMode='list'"><List :size="16"/></button></span></div></div><div class="knowledge-article-grid"><NuxtLink v-for="item in sortedArticles" :key="item.slug" :to="`/knowledge/${item.slug}`" class="article-row knowledge-article-card"><div><span>{{item.category}}</span><h2>{{item.title}}</h2><p>{{item.summary}}</p><div><i v-for="tag in item.tags" :key="tag">{{tag}}</i></div></div><aside><strong>{{item.level}}</strong><small><Clock :size="13"/>{{item.read}}</small><ArrowRight :size="18"/></aside></NuxtLink></div><div v-if="!sortedArticles.length" class="empty-state"><BookOpen :size="34"/><h3>未找到匹配文章</h3><p>尝试清除模块、分类或关键词筛选。</p><button class="button secondary" @click="query='';category='全部';activeModule='全部模块';levelFilter='全部级别'">清除筛选</button></div></section></section>
+      <section class="knowledge-practice"><div><span class="kicker">FROM KNOWLEDGE TO PRACTICE</span><h2>把方法放进真实计算流程</h2><p>知识条目不仅解释“是什么”，也连接到对应的 CFD 与 CAE 可运行案例。</p></div><NuxtLink to="/simulation"><Wrench :size="21"/><span><strong>CFD 工作流</strong><small>流动、湍流与输运</small></span><ArrowRight :size="17"/></NuxtLink><NuxtLink to="/cae"><Layers3 :size="21"/><span><strong>CAE 工作流</strong><small>结构、热与模态</small></span><ArrowRight :size="17"/></NuxtLink></section>
+    </div>
   </div>
 
   <div v-else-if="route.path==='/algorithms'" class="page">
@@ -141,8 +165,8 @@ const sortedArticles=computed(()=>{
   </div>
 
   <div v-else class="page search-page">
-    <section class="page-hero slim"><div class="container"><h1>全站搜索</h1><form class="page-search large" @submit.prevent><Search :size="20"/><input v-model="query" placeholder="输入关键词…"><button class="button">搜索</button></form><p>找到 {{searchResults.length}} 条相关内容</p></div></section>
-    <div class="container search-layout"><aside class="filter-aside"><strong>内容类型</strong><button :class="{active:searchType==='全部'}" @click="searchType='全部'">全部 <small>{{searchResults.length}}</small></button><button :class="{active:searchType==='知识'}" @click="searchType='知识'">知识</button><button :class="{active:searchType==='算法'}" @click="searchType='算法'">算法</button><button :class="{active:searchType==='公式'}" @click="searchType='公式'">公式</button><button :class="{active:searchType==='CFD 工具'}" @click="searchType='CFD 工具'">CFD 工具</button><button :class="{active:searchType==='Modelica'}" @click="searchType='Modelica'">Modelica</button><button :class="{active:searchType==='社区'}" @click="searchType='社区'">社区</button></aside><section class="search-result-list"><NuxtLink v-for="item in filteredSearchResults" :key="item.type+item.title" :to="item.to"><span>{{item.type}}</span><h2>{{item.title}}</h2><p>{{item.text}}</p><small>{{item.meta}}</small></NuxtLink><div v-if="!searchResults.length" class="empty-state"><Search :size="34"/><h3>没有找到“{{query}}”</h3><p>尝试缩短关键词、检查拼写，或浏览推荐入口。</p><NuxtLink to="/knowledge" class="button secondary">浏览知识库</NuxtLink></div></section></div>
+    <section class="page-hero slim"><div class="container"><h1>全站搜索</h1><form class="page-search large" @submit.prevent><Search :size="20"/><input v-model="query" placeholder="输入关键词…"><button class="button">搜索</button></form><p>找到 {{filteredSearchResults.length}} 条相关内容</p></div></section>
+    <div class="container search-layout"><aside class="filter-aside"><strong>内容类型</strong><button :class="{active:searchType==='全部'}" @click="searchType='全部'">全部 <small>{{searchResults.length}}</small></button><button :class="{active:searchType==='知识'}" @click="searchType='知识'">知识</button><button :class="{active:searchType==='算法'}" @click="searchType='算法'">算法</button><button :class="{active:searchType==='公式'}" @click="searchType='公式'">公式</button><button :class="{active:searchType==='CFD 工具'}" @click="searchType='CFD 工具'">CFD 工具</button><button :class="{active:searchType==='Modelica'}" @click="searchType='Modelica'">Modelica</button><button :class="{active:searchType==='社区'}" @click="searchType='社区'">社区</button></aside><section class="search-result-list"><NuxtLink v-for="item in filteredSearchResults" :key="item.type+item.title" :to="item.to"><span>{{item.type}}</span><h2>{{item.title}}</h2><p>{{item.text}}</p><small>{{item.meta}}</small></NuxtLink><div v-if="!filteredSearchResults.length" class="empty-state"><Search :size="34"/><h3>没有找到“{{query}}”</h3><p>尝试缩短关键词、检查拼写，或浏览推荐入口。</p><NuxtLink to="/knowledge" class="button secondary">浏览知识库</NuxtLink></div></section></div>
   </div>
 
   <div v-if="compareOpen" class="modal-backdrop" @click.self="compareOpen=false"><div class="dialog-card compare-card"><div><h2>算法对比</h2><button type="button" class="icon-button" @click="compareOpen=false">×</button></div><div class="algorithm-table compare-table"><div class="table-head"><span>对比项</span><span v-for="a in compareItems" :key="a.name">{{a.name}}</span></div><div class="table-row"><span>主要用途</span><span v-for="a in compareItems" :key="'u'+a.name">{{a.use}}</span></div><div class="table-row"><span>精度 / 类型</span><span v-for="a in compareItems" :key="'o'+a.name">{{a.order}}</span></div><div class="table-row"><span>稳定性</span><span v-for="a in compareItems" :key="'s'+a.name"><i class="status success">{{a.stability}}</i></span></div><div class="table-row"><span>计算成本</span><span v-for="a in compareItems" :key="'c'+a.name">{{a.cost}}</span></div><div class="table-row"><span>主要限制</span><span v-for="a in compareItems" :key="'l'+a.name">{{a.limitation}}</span></div></div><footer><button class="button secondary" @click="compareOpen=false">关闭</button></footer></div></div>

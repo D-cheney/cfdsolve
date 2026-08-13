@@ -7,6 +7,21 @@ export const articles = [
   { slug: 'turbulence-models', title: '工程湍流模型选择指南', category: '湍流模型', level: '进阶', read: '15 分钟', summary: '比较 k–ε、Realizable k–ε 与 k–ω SST 的适用边界、近壁要求和风险。', tags: ['湍流', 'RANS'] }
 ]
 
+export const knowledgeModules = [
+  { id: 'foundations', name: '基础与控制方程', short: '从物理守恒建立模型', categories: ['流体力学基础', '控制方程与物理建模'], level: '起步', color: '#e65f18' },
+  { id: 'numerics', name: '数值方法与求解器', short: '离散、耦合、稳定与收敛', categories: ['CFD 数值方法', '数值离散方法', '压力—速度耦合'], level: '进阶', color: '#a44b20' },
+  { id: 'mesh', name: '网格与边界条件', short: '把计算域转化为可信离散系统', categories: ['网格与离散质量', '网格与近壁面处理', '边界条件与初始化'], level: '实践', color: '#c98543' },
+  { id: 'physics', name: '工程物理模型', short: '湍流、传热、可压缩与多相流', categories: ['湍流与近壁建模', '湍流模型', '传热与可压缩流', '多相流与组分输运'], level: '工程', color: '#7f5140' },
+  { id: 'verification', name: '验证与后处理', short: '误差、不确定度与结果解释', categories: ['验证确认与后处理', '验证、确认与误差分析'], level: '工程', color: '#8f684a' },
+  { id: 'systems', name: 'Modelica 系统建模', short: '方程建模、连接与联合仿真', categories: ['Modelica 系统建模'], level: '拓展', color: '#775b51' }
+]
+
+export const learningPaths = [
+  { id: 'cfd-zero-to-case', name: 'CFD 从零到首个可信算例', description: '按问题定义、离散、网格、求解和验证建立完整闭环。', audience: '初学者', duration: '约 6 小时', modules: ['foundations', 'numerics', 'mesh', 'verification'] },
+  { id: 'turbulence-practice', name: '湍流与近壁工程实践', description: '从 Reynolds 数、模型选择到 y⁺ 与网格无关性检查。', audience: '工程用户', duration: '约 4 小时', modules: ['foundations', 'mesh', 'physics', 'verification'] },
+  { id: 'multiphysics-modeling', name: '多物理系统建模', description: '连接 CFD 物理知识与 Modelica 动态系统表达。', audience: '进阶用户', duration: '约 3 小时', modules: ['foundations', 'physics', 'systems'] }
+]
+
 export const algorithms = [
   { name: 'SIMPLE', use: '稳态不可压缩流', order: '一阶迭代', stability: '稳健', cost: '中', limitation: '欠松弛敏感' },
   { name: 'PISO', use: '瞬态压力—速度耦合', order: '多校正', stability: '较高', cost: '中高', limitation: '单步计算量较大' },
@@ -25,9 +40,16 @@ export const formulas = [
 
 export const tools = [
   { slug: 'convection-diffusion', name: '一维对流—扩散', type: '稳态 · 1D', level: '入门', time: '< 1 秒', status: '稳定', description: '比较迎风与中心差分，观察 Péclet 数对数值解的影响。' },
-  { slug: 'lid-driven-cavity', name: '方腔顶盖驱动流', type: '稳态 · 2D', level: '进阶', time: '约 3 秒', status: '稳定', description: '演示 SIMPLE 压力—速度耦合与残差收敛过程。' },
+  { slug: 'lid-driven-cavity', name: '方腔顶盖驱动流基准演示', type: '稳态 · 2D', level: '进阶', time: '约 3 秒', status: '演示', description: '基于公开基准趋势演示压力—速度耦合、残差和后处理流程，不替代工程求解器。' },
   { slug: 'pipe-flow', name: '圆管充分发展层流', type: '解析 · 1D', level: '入门', time: '< 1 秒', status: '稳定', description: '计算速度剖面、流量、压降、壁面剪切与摩擦因子。' },
   { slug: 'turbulence-compare', name: '湍流与近壁参数对比', type: '工程估算', level: '工程', time: '< 1 秒', status: '稳定', description: '估算 k、ε、ω、首层高度并对比常见 RANS 模型。' }
+]
+
+export const caeTools = [
+  { slug: 'axial-bar', name: '轴向杆静力分析', discipline: '结构静力', dimension: '1D', level: '入门', description: '实际组装杆单元刚度矩阵，计算位移、应力、应变、反力与平衡误差。' },
+  { slug: 'cantilever-beam', name: '悬臂梁弯曲分析', discipline: '结构静力', dimension: '1D 梁', level: '进阶', description: '采用 Euler–Bernoulli 梁单元，求解挠度、转角、弯矩并与解析解核对。' },
+  { slug: 'heat-plate', name: '二维稳态热传导', discipline: '热分析', dimension: '2D', level: '进阶', description: '在规则网格上迭代求解温度场，输出热流、能量平衡和收敛历史。' },
+  { slug: 'sdof-modal', name: '单自由度模态分析', discipline: '模态分析', dimension: '0D / 系统', level: '入门', description: '由质量与刚度求解固有频率、周期和质量归一化振型。' }
 ]
 
 export const forumTopics = [

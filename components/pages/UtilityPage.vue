@@ -53,7 +53,7 @@ async function recognizeFormula(){
   try{
     const { recognize }=await import('tesseract.js')
     const result=await recognize(ocrCanvas.value,ocrLanguage.value,{logger(message:any){if(message.status){ocrStatus.value=message.status;if(message.progress)ocrProgress.value=Math.round(message.progress*100)}}})
-    ocrText.value=result.data.text.trim().replace(/\s*\n\s*/g,' ').replace(/[|]/g,'l');ocrStatus.value='识别完成';ocrProgress.value=100
+    ocrText.value=result.data.text.trim().replace(/\s*\n\s*/g,' ');ocrStatus.value='识别完成';ocrProgress.value=100
     formulaInput.value=ocrText.value
   }catch(error){ocrStatus.value='识别失败，请检查网络或改用手动校对';console.warn(error)}finally{ocrRunning.value=false}
 }
@@ -85,21 +85,24 @@ watch(unitCategory, () => {
 })
 
 const dimensionless = reactive({ rho: 1.225, velocity: 30, length: .5, mu: .0000181, alpha: .0000215, sound: 343, cp: 1005, k: .0257 })
-const re = computed(() => dimensionless.rho * dimensionless.velocity * dimensionless.length / Math.max(dimensionless.mu, 1e-20))
-const pe = computed(() => dimensionless.velocity * dimensionless.length / Math.max(dimensionless.alpha, 1e-20))
-const ma = computed(() => dimensionless.velocity / Math.max(dimensionless.sound, 1e-20))
-const pr = computed(() => dimensionless.cp * dimensionless.mu / Math.max(dimensionless.k, 1e-20))
+const dimensionlessValid = computed(() => [dimensionless.rho, dimensionless.length, dimensionless.mu, dimensionless.alpha, dimensionless.sound, dimensionless.cp, dimensionless.k].every(value => Number.isFinite(value) && value > 0) && Number.isFinite(dimensionless.velocity))
+const re = computed(() => dimensionlessValid.value ? dimensionless.rho * Math.abs(dimensionless.velocity) * dimensionless.length / dimensionless.mu : NaN)
+const pe = computed(() => dimensionlessValid.value ? Math.abs(dimensionless.velocity) * dimensionless.length / dimensionless.alpha : NaN)
+const ma = computed(() => dimensionlessValid.value ? Math.abs(dimensionless.velocity) / dimensionless.sound : NaN)
+const pr = computed(() => dimensionlessValid.value ? dimensionless.cp * dimensionless.mu / dimensionless.k : NaN)
 
 const cflInput = reactive({ velocity: 10, cell: .005, cfl: .8, duration: 1 })
-const deltaT = computed(() => cflInput.cfl * cflInput.cell / Math.max(Math.abs(cflInput.velocity), 1e-20))
-const steps = computed(() => Math.ceil(cflInput.duration / Math.max(deltaT.value, 1e-20)))
+const cflValid = computed(() => cflInput.cell > 0 && cflInput.cfl > 0 && cflInput.duration > 0 && Number.isFinite(cflInput.velocity) && Math.abs(cflInput.velocity) > 0)
+const deltaT = computed(() => cflValid.value ? cflInput.cfl * cflInput.cell / Math.abs(cflInput.velocity) : NaN)
+const steps = computed(() => cflValid.value ? Math.ceil(cflInput.duration / deltaT.value) : 0)
 
 const layer = reactive({ rho: 1.225, velocity: 40, length: .5, mu: .0000181, yplus: 1, growth: 1.2, count: 20 })
-const layerRe = computed(() => layer.rho * layer.velocity * layer.length / Math.max(layer.mu, 1e-20))
+const layerValid = computed(() => [layer.rho, layer.velocity, layer.length, layer.mu, layer.yplus, layer.growth, layer.count].every(value => Number.isFinite(value) && value > 0) && layer.growth >= 1 && Number.isInteger(layer.count))
+const layerRe = computed(() => layerValid.value ? layer.rho * Math.abs(layer.velocity) * layer.length / layer.mu : NaN)
 const cf = computed(() => .026 / Math.pow(Math.max(layerRe.value, 1), 1 / 7))
-const frictionVelocity = computed(() => layer.velocity * Math.sqrt(cf.value / 2))
-const firstHeight = computed(() => layer.yplus * layer.mu / (layer.rho * Math.max(frictionVelocity.value, 1e-20)))
-const totalThickness = computed(() => Math.abs(layer.growth - 1) < 1e-8 ? firstHeight.value * layer.count : firstHeight.value * (Math.pow(layer.growth, layer.count) - 1) / (layer.growth - 1))
+const frictionVelocity = computed(() => layerValid.value ? Math.abs(layer.velocity) * Math.sqrt(cf.value / 2) : NaN)
+const firstHeight = computed(() => layerValid.value ? layer.yplus * layer.mu / (layer.rho * frictionVelocity.value) : NaN)
+const totalThickness = computed(() => !layerValid.value ? NaN : Math.abs(layer.growth - 1) < 1e-8 ? firstHeight.value * layer.count : firstHeight.value * (Math.pow(layer.growth, layer.count) - 1) / (layer.growth - 1))
 
 function format(value: number, digits = 6) {
   if (!Number.isFinite(value)) return '—'
@@ -136,17 +139,17 @@ function resetActive() {
 
         <section v-else-if="activeTool==='dimensionless'" class="utility-tool-body">
           <div class="utility-input-panel utility-field-grid"><label>密度 ρ<input v-model.number="dimensionless.rho" type="number" step="any"><small>kg/m³</small></label><label>速度 U<input v-model.number="dimensionless.velocity" type="number" step="any"><small>m/s</small></label><label>特征长度 L<input v-model.number="dimensionless.length" type="number" step="any"><small>m</small></label><label>动力黏度 μ<input v-model.number="dimensionless.mu" type="number" step="any"><small>Pa·s</small></label><label>热扩散率 α<input v-model.number="dimensionless.alpha" type="number" step="any"><small>m²/s</small></label><label>声速 a<input v-model.number="dimensionless.sound" type="number" step="any"><small>m/s</small></label><label>定压比热 Cp<input v-model.number="dimensionless.cp" type="number" step="any"><small>J/(kg·K)</small></label><label>导热系数 k<input v-model.number="dimensionless.k" type="number" step="any"><small>W/(m·K)</small></label></div>
-          <div class="utility-results-grid"><div><small>Reynolds 数</small><strong>{{ format(re) }}</strong><span>{{ re<2300?'层流区间':re<4000?'过渡区间':'湍流区间' }}</span></div><div><small>Péclet 数</small><strong>{{ format(pe) }}</strong><span>{{ pe>1?'对流占优':'扩散占优' }}</span></div><div><small>Mach 数</small><strong>{{ format(ma) }}</strong><span>{{ ma<.3?'可按不可压缩处理':'考虑可压缩性' }}</span></div><div><small>Prandtl 数</small><strong>{{ format(pr) }}</strong><span>动量/热扩散率比</span></div></div>
+          <div v-if="!dimensionlessValid" class="inline-alert warning"><AlertTriangle :size="17"/><span>除速度外的物性与尺度必须为正数；当前输入不会生成计算结果。</span></div><div class="utility-results-grid"><div><small>Reynolds 数</small><strong>{{ format(re) }}</strong><span>{{ Number.isFinite(re)?(re<2300?'管内层流参考区间':re<4000?'管内过渡参考区间':'管内湍流参考区间'):'输入无效' }}</span></div><div><small>Péclet 数</small><strong>{{ format(pe) }}</strong><span>{{ Number.isFinite(pe)?(pe>1?'对流占优':'扩散占优'):'输入无效' }}</span></div><div><small>Mach 数</small><strong>{{ format(ma) }}</strong><span>{{ Number.isFinite(ma)?(ma<.3?'可按不可压缩处理':'考虑可压缩性'):'输入无效' }}</span></div><div><small>Prandtl 数</small><strong>{{ format(pr) }}</strong><span>动量/热扩散率比</span></div></div>
         </section>
 
         <section v-else-if="activeTool==='cfl'" class="utility-tool-body">
           <div class="utility-input-panel utility-field-grid"><label>特征速度<input v-model.number="cflInput.velocity" type="number" step="any"><small>m/s</small></label><label>最小网格尺寸<input v-model.number="cflInput.cell" type="number" step="any"><small>m</small></label><label>目标 CFL<input v-model.number="cflInput.cfl" type="number" step="any"><small>显式格式通常 ≤ 1</small></label><label>物理时长<input v-model.number="cflInput.duration" type="number" step="any"><small>s</small></label></div>
-          <div class="utility-result-card"><small>推荐时间步 Δt</small><strong>{{ format(deltaT) }}</strong><span>s</span><code>CFL = UΔt/Δx = {{ format(cflInput.cfl) }}</code><div class="utility-mini-metrics"><span><small>预计步数</small><strong>{{ steps.toLocaleString() }}</strong></span><span><small>单步流经比例</small><strong>{{ format(cflInput.cfl) }}</strong></span></div></div>
+          <div v-if="!cflValid" class="inline-alert warning"><AlertTriangle :size="17"/><span>速度绝对值、网格尺寸、CFL 与物理时长必须大于零。</span></div><div class="utility-result-card"><small>推荐时间步 Δt</small><strong>{{ format(deltaT) }}</strong><span>s</span><code>CFL = UΔt/Δx = {{ format(cflInput.cfl) }}</code><div class="utility-mini-metrics"><span><small>预计步数</small><strong>{{ steps.toLocaleString() }}</strong></span><span><small>单步流经比例</small><strong>{{ format(cflInput.cfl) }}</strong></span></div></div>
         </section>
 
         <section v-else-if="activeTool==='boundary'" class="utility-tool-body">
           <div class="utility-input-panel utility-field-grid"><label>密度 ρ<input v-model.number="layer.rho" type="number" step="any"><small>kg/m³</small></label><label>外流速度 U<input v-model.number="layer.velocity" type="number" step="any"><small>m/s</small></label><label>特征长度 L<input v-model.number="layer.length" type="number" step="any"><small>m</small></label><label>动力黏度 μ<input v-model.number="layer.mu" type="number" step="any"><small>Pa·s</small></label><label>目标 y⁺<input v-model.number="layer.yplus" type="number" step="any"><small>SST 常取 1；壁函数 30+</small></label><label>增长率<input v-model.number="layer.growth" type="number" min="1" step=".01"><small>建议 1.1–1.25</small></label><label>层数<input v-model.number="layer.count" type="number" min="1" step="1"><small>棱柱层数量</small></label></div>
-          <div class="utility-result-card"><small>建议首层高度</small><strong>{{ format(firstHeight * 1e6) }}</strong><span>μm</span><code>y₁ = y⁺ μ / (ρuτ)</code><div class="utility-mini-metrics"><span><small>Reynolds 数</small><strong>{{ format(layerRe) }}</strong></span><span><small>摩擦速度 uτ</small><strong>{{ format(frictionVelocity) }} m/s</strong></span><span><small>边界层总厚度</small><strong>{{ format(totalThickness * 1e3) }} mm</strong></span></div></div>
+          <div v-if="!layerValid" class="inline-alert warning"><AlertTriangle :size="17"/><span>近壁估算要求正物性、正速度、增长率不小于 1，且层数为正整数。</span></div><div class="utility-result-card"><small>建议首层高度</small><strong>{{ format(firstHeight * 1e6) }}</strong><span>μm</span><code>y₁ = y⁺ μ / (ρuτ)</code><div class="utility-mini-metrics"><span><small>Reynolds 数</small><strong>{{ format(layerRe) }}</strong></span><span><small>摩擦速度 uτ</small><strong>{{ format(frictionVelocity) }} m/s</strong></span><span><small>边界层总厚度</small><strong>{{ format(totalThickness * 1e3) }} mm</strong></span></div></div>
         </section>
         <section v-else-if="activeTool==='imageFormula'" class="utility-tool-body formula-ocr-body">
           <div class="formula-upload-panel">

@@ -43,7 +43,7 @@ seo:
 2. [CFD 网格质量指标与修复顺序](/knowledge/mesh-quality-metrics)
 3. [边界层网格、首层高度与 y+ 设计](/knowledge/boundary-layer-mesh-yplus)
 4. [CFD 网格无关性与系统加密方法](/knowledge/mesh-independence-study)
-5. [CFD 边界条件选择与一致性检查](/knowledge/boundary-condition-selection)
+5. [CFD 出口回流与边界一致性检查](/knowledge/outlet-backflow-control)
 6. [CFD 入口边界、剖面与湍流量设置](/knowledge/inlet-boundary-specification)
 7. [CFD 出口回流、计算域长度与压力边界](/knowledge/outlet-backflow-control)
 8. [CFD 壁面运动、粗糙度与热边界条件](/knowledge/wall-boundary-heat-transfer)

@@ -43,15 +43,16 @@ export default defineEventHandler(async (event) => {
       const taskStatement = db.prepare(`INSERT INTO simulation_tasks
         (id, user_id, tool_id, tool_version_id, status, params_json, result_json, warnings_json, duration_ms, created_at, finished_at)
         VALUES (?, ?, ?, (SELECT id FROM simulation_tool_versions WHERE tool_id = ? AND status = 'ACTIVE' LIMIT 1), ?, ?, ?, ?, ?, ?, ?)
-        ON CONFLICT(id) DO UPDATE SET status = excluded.status, result_json = excluded.result_json,
-          warnings_json = excluded.warnings_json, duration_ms = excluded.duration_ms, finished_at = excluded.finished_at`)
+        ON CONFLICT(id) DO UPDATE SET status = excluded.status, params_json = excluded.params_json,
+          result_json = excluded.result_json, warnings_json = excluded.warnings_json,
+          duration_ms = excluded.duration_ms, finished_at = excluded.finished_at`)
       for (const item of body.tasks.slice(0, 500)) {
         const tool = toolLookup.get(String(item.tool || '')) as { id: string } | undefined
         if (!tool || !taskStatuses.has(String(item.status))) continue
         const finished = ['SUCCEEDED', 'FAILED', 'CANCELLED'].includes(item.status) ? new Date().toISOString() : null
         taskStatement.run(
           String(item.id).slice(0, 100), DEMO_USER_ID, tool.id, tool.id, String(item.status),
-          JSON.stringify(item.params || {}), item.result ? JSON.stringify(item.result) : null,
+          JSON.stringify({ ...(item.params || {}), __discipline: item.discipline || 'CFD' }), item.result ? JSON.stringify(item.result) : null,
           JSON.stringify(item.warnings || []), Math.max(0, Number(item.duration || 0)),
           String(item.createdAt || new Date().toISOString()), finished
         )
