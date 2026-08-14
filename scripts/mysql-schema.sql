@@ -351,3 +351,22 @@ CREATE TABLE IF NOT EXISTS schema_migrations (
   applied_at DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP,
   PRIMARY KEY (version)
 ) ENGINE=InnoDB;
+
+-- 26. 知识库图片资源（导入时登记；文件存 data/uploads/knowledge/<slug>/）
+CREATE TABLE IF NOT EXISTS knowledge_assets (
+  id            VARCHAR(191) NOT NULL,
+  content_id    VARCHAR(191) NOT NULL,
+  file_key      VARCHAR(255) NOT NULL,
+  original_name VARCHAR(255) NOT NULL,
+  mime_type     VARCHAR(128) NOT NULL DEFAULT 'application/octet-stream',
+  file_size     BIGINT       NOT NULL DEFAULT 0,
+  file_sha256   CHAR(64)     NOT NULL DEFAULT '',
+  url_path      VARCHAR(1000) NOT NULL,
+  is_external   TINYINT      NOT NULL DEFAULT 0,
+  alt_text      VARCHAR(500) NOT NULL DEFAULT '',
+  created_at    DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  PRIMARY KEY (id),
+  UNIQUE KEY uk_assets_content_key (content_id, file_key),
+  KEY idx_assets_content (content_id),
+  CONSTRAINT fk_assets_content FOREIGN KEY (content_id) REFERENCES content_items(id) ON DELETE CASCADE
+) ENGINE=InnoDB;

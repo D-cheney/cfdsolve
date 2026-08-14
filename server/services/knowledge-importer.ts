@@ -1,9 +1,12 @@
 import { createHash, randomUUID } from 'node:crypto'
+import { rmSync } from 'node:fs'
 import type { DatabaseSync } from 'node:sqlite'
 import matter from 'gray-matter'
 import MarkdownIt from 'markdown-it'
 import sanitizeHtml from 'sanitize-html'
 import { DEMO_USER_ID, getDatabase, type Database } from '../utils/database'
+import mathPlugin from './math-plugin'
+import { copyKnowledgeImage, rewriteImageRefs, type KnowledgeImage } from './knowledge-assets'
 
 const TEMPLATE_VERSION = 'flowlab-knowledge/1.0'
 const slugPattern = /^[a-z0-9]+(?:-[a-z0-9]+)*$/
@@ -11,7 +14,19 @@ const idPattern = /^[A-Za-z0-9._-]+$/
 const allowedStatuses = new Set(['DRAFT', 'REVIEW', 'PUBLISHED', 'ARCHIVED'])
 const allowedLevels = new Set(['入门', '进阶', '工程', '专题'])
 
-const markdown = new MarkdownIt({ html: false, linkify: true, typographer: true, breaks: false })
+const markdown = new MarkdownIt({ html: false, linkify: true, typographer: true, breaks: false }).use(mathPlugin)
+
+/** KaTeX 输出的 MathML / 样式标签（由受信任的 KaTeX 库生成，导入时放行） */
+const KATEX_TAGS = [
+  'math', 'semantics', 'annotation', 'mrow', 'mi', 'mo', 'mn', 'mtext',
+  'msup', 'msub', 'msubsup', 'mfrac', 'msqrt', 'mroot', 'mover', 'munder',
+  'munderover', 'mtable', 'mtr', 'mtd', 'mspace', 'mpadded', 'mphantom',
+  'mstyle', 'menclose', 'mfenced', 'merror', 'mprescripts', 'none',
+  'mlabeledtr', 'maction', 'mglyph', 'mstack', 'mlongdiv', 'msgroup',
+  'msrow', 'msline', 'mscarries', 'mscarry'
+]
+
+const MATH_STYLE_ATTRS = ['class', 'style', 'aria-hidden', 'aria-label', 'xmlns', 'encoding']
 
 export interface KnowledgeHeading {
   level: number
@@ -35,6 +50,7 @@ export interface ParsedKnowledgeArticle {
   markdown: string
   html: string
   headings: KnowledgeHeading[]
+  images: KnowledgeImage[]
   sourceFile: string
 }
 
@@ -75,13 +91,25 @@ function validDate(value: unknown) {
 }
 
 function safeHtml(source: string) {
+  const allowedTags = [
+    'p', 'br', 'hr', 'blockquote', 'pre', 'code', 'strong', 'em', 's',
+    'ul', 'ol', 'li', 'h1', 'h2', 'h3', 'h4', 'h5', 'h6',
+    'table', 'thead', 'tbody', 'tr', 'th', 'td', 'a',
+    'div', 'span', 'img',
+    ...KATEX_TAGS
+  ]
+  const allowedAttributes: Record<string, string[]> = {
+    a: ['href', 'title'],
+    img: ['src', 'alt', 'title', 'width', 'height', 'loading'],
+    div: ['class', 'style'],
+    span: ['class', 'style'],
+    code: ['class'],
+    pre: ['class']
+  }
+  for (const tag of KATEX_TAGS) allowedAttributes[tag] = MATH_STYLE_ATTRS
   return sanitizeHtml(markdown.render(source), {
-    allowedTags: [
-      'p', 'br', 'hr', 'blockquote', 'pre', 'code', 'strong', 'em', 's',
-      'ul', 'ol', 'li', 'h1', 'h2', 'h3', 'h4', 'h5', 'h6',
-      'table', 'thead', 'tbody', 'tr', 'th', 'td', 'a'
-    ],
-    allowedAttributes: { a: ['href', 'title'] },
+    allowedTags,
+    allowedAttributes,
     allowedSchemes: ['http', 'https', 'mailto'],
     disallowedTagsMode: 'discard'
   })
@@ -120,7 +148,9 @@ export function parseKnowledgeTemplate(source: string, sourceFile = 'inline.md')
   const seoKeywords = stringList(data.seo?.keywords)
   const seoTitle = cleanText(data.seo?.title) || title
   const seoDescription = cleanText(data.seo?.description) || summary
-  const body = parsed.content.trim()
+  const rawBody = parsed.content.trim()
+  // 图片引用改写：本地相对路径 → /api/knowledge/assets/<slug>/<file>
+  const { markdown: body, images } = rewriteImageRefs(rawBody, sourceFile, slug)
 
   if (templateVersion !== TEMPLATE_VERSION) issues.push(`template_version 必须为 ${TEMPLATE_VERSION}`)
   if (id && (!idPattern.test(id) || id.length > 120)) issues.push('id 只能包含字母、数字、点、下划线和连字符，且不超过 120 字符')
@@ -141,8 +171,8 @@ export function parseKnowledgeTemplate(source: string, sourceFile = 'inline.md')
   if (seoTitle.length > 200) issues.push('seo.title 不能超过 200 字符')
   if (seoDescription.length > 300) issues.push('seo.description 不能超过 300 字符')
   if (seoKeywords.length > 20 || seoKeywords.some(keyword => keyword.length > 60)) issues.push('seo.keywords 最多 20 个，单项不超过 60 字符')
-  if (body.length < 100) issues.push('Markdown 正文不能少于 100 字符')
-  if (!/^#\s+.+/m.test(body)) issues.push('正文必须包含一个一级标题')
+  if (rawBody.length < 100) issues.push('Markdown 正文不能少于 100 字符')
+  if (!/^#\s+.+/m.test(rawBody)) issues.push('正文必须包含一个一级标题')
 
   if (issues.length) throw new KnowledgeTemplateError(issues.map(issue => `${sourceFile}: ${issue}`))
 
@@ -163,6 +193,7 @@ export function parseKnowledgeTemplate(source: string, sourceFile = 'inline.md')
     markdown: body,
     html: safeHtml(body),
     headings: extractHeadings(body),
+    images,
     sourceFile
   }
 }
@@ -216,6 +247,32 @@ export async function importKnowledgeArticle(article: ParsedKnowledgeArticle, db
       contentId, category.id, author.id, article.slug, article.title, article.summary,
       bodyJson, article.html, article.status, article.publishedAt
     )
+
+    // 图片资源：复制文件到 data/uploads/knowledge/<slug>/ 并登记到 knowledge_assets
+    const copiedPaths: string[] = []
+    try {
+      for (const image of article.images) {
+        const asset = copyKnowledgeImage(image, article.slug)
+        if (!asset.isExternal && asset.localPath) copiedPaths.push(asset.localPath)
+        await d.run(`INSERT INTO knowledge_assets
+          (id, content_id, file_key, original_name, mime_type, file_size, file_sha256, url_path, is_external, alt_text, created_at)
+          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
+          ON CONFLICT(content_id, file_key) DO UPDATE SET
+            url_path = excluded.url_path,
+            original_name = excluded.original_name,
+            mime_type = excluded.mime_type,
+            file_size = excluded.file_size,
+            file_sha256 = excluded.file_sha256,
+            is_external = excluded.is_external,
+            alt_text = excluded.alt_text,
+            created_at = CURRENT_TIMESTAMP`,
+          stableId('asset', image.fileKey), contentId, asset.fileKey, image.fileName, asset.mimeType,
+          asset.fileSize, asset.fileSha256, asset.urlPath, asset.isExternal ? 1 : 0, image.alt)
+      }
+    } catch (error) {
+      for (const path of copiedPaths) { try { rmSync(path, { force: true }) } catch { /* 忽略清理失败 */ } }
+      throw error
+    }
 
     await d.run('DELETE FROM content_tags WHERE content_id = ?', contentId)
     for (const tagName of article.tags) {

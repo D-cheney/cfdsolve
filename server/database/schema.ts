@@ -249,6 +249,27 @@ export const databaseMigrations: DatabaseMigration[] = [
       `INSERT OR IGNORE INTO simulation_tool_versions (id, tool_id, version, input_schema_json, result_schema_json, status) VALUES
         ('tool-cae-modal-v1', 'tool-cae-modal', '1.0.0', '{"required":["mass","stiffness"]}', '{"checks":["modal-residual","mass-orthogonality"]}', 'ACTIVE')`
     ]
+  },
+  {
+    version: 3,
+    name: 'knowledge_assets',
+    statements: [
+      `CREATE TABLE IF NOT EXISTS knowledge_assets (
+        id TEXT PRIMARY KEY,
+        content_id TEXT NOT NULL REFERENCES content_items(id) ON DELETE CASCADE,
+        file_key TEXT NOT NULL,
+        original_name TEXT NOT NULL,
+        mime_type TEXT NOT NULL DEFAULT 'application/octet-stream',
+        file_size INTEGER NOT NULL DEFAULT 0,
+        file_sha256 TEXT NOT NULL DEFAULT '',
+        url_path TEXT NOT NULL,
+        is_external INTEGER NOT NULL DEFAULT 0,
+        alt_text TEXT NOT NULL DEFAULT '',
+        created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        UNIQUE (content_id, file_key)
+      )`,
+      `CREATE INDEX IF NOT EXISTS idx_knowledge_assets_content ON knowledge_assets(content_id)`
+    ]
   }
 ]
 

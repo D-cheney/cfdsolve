@@ -9,3 +9,4 @@ logs/
 .nuxt-dev.*.log
 .run/
 data/*.sqlite
+data/uploads/
