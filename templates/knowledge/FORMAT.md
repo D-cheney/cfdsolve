@@ -9,6 +9,24 @@
 - 文件名建议与 `slug` 一致，例如 `finite-volume-method.md`；
 - `KNOWLEDGE_ARTICLE.template.md` 只用于复制，不会被目录批量导入。
 
+## 数学公式格式
+
+- 行内公式使用单美元符号，例如 `$Re = \rho U L / \mu$`；
+- 独立公式使用成对的 `$$`，开始和结束标记各占一行；
+- 公式内容使用标准 LaTeX 数学命令，不要粘贴 MathType 的私有控制字符；
+- 导入器使用 KaTeX 严格解析每个公式，括号、环境或命令错误会阻止写入数据库；
+- 渲染时固定 `trust: false`，不允许公式执行 HTML、URL 或扩展命令。
+
+示例：
+
+```markdown
+动量方程的弱式写为 $a(u,v)=l(v)$。
+
+$$
+K_{ij}=\int_{\Omega} B_i^T D B_j\,d\Omega
+$$
+```
+
 ## 必填字段
 
 | 字段 | 类型 | 规则 |
@@ -19,7 +37,7 @@
 | `summary` | string | 10～500 字符 |
 | `category.slug` | string | 与文章 slug 相同的字符规则 |
 | `category.name` | string | 1～80 字符；分类不存在时自动创建 |
-| `level` | string | `入门`、`进阶`、`工程`、`专题` |
+| `level` | string | `入门`、`进阶`、`工程`、`专题`、`源码参考` |
 | `reading_minutes` | integer | 1～240 |
 | `status` | string | `DRAFT`、`REVIEW`、`PUBLISHED`、`ARCHIVED` |
 
@@ -38,7 +56,7 @@
 ## 导入行为
 
 1. 导入前完整校验 Front Matter 和正文；
-2. Markdown 在服务端转换为 HTML；
+2. Markdown 和 LaTeX 数学公式在服务端转换为 HTML/MathML；
 3. 原生 HTML默认禁用，渲染结果再经过白名单清理；
 4. 分类不存在时自动创建；
 5. 标签自动创建并重建文章标签关系；
@@ -47,38 +65,7 @@
 8. 每次成功导入写入 `audit_logs`；
 9. 原始 Markdown、标题目录、SEO 和来源文件保存在 `body_json`；
 10. 清理后的 HTML 保存在 `body_html`。
-
-## 公式处理（KaTeX）
-
-| 语法 | 示例 | 说明 |
-|---|---|---|
-| 行内公式 `$...$` | `$Re = \\frac{\\rho U L}{\\mu}$` | 段落内公式，渲染为行内数学 |
-| 块级公式 `$$...$$` | 起始行与结束行各为独立的 `$$` | 独占段落的公式，居中显示 |
-| 转义 `\\$` | `\\$5.00` | 正文中的普通美元符号需转义 |
-
-- 公式在**导入时由服务端 KaTeX 渲染**为 HTML 存入 `body_html`，客户端无需额外加载脚本；
-- LaTeX 源码保留在 `body_json.markdown` 中，便于后续重新渲染或迁移；
-- 支持 KaTeX 0.16 常用命令；不支持的命令渲染为红色错误样式（`throwOnError: false`）；
-- 渲染结果中的 MathML/样式标签已加入白名单（`katex` 类、`style` 等），不会影响 HTML 清理的安全性；
-- 公式渲染文本会进入 `body_html`，因此全站搜索可命中公式内容。
-
-## 图片处理
-
-| 语法 | 说明 |
-|---|---|
-| `![替代文本](./images/文件名.png)` | 本地图片，**相对路径**以文章 .md 所在目录为基准 |
-| `![替代文本](https://…/x.png)` | 外部图片，原样保留并登记 |
-
-导入时的处理流程：
-
-1. 扫描正文中的图片引用；
-2. 本地图片复制到服务器 `data/uploads/knowledge/<slug>/<文件名>`；
-3. 正文 `src` 改写为 `/api/knowledge/assets/<slug>/<文件名>`（由 API 路由读取磁盘返回，带一年缓存头）；
-4. 图片元信息（文件名、MIME、大小、SHA256、alt、地址）登记到 `knowledge_assets` 表；
-5. 同名图片重复导入时更新登记并覆盖文件；
-6. 图片文件不存在时整篇导入失败并回滚（事务保护），已复制的文件自动清理。
-
-支持格式：png / jpg / jpeg / gif / webp / avif / svg / bmp / ico / tif。
+11. 任一数学表达式无法通过 KaTeX 解析时，整篇文章拒绝导入并报告公式片段。
 
 ## 使用方法
 
@@ -112,3 +99,12 @@ npm run knowledge:import -- templates\knowledge\examples
 npm run knowledge:validate -- templates\knowledge\library
 npm run knowledge:import -- templates\knowledge\library
 ```
+
+全量知识库统一校验与同步：
+
+```powershell
+npm run knowledge:validate -- templates\knowledge
+npm run knowledge:sync
+```
+
+导入程序会忽略不含标准 Front Matter 的导航、索引和生成报告。全量同步先解析全部文章，再使用单个事务写入数据库，任何写入错误都会回滚本次批次。

@@ -230,45 +230,30 @@ export const databaseMigrations: DatabaseMigration[] = [
   },
   {
     version: 2,
-    name: 'add_cae_solver_catalog',
+    name: 'modelica_workbench_metadata',
     statements: [
-      `INSERT OR IGNORE INTO simulation_tools (id, slug, name, description, status) VALUES
-        ('tool-cae-bar', 'axial-bar', '轴向杆静力分析', '一维杆单元有限元、反力与平衡校核', 'ACTIVE')`,
-      `INSERT OR IGNORE INTO simulation_tools (id, slug, name, description, status) VALUES
-        ('tool-cae-beam', 'cantilever-beam', '悬臂梁弯曲分析', 'Euler-Bernoulli 梁单元与解析解校核', 'ACTIVE')`,
-      `INSERT OR IGNORE INTO simulation_tools (id, slug, name, description, status) VALUES
-        ('tool-cae-heat', 'heat-plate', '二维稳态热传导', '规则网格热传导、热流和能量平衡', 'ACTIVE')`,
-      `INSERT OR IGNORE INTO simulation_tools (id, slug, name, description, status) VALUES
-        ('tool-cae-modal', 'sdof-modal', '单自由度模态分析', '质量刚度广义特征值与模态残差', 'ACTIVE')`,
-      `INSERT OR IGNORE INTO simulation_tool_versions (id, tool_id, version, input_schema_json, result_schema_json, status) VALUES
-        ('tool-cae-bar-v1', 'tool-cae-bar', '1.0.0', '{"required":["length","area","elasticModulus","elements","endLoad"]}', '{"checks":["equilibrium","analytical-reference"]}', 'ACTIVE')`,
-      `INSERT OR IGNORE INTO simulation_tool_versions (id, tool_id, version, input_schema_json, result_schema_json, status) VALUES
-        ('tool-cae-beam-v1', 'tool-cae-beam', '1.0.0', '{"required":["length","elasticModulus","secondMoment","elements"]}', '{"checks":["force-moment-equilibrium","analytical-reference"]}', 'ACTIVE')`,
-      `INSERT OR IGNORE INTO simulation_tool_versions (id, tool_id, version, input_schema_json, result_schema_json, status) VALUES
-        ('tool-cae-heat-v1', 'tool-cae-heat', '1.0.0', '{"required":["width","height","conductivity","nx","ny"]}', '{"checks":["convergence","energy-balance"]}', 'ACTIVE')`,
-      `INSERT OR IGNORE INTO simulation_tool_versions (id, tool_id, version, input_schema_json, result_schema_json, status) VALUES
-        ('tool-cae-modal-v1', 'tool-cae-modal', '1.0.0', '{"required":["mass","stiffness"]}', '{"checks":["modal-residual","mass-orthogonality"]}', 'ACTIVE')`
+      `ALTER TABLE modelica_projects ADD COLUMN metadata_json TEXT NOT NULL DEFAULT '{}'`,
+      `CREATE INDEX IF NOT EXISTS idx_modelica_snapshots_project_created ON modelica_snapshots(project_id, created_at DESC)`
     ]
   },
   {
     version: 3,
-    name: 'knowledge_assets',
+    name: 'repair_local_seed_encoding',
     statements: [
-      `CREATE TABLE IF NOT EXISTS knowledge_assets (
-        id TEXT PRIMARY KEY,
-        content_id TEXT NOT NULL REFERENCES content_items(id) ON DELETE CASCADE,
-        file_key TEXT NOT NULL,
-        original_name TEXT NOT NULL,
-        mime_type TEXT NOT NULL DEFAULT 'application/octet-stream',
-        file_size INTEGER NOT NULL DEFAULT 0,
-        file_sha256 TEXT NOT NULL DEFAULT '',
-        url_path TEXT NOT NULL,
-        is_external INTEGER NOT NULL DEFAULT 0,
-        alt_text TEXT NOT NULL DEFAULT '',
-        created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
-        UNIQUE (content_id, file_key)
-      )`,
-      `CREATE INDEX IF NOT EXISTS idx_knowledge_assets_content ON knowledge_assets(content_id)`
+      `UPDATE users SET display_name = '林工程师', updated_at = CURRENT_TIMESTAMP WHERE id = 'user-demo'`,
+      `UPDATE modelica_projects SET name = '质量—弹簧—阻尼系统', last_compile = '成功', updated_at = CURRENT_TIMESTAMP WHERE id = 'demo-project'`,
+      `UPDATE notifications SET title = '数据库已连接', body = '项目、任务、收藏和通知现在会保存到本地 SQLite 数据库。' WHERE id = 'notification-welcome'`,
+      `UPDATE notifications SET title = '方腔流基准案例已更新', body = 'Re=100 的参考中心线数据现在已经可用。' WHERE id = 'notification-benchmark'`
+    ]
+  },
+  {
+    version: 4,
+    name: 'knowledge_catalog_query_indexes',
+    statements: [
+      `CREATE INDEX IF NOT EXISTS idx_content_items_category_kind_status_published
+        ON content_items(category_id, kind, status, published_at DESC)`,
+      `CREATE INDEX IF NOT EXISTS idx_content_items_kind_status_published
+        ON content_items(kind, status, published_at DESC)`
     ]
   }
 ]

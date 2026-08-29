@@ -61,7 +61,7 @@ npm run dev
 npm run db:backup
 ```
 
-备份文件写入 `backups/`。生产环境还应在应用外配置定时备份，并定期验证备份文件可以打开和通过 `PRAGMA integrity_check`。
+脚本先执行 WAL FULL checkpoint，再通过 SQLite `VACUUM INTO` 写入 `backups/`，随后验证 `integrity_check` 和外键。生产环境还应在应用外配置定时备份，并定期执行恢复演练。
 
 ## API
 
@@ -70,11 +70,12 @@ npm run db:backup
 | GET | `/api/health/database` | 检查 SQLite、迁移版本和数据量 |
 | GET | `/api/formulas` | 查询已发布公式，支持 `?q=` 搜索 |
 | GET | `/api/knowledge` | 查询已发布知识文章，支持搜索、分类和分页 |
+| GET | `/api/knowledge/categories` | 查询知识分类、集合与文章计数 |
 | GET | `/api/knowledge/:slug` | 读取文章元数据、目录和安全 HTML 正文 |
 | GET | `/api/workspace` | 读取演示用户的任务、项目、收藏与通知 |
 | PUT | `/api/workspace` | 事务性保存工作区，并写入审计日志 |
 
-当前版本使用固定演示用户连接数据库，适合本地完整功能演示。公开部署前应增加正式密码哈希、会话、邮箱验证和基于用户身份的数据隔离；数据库结构已经预留相关字段与权限关系。
+当前版本使用固定演示用户连接数据库，工作区接口默认只允许回环地址，写入还要求同源，适合本地完整功能演示。公开部署前应增加正式密码哈希、会话、邮箱验证和基于用户身份的数据隔离；数据库结构已经预留相关字段与权限关系。
 
 ## 知识文章导入
 
@@ -83,9 +84,10 @@ npm run db:backup
 ```powershell
 npm run knowledge:validate -- templates\knowledge\my-article.md
 npm run knowledge:import -- templates\knowledge\my-article.md
+npm run knowledge:sync
 ```
 
-导入程序位于 `server/services/knowledge-importer.ts`，负责校验、Markdown 渲染、HTML 白名单清理、分类和标签关联、文章 Upsert、事务回滚及审计记录。命令行入口为 `scripts/import-knowledge.mjs`。
+导入程序位于 `server/services/knowledge-importer.ts`，负责校验、Markdown 渲染、HTML 白名单清理、分类和标签关联、文章 Upsert、事务回滚及审计记录。`knowledge:sync` 会将 11,007 篇标准知识源放入单个事务批量同步；不带标准 Front Matter 的 README、索引和生成报告会被忽略。命令行入口为 `scripts/import-knowledge.mjs`。
 
 ## MySQL 生产迁移
 

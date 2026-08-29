@@ -1,6 +1,6 @@
 # 流研工坊 FlowLab 网站逻辑与功能总结
 
-> 依据当前代码形成，更新日期 2026-08-04。  
+> 依据当前代码形成，更新日期 2026-08-24。  
 > 本文描述“现在实际运行的逻辑”，不等同于《CFD 网站设计大纲》中规划的全部生产功能。
 
 ## 1. 产品定位
@@ -11,7 +11,7 @@
 2. 算法和工程公式速查；
 3. 乱码公式修复与多格式转换；
 4. 四个浏览器端 CFD 教学工具；
-5. Modelica 项目、源码检查和动态响应演示；
+5. Modelica 项目、画布、源码检查、受控模板仿真与后处理；
 6. 工程社区内容展示与页面内回复；
 7. 演示登录、个人工作区和管理仪表盘；
 8. SQLite 数据库存储与浏览器降级缓存。
@@ -38,11 +38,11 @@
 | 四个 CFD 工具 | 可用/教学 | 真实执行当前 TypeScript 数学逻辑，不是通用工业 CFD 求解器 |
 | CFD 任务记录 | 可用 | 结果保存到 SQLite；失败时保存到浏览器 |
 | Modelica 项目编辑 | 可用 | 项目和源码可保存 |
-| Modelica 编译 | 演示 | 使用正则与结构检查，不是完整 Modelica 编译器 |
-| Modelica 动态仿真 | 演示 | 使用预设阻尼振荡响应，不调用 SUNDIALS |
+| Modelica 编译 | 演示/受控 | 使用结构、参数和方程签名检查，不是完整 Modelica 编译器 |
+| Modelica 动态仿真 | 可用/受限 | 四个内置模板使用 Euler/RK4 积分；方程签名被修改、参数越界或结果非有限时拒绝成功，不调用 SUNDIALS |
 | 社区浏览 | 演示 | 内容来自静态数据；新增回复仅存在当前页面内存 |
 | 登录注册 | 演示 | 不验证邮箱和密码，使用固定演示用户 |
-| 管理后台 | 占位/演示 | 仪表盘可查看本地任务和数据库状态，管理动作未落地 |
+| 管理后台 | 受限占位 | 普通本地身份返回 403；界面仅为后续管理员角色预留，管理动作未落地 |
 | SQLite 数据层 | 可用 | 迁移、种子、索引、事务、审计和备份均可执行 |
 
 ## 3. 总体架构
@@ -54,7 +54,7 @@ flowchart TD
   N --> L["浏览器本地计算"]
   L --> C["CFD 教学求解器"]
   L --> F["公式修复与 KaTeX 预览"]
-  L --> M["Modelica 结构检查与演示响应"]
+  L --> M["Modelica 方程签名检查与受控模板积分"]
   P --> LS["localStorage 降级缓存"]
   P --> API["Nitro /api/workspace"]
   N --> FA["Nitro /api/formulas"]
@@ -66,7 +66,7 @@ flowchart TD
 核心设计特点：
 
 - 页面使用单个 catch-all Nuxt 路由，再由 `PageRouter.vue` 分发业务组件；
-- CFD、公式转换和当前 Modelica 演示逻辑在浏览器运行；
+- CFD、公式转换和 Modelica Lite 数值积分在浏览器运行；方腔求解由 Web Worker 执行；
 - Pinia 负责跨页面工作区状态；
 - SQLite 是任务、项目、收藏和通知的持久化主路径；
 - `localStorage` 是数据库异常时的降级缓存；
@@ -78,8 +78,8 @@ Nuxt 文件路由入口：
 
 - `/` 使用 `pages/index.vue`；
 - 其他路径由 `pages/[...slug].vue` 接收；
-- `components/PageRouter.vue` 按路径前缀选择页面组件；
-- 未匹配路径显示自定义 404。
+- `components/PageRouter.vue` 按显式入口和受控子路径选择页面组件；
+- 未匹配页面、工具、文章和主题显示自定义 404，并在服务端可判定时返回 HTTP 404。
 
 ### 4.1 路由分发
 
@@ -87,16 +87,18 @@ Nuxt 文件路由入口：
 |---|---|---|
 | `/` | `HomePage` | 首页、模块入口、公式和工具推荐 |
 | `/knowledge*` | `LibraryPage` | 知识列表和文章详情 |
-| `/algorithms*` | `LibraryPage` | 算法对比 |
+| `/algorithms` | `LibraryPage` | 算法筛选与对比 |
 | `/formulas` | `LibraryPage` | 数据库公式列表 |
 | `/formulas/convert` | `FormulaConverter` | 乱码公式修复与转换 |
 | `/search` | `LibraryPage` | 聚合搜索结果 |
 | `/simulation*` | `SimulationPage` | CFD 工具、运行和结果 |
+| `/simulation/lab` | `SimulationLabPage` | 参数扫描、工况对比和可信度清单 |
 | `/modelica*` | `ModelicaPage` | Modelica 工作台 |
 | `/forum*` | `CommunityPage` | 社区列表和帖子详情 |
 | `/login`、`/register` | `AccountPage` | 演示登录注册 |
 | `/me*`、`/notifications` | `AccountPage` | 个人工作区 |
-| `/admin*` | `AccountPage` | 演示管理后台 |
+| `/admin*` | `AccountPage` | 需要管理员角色；普通本地身份返回 403 |
+| `/terms`、`/privacy`、`/disclaimer` | `LegalPage` | 本地条款、隐私和仿真边界说明 |
 
 ### 4.2 主要子路由
 
@@ -104,10 +106,11 @@ Nuxt 文件路由入口：
 |---|---|
 | `/knowledge/:slug` | 根据静态文章 `slug` 显示文章详情 |
 | `/simulation/:toolSlug` | 打开对应 CFD 参数工作台 |
+| `/simulation/lab` | 打开参数扫描与工况对比实验室 |
 | `/simulation/tasks/:taskId` | 从 Pinia/数据库状态中查找并展示结果 |
 | `/modelica/projects` | 项目列表 |
 | `/modelica/projects/:id/editor` | Modelica 源码编辑器 |
-| `/modelica/runs/:id` | 动态响应结果演示 |
+| `/modelica/runs/:id` | 受控模板积分结果和后处理 |
 | `/modelica/libraries` | 组件库列表 |
 | `/modelica/templates` | 项目模板列表 |
 | `/forum/posts/:id` | 社区帖子和回复 |
@@ -129,6 +132,7 @@ Nuxt 文件路由入口：
 - 登录后的通知和账号菜单；
 - `Ctrl/Cmd + K` 打开全站搜索；
 - `Esc` 关闭搜索、抽屉或账号菜单；
+- `↑`/`↓` 选择快速搜索结果，`Enter` 打开选择项或完整搜索；
 - 跳到主要内容的无障碍链接。
 
 ### 5.2 全站搜索
@@ -141,7 +145,7 @@ Nuxt 文件路由入口：
 - CFD 工具；
 - 论坛主题。
 
-输入后在前端进行标题包含匹配，最多显示 7 条快速结果。按 Enter 进入 `/search?q=` 聚合页。最近搜索保存在 `flowlab-state-v1`。
+输入后在前端进行标题包含匹配，最多显示 7 条快速结果。可用上下键选中结果；未选中时按 Enter 进入 `/search?q=` 聚合页。最近搜索保存在 `flowlab-state-v1`。
 
 当前限制：全站搜索没有查询 SQLite 全文索引，数据库中新增加的非公式内容不会自动进入顶部快速搜索。
 
@@ -169,6 +173,7 @@ Nuxt 文件路由入口：
 - 标题、摘要和标签搜索；
 - 文章详情、章节侧栏、页内目录；
 - 公式/代码示例；
+- 行内与独立 LaTeX 公式的 KaTeX + MathML 安全渲染；
 - 收藏切换；
 - 相关文章与工具入口。
 
@@ -181,7 +186,7 @@ Nuxt 文件路由入口：
 5. 带有 `body_html` 的文章详情使用服务端清理后的 HTML；
 6. 旧演示文章没有数据库正文时继续显示原页面正文。
 
-知识文章以 YAML Front Matter + Markdown 文件维护。模板、校验和导入流程见 `templates/knowledge/FORMAT.md`。
+知识文章以 YAML Front Matter + Markdown 文件维护。当前统一源目录包含 11,007 篇可导入文章：CFD/CAE 专题、OpenFOAM 工程实践、Modelica、OpenFOAM 14 架构，以及 10,907 份逐文件源码卡。公式在导入阶段进行 KaTeX 语法校验，服务端生成 HTML/MathML 后再执行白名单清理。大规模列表使用服务端搜索、集合/分类过滤和分页，不再一次向浏览器发送全部正文或全部元数据。模板、校验和导入流程见 `templates/knowledge/FORMAT.md`。
 
 ### 7.2 算法页
 
@@ -288,12 +293,16 @@ sequenceDiagram
 
 | 工具 | 路由 | 当前计算逻辑 | 主要输出 | 适用限制 |
 |---|---|---|---|---|
-| 一维对流—扩散 | `/simulation/convection-diffusion` | 稳态解析分布加离散误差模型 | Péclet 数、L2/L∞ 误差、数值/参考曲线 | 教学比较，不是通用 FVM 求解器 |
-| 方腔顶盖驱动流 | `/simulation/lid-driven-cavity` | 根据 Re、容差和迭代上限生成收敛历史估计 | 迭代次数、最终残差、主涡中心 | 未真实组装二维 Navier–Stokes 方程 |
+| 一维对流—扩散 | `/simulation/convection-diffusion` | 结构化一维有限体积三对角求解，支持迎风/中心格式并与解析解比较 | Péclet 数、L2/L∞ 误差、数值/参考曲线 | 教学求解器，不是通用多维 FVM |
+| 方腔顶盖驱动流 | `/simulation/lid-driven-cavity` | 二维涡量—流函数显式迭代，按 x/y 网格、Re、容差和迭代上限求解 | 残差历史、迭代次数、最终残差、主涡中心 | 教学求解器；浏览器计算上限为 65×65、5000 步 |
 | 圆管充分发展层流 | `/simulation/pipe-flow` | Hagen–Poiseuille 解析关系 | Re、速度剖面、流量、压降、摩阻系数 | Re≥2300 时提示层流假设失效 |
 | 湍流与近壁参数 | `/simulation/turbulence-compare` | 工程关联式计算 k、ε、ω、摩擦速度和首层高度 | Re、湍流强度、湍流量、首层高度 | 只用于预估，不能替代网格和模型验证 |
 
-### 9.3 任务状态
+### 9.3 参数扫描与可信度检查
+
+`/simulation/lab` 在四个现有求解器之上提供单变量线性/对数扫描、批量运行、趋势图、逐工况详情、取消、历史回看以及 CSV/JSON 导出。每个成功工况按输入、收敛、模型适用性、参考解和可复现性生成 A–D 可信度提示。方腔批量计算在 Web Worker 中运行；详细设计与边界见 `docs/SIMULATION_EXPERIMENT_LAB.md`。
+
+### 9.4 任务状态
 
 类型定义支持：
 
@@ -303,7 +312,7 @@ sequenceDiagram
 - `FAILED`；
 - `CANCELLED`。
 
-当前页面运行流程主要产生 `RUNNING` 和 `SUCCEEDED`。浏览器计算结束后生成模拟耗时，并同步参数、结果和警告到数据库。
+页面先产生 `RUNNING`，并记录实际浏览器耗时；求解器收敛后写入 `SUCCEEDED`，未收敛或数值失败写入 `FAILED`，同时保留警告和可检查结果。
 
 ## 10. Modelica 模块
 
@@ -312,12 +321,14 @@ sequenceDiagram
 - Modelica 产品介绍和能力边界；
 - 项目列表；
 - 从模板创建项目；
-- 源码编辑、脏状态提示和保存；
+- 画布元件、连线、元件算法草稿与源码编辑；
+- 画布、源码声明和实验参数的同名参数同步；
+- 脏状态提示和保存；
 - 项目文件树和模型大纲；
 - 基础语法/结构诊断；
 - 编译输出摘要；
-- 组件库和模板展示；
-- 阻尼振荡动态响应结果页。
+- 组件库和四个受控模板展示；
+- Euler/RK4 实验、变量筛选、派生导数量、统计和 CSV 导出。
 
 ### 10.2 项目持久化
 
@@ -328,7 +339,7 @@ sequenceDiagram
 3. 180 ms 防抖后调用 `PUT /api/workspace`；
 4. API Upsert `modelica_projects`；
 5. 主 `.mo` 文件 Upsert 到 `modelica_files`；
-6. 已存在文件保存时修订号加 1；
+6. 只有源码内容实际变化时修订号才加 1；
 7. 同步动作写入 `audit_logs`。
 
 ### 10.3 当前诊断规则
@@ -348,20 +359,23 @@ sequenceDiagram
 | `MO1001` | 缺少顶层 model 声明 |
 | `MO1002` | 缺少匹配的 end 语句 |
 | `MO1003` | 圆括号不匹配 |
+| `MO1004` | 方程签名与受支持模板不一致 |
 | `MO2001` | 声明可能缺少分号 |
+| `MO9005` | 参数、导数、状态或派生量出现非有限值/数值发散 |
 
 ### 10.4 重要边界
 
-当前“检查模型”和“运行”属于演示逻辑：
+当前检查器和运行时属于受控 Modelica Lite 子集：
 
 - 没有完整词法、语法、AST、名称解析或类型系统；
 - 没有实例化、连接展开、方程平衡、BLT 或 DAE 分析；
 - 没有代码生成、原生编译或制品缓存；
 - 没有真正接入 IDA、CVODE、KINSOL 或 KLU；
-- 动态响应是预设质量—弹簧—阻尼解析/数值表达式；
-- 组件库信息是静态展示。
+- 只执行质量—弹簧—阻尼、双容腔热网络、液压容腔和单轴转子四个已校验方程签名；
+- 使用固定步长 Euler/RK4 并逐步检查非有限值，不执行任意用户算法脚本；
+- 组件目录仍是本地静态清单。
 
-因此它可用于页面流程和数据模型演示，不能声称为完整 Modelica 编译仿真平台。
+因此它可用于这四类模板的受控实验、教学和工作流验证，不能声称为完整 Modelica 编译仿真平台；修改受支持方程会明确失败，而不会静默运行硬编码模型。
 
 ## 11. 社区模块
 
@@ -378,9 +392,9 @@ sequenceDiagram
 
 - 主题和初始回复来自静态内容；
 - 页面内新增回复只保存在 Vue 内存，刷新即丢失；
-- 发布主题、点赞、举报、审核按钮没有数据库写入；
+- 发布主题、点赞、举报和回复在当前页面会话内有明确反馈，但没有数据库写入；
 - 数据库已有论坛表和种子主题，但页面尚未接入论坛 API；
-- 没有权限校验、频率限制、内容审核或通知链路。
+- 社区写入没有服务端权限校验、频率限制、内容审核或通知链路。
 
 ## 12. 登录、个人中心和管理后台
 
@@ -424,7 +438,7 @@ store.login(displayName)
 - 今日概览；
 - 内容、社区、任务、用户、配置和审计导航。
 
-除任务列表和数据库连接状态外，多数指标为静态演示数据。管理按钮没有对应写接口，路由也没有正式管理员权限保护。
+除任务列表和数据库连接状态外，多数指标为静态演示数据。管理按钮没有对应写接口；普通本地身份会得到 403，只有显式管理员角色才能进入预留界面。正式多人部署仍需服务端会话和 RBAC。
 
 ## 13. Pinia 状态逻辑
 
@@ -457,13 +471,13 @@ flowchart TD
   B --> C["读取 flowlab-state-v1"]
   C --> D["没有项目时创建演示项目"]
   D --> E["GET /api/workspace"]
-  E -->|成功| F["数据库数据覆盖收藏/通知/任务/项目"]
+  E -->|成功| F["按 ID、时间与终态合并本地和数据库任务/项目"]
   E -->|失败| G["保留浏览器数据并标记降级"]
   F --> H["更新浏览器缓存"]
   G --> H
 ```
 
-数据库返回的用户资料只有在浏览器已经处于登录状态时才覆盖 `store.user`，避免启动后自动登录。
+数据库返回的用户资料只有在浏览器已经处于登录状态时才覆盖 `store.user`，避免启动后自动登录。收藏取并集，通知保留本地已读状态；浏览器存储不可用时仍继续访问 SQLite。
 
 ### 13.3 持久化顺序
 
@@ -471,19 +485,17 @@ flowchart TD
 
 1. 同步写入 `localStorage`；
 2. 重置 180 ms 同步计时器；
-3. `PUT /api/workspace`；
+3. `PUT /api/workspace`，仅发送本次变化的资源分区；
 4. 成功后设置 `databaseConnected = true`；
 5. 失败后保留浏览器副本并设置错误状态。
 
-这一设计保证基础功能不会因数据库短暂异常立即丢失，但当前没有自动冲突合并。多人或多设备模式需要引入版本号、服务端所有权和冲突策略。
+这一设计保证基础功能不会因数据库短暂异常立即丢失，并避免一次收藏操作重写任务或 Modelica 源码。当前合并仍是单机启发式策略；多人或多设备模式需要引入实体 revision、服务端所有权和冲突处理。
 
 ## 14. 服务端 API 逻辑
 
 ### 14.1 `GET /api/health/database`
 
-返回 SQLite 版本、Schema 版本、数据库路径和核心表计数。
-
-当前风险：响应包含数据库绝对路径，只应在本地或受信网络使用。
+返回 SQLite 版本、Schema 版本和核心表计数，不暴露数据库绝对路径。
 
 ### 14.2 `GET /api/formulas`
 
@@ -513,27 +525,31 @@ flowchart TD
 }
 ```
 
-### 14.3 `GET /api/knowledge` 与 `GET /api/knowledge/:slug`
+### 14.3 `GET /api/knowledge`、`GET /api/knowledge/categories` 与 `GET /api/knowledge/:slug`
 
 列表接口只返回 `PUBLISHED` 文章，支持：
 
 - `q`：标题、摘要和正文搜索；
 - `category`：分类 slug；
+- `collection`：`cfd`、`openfoam`、`modelica` 或 `cae`；
 - `limit`：1～100；
 - `offset`：分页偏移。
 
-详情接口返回文章元数据、标签、标题目录、SEO 数据和服务端清理后的 `bodyHtml`。原始 Markdown保存在数据库 `body_json` 中，不通过公开详情接口返回。
+分类接口返回各分类的文章数和所属集合，用于构建知识树；详情接口返回文章元数据、标签、标题目录、SEO 数据和服务端清理后的 `bodyHtml`。原始 Markdown保存在数据库 `body_json` 中，不通过公开详情接口返回。
 
 知识导入不是公开 HTTP 写接口，而是本机后台命令：
 
 ```powershell
 npm run knowledge:validate -- <文件或目录>
 npm run knowledge:import -- <文件或目录>
+npm run knowledge:sync
 ```
 
 这样可以在管理员认证尚未完成时避免暴露匿名内容写入入口。
 
 ### 14.4 `GET /api/workspace`
+
+默认只允许回环主机访问，并返回 `Cache-Control: no-store`。
 
 按固定 `user-demo` 读取：
 
@@ -547,11 +563,13 @@ npm run knowledge:import -- <文件或目录>
 
 ### 14.5 `PUT /api/workspace`
 
+除回环主机限制外，还拒绝跨站来源并校验 `Origin` 与请求 `Host` 一致。
+
 在单个 `BEGIN IMMEDIATE` 事务中：
 
 - 更新演示用户显示名；
 - 全量替换该用户收藏；
-- Upsert 通知；
+- 按本次变化分区 Upsert 通知、任务或项目；
 - 校验任务状态和工具 slug 后 Upsert 任务；
 - 校验项目状态/编译状态后 Upsert 项目和源码；
 - 写一条 `workspace.sync` 审计记录；
@@ -565,9 +583,11 @@ npm run knowledge:import -- <文件或目录>
 | 通知 | 200 条 |
 | 任务 | 500 条 |
 | 项目 | 100 个 |
-| 项目源码 | 每个约 2,000,000 字符 |
+| 项目源码 | 每个 2,000,000 UTF-8 字节 |
+| Modelica 元数据 | 每项目 1,000,000 UTF-8 字节 |
+| Modelica 运行快照 | 每条 4,000,000 UTF-8 字节；每项目保留 12 条 |
 
-当前不足：没有会话鉴权、资源所有权判断和请求体总大小限制。
+当前不足：没有正式会话鉴权、跨用户资源所有权判断和反向代理级请求体总大小限制，因此只支持本地单用户部署。
 
 ## 15. SQLite 数据模型
 
@@ -666,33 +686,36 @@ npm run knowledge:import -- <文件或目录>
 
 | 命令 | 覆盖范围 |
 |---|---|
-| `npm run test:formula` | 7 个乱码修复、实体、Unicode、LaTeX 和诊断场景 |
-| `npm run test:knowledge` | 模板解析、字段校验、目录提取和 HTML 清理 |
+| `npm run test:formula` | 13 个乱码修复、非法实体、Unicode、Word 线性公式、LaTeX 和诊断场景 |
+| `npm run test:knowledge` | 模板解析、字段校验、目录提取、KaTeX/MathML 渲染、非法公式拒绝和 HTML 清理 |
+| `npm run test:cae-knowledge` | 16 个 CAE 算法知识块、6 个新专题、推导结构、公式、MathML、参考资料和全景图覆盖词 |
+| `npm run test:solvers` | CFD 求解器正常工况、边界输入、矩形方腔、收敛状态和尺度一致性 |
+| `npm run test:lab` | 线性/对数/整数扫描、指标提取、层流适用性和未收敛可信度检查 |
+| `npm run test:modelica` | 四个模板、方程签名、参数边界、非有限结果和时间积分 |
+| `npm run test:database` | 终态时间、源码 revision、主文件稳定性、快照上限和并发迁移 |
 | `npm run typecheck` | Nuxt/Vue/TypeScript 类型检查 |
-| `npm run db:check` | SQLite integrity、外键、必要表、种子数量和任务索引计划 |
+| `npm run db:check` | Schema 3、SQLite integrity、外键、JSON 合法性、快照表/索引和中文种子修复 |
 | `npm run build` | 客户端、SSR 和 Nitro API 生产构建 |
 
 当前缺口：
 
 - 没有组件单元测试；
-- 没有 API 自动集成测试文件；
 - 没有浏览器 E2E；
-- 没有 CFD 数值基准测试；
-- 没有 Modelica 正/负语料测试；
-- 没有认证、安全和权限测试。
+- 尚缺更完整的公开 CFD 基准误差阈值；
+- 没有正式认证和跨用户权限测试。
 
 ## 19. 当前已知限制
 
 1. 固定演示用户，未实现生产认证；
-2. 管理路由没有 RBAC 保护；
+2. 管理页面有本地角色门禁，但没有服务端会话与完整 RBAC；
 3. SQLite 适合单机，不适合高并发多实例直接共享；
 4. CFD 工具是教学/工程估算逻辑，不是工业通用求解器；
-5. 方腔流当前是收敛历史估计，不是真实二维流场计算；
+5. 方腔流使用浏览器二维涡量—流函数教学求解器；为避免阻塞界面，网格与迭代规模受 65×65、5000 步上限约束；
 6. Modelica 不是完整编译器或运行时；
 7. 社区发布、点赞、举报和审核没有持久化；
 8. 顶部快速搜索仍以静态内容为主，尚未统一查询知识数据库；
 9. 管理设置存储在数据库，但多数尚未真正约束业务；
-10. 没有任务 Worker、Redis 队列、对象存储、邮件服务或监控告警；
+10. 方腔已有浏览器 Web Worker；仍没有服务端任务队列、Redis、对象存储、邮件服务或监控告警；
 11. 没有多设备冲突解决；
 12. 公式转换不支持图片 OCR，且无法确定性恢复已经丢失的字符。
 
@@ -753,4 +776,4 @@ npm run knowledge:import -- <文件或目录>
 
 当前版本已经形成可运行的 Nuxt 网站、SQLite 持久化、公式转换、四个本地 CFD 工具、Modelica 项目编辑演示和完整页面体系。它适合作为产品原型、教学演示和后续工程开发基线。
 
-需要特别保持边界清晰：现阶段的登录、管理后台、社区写入、方腔 CFD 和 Modelica 编译/仿真仍属于演示或占位能力。正式上线前必须按第 20 节补齐认证、权限、服务端业务、任务隔离、数值验证和自动测试。
+需要特别保持边界清晰：现阶段的登录与社区写入属于本地演示能力，管理后台仅允许管理员角色，方腔 CFD 是受规模限制的教学求解器，Modelica Lite 仅执行经过方程签名校验的内置模板。正式上线前仍必须按第 20 节补齐正式认证、权限、服务端业务、任务隔离、数值验证和端到端测试。

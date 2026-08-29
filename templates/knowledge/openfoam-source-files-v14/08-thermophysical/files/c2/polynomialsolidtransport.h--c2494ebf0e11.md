@@ -1,0 +1,74 @@
+---
+template_version: "flowlab-knowledge/1.0"
+slug: "openfoam-v14-file-c2494ebf0e11"
+title: "OpenFOAM 14 源码解析：polynomialSolidTransport.H"
+summary: "该文件声明或实现 `polynomialSolidTransport`，属于“热物性与反应”模块。"
+category: { slug: openfoam-v14-08-thermophysical, name: OpenFOAM 源码 · 热物性与反应 }
+level: 源码参考
+reading_minutes: 4
+status: PUBLISHED
+published_at: "2026-08-30T00:00:00+08:00"
+author_username: codex-generated
+source_baseline: "OpenFOAM-14@20260724"
+source_path: "src/thermophysicalModels/solidThermo/solidSpecie/transport/polynomial/polynomialSolidTransport.H"
+tags: [OpenFOAM14, 源码解析, 热物性与反应]
+---
+
+# OpenFOAM 14 源码解析：polynomialSolidTransport.H
+
+> 本页由静态分析生成，再按可识别的 OpenFOAM 模式补充中文算法说明。它用于源码导航，不替代编译、调试和算例验证。
+
+## 1. 文件定位
+
+- 源码路径：`src/thermophysicalModels/solidThermo/solidSpecie/transport/polynomial/polynomialSolidTransport.H`
+- 功能分类：热物性与反应
+- 文件类型：C/C++ 或词法/语法源文件
+- 规模：216 行
+- 文件标识：`c2494ebf0e11`
+
+## 2. 功能说明
+
+该文件声明或实现 `polynomialSolidTransport`，属于“热物性与反应”模块。
+
+中文导航角色：热力学与物性模型。
+
+上游说明：Transport package using polynomial functions for solid \c kappa. Usage \table Property | Description kappaCoeffs<8> | Thermal conductivity polynomial coefficients \endtable Example of the specification of the transport properties: \verbatim transport { kappaCoeffs<8> ( 1000 -0.05 0.003 0 0 0 0 0 ); } \endverbatim The polynomial expression is evaluated as so: \f[ \kappa = 1000 - 0.05 T + 0.003 T^2 \f] Note: Thermal conductivity polynomial coefficients evaluate to an expression in [W/m/K].
+
+## 3. 主要类型
+
+| 名称 | 源码行 |
+|---|---:|
+| `polynomialSolidTransport` | 81 |
+
+## 4. 主要函数/过程
+
+未通过轻量静态规则识别到明确的函数定义；可能由宏或模板展开生成。
+
+## 5. 算法与控制流程
+
+1. **所有权与临时量**：使用 OpenFOAM 所有权包装器控制动态对象和表达式临时量生命周期。
+
+## 6. 数学与离散关系
+
+本文件未检测到可可靠映射为统一数学表达式的离散算子。若它是接口文件，方程通常位于同名实现或调用者中。
+
+## 7. 直接依赖
+
+- [`Polynomial.H`](../../../04-core-runtime/files/f5/polynomial.h--f5ee6b8c2b72.md)
+- [`polynomialSolidTransportI.H`](../../../08-thermophysical/files/b5/polynomialsolidtransporti.h--b5a52a889be7.md)
+- [`polynomialSolidTransport.C`](../../../08-thermophysical/files/0a/polynomialsolidtransport.c--0a0197620af4.md)
+
+## 8. 直接上层引用
+
+- [src/thermophysicalModels/solidThermo/solidSpecie/include/forSolids.H](../../../08-thermophysical/files/37/forsolids.h--3771cbfe67d8.md)
+- [src/thermophysicalModels/solidThermo/solidSpecie/transport/polynomial/polynomialSolidTransport.C](../../../08-thermophysical/files/0a/polynomialsolidtransport.c--0a0197620af4.md)
+
+## 9. 运行时机制
+
+未检测到运行时选择/类型注册宏。
+
+## 10. 阅读与验证建议
+
+追踪状态方程、能量变量、混合物、输运性质和运行时模板组合。
+
+建议结合调用者、同名头/实现文件、`Make/files`、`Make/options` 和对应教程阅读；涉及数值结果时，必须检查量纲、守恒、残差和网格/时间步敏感性。

@@ -25,7 +25,7 @@ cd D:\openclaw\software\cfdsolve
 npm run deploy:local
 ```
 
-该命令会依次完成：停止旧实例、创建 `.env`、安装锁定版本依赖、备份现有数据库、执行数据库迁移与完整性检查、审计生产依赖、运行类型检查和测试、构建生产版本、启动服务并检查数据库接口。
+该命令会依次完成：停止旧实例、创建 `.env`、安装锁定版本依赖、备份现有数据库、执行数据库迁移、校验并同步完整知识库、执行完整性检查、审计生产依赖、运行类型检查和测试、构建生产版本、启动服务并检查数据库接口。
 
 部署成功后访问：
 
@@ -73,17 +73,19 @@ powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\deploy-local.ps1 -
 
 ## 五、知识库内容导入
 
-校验模板文章，不写数据库：
+校验全部知识源，不写数据库：
 
 ```powershell
-npm run knowledge:validate -- templates\knowledge\examples
+npm run knowledge:validate -- templates\knowledge
 ```
 
-导入文章到 SQLite：
+将全部知识源同步到 SQLite：
 
 ```powershell
-npm run knowledge:import -- templates\knowledge\examples
+npm run knowledge:sync
 ```
+
+当前源目录包含 11,007 篇可导入文章。同步采用单事务批处理；导航和生成报告不会作为文章导入。首次全量部署的知识同步时间会明显长于日常启动。
 
 ## 六、部署问题排查
 

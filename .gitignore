@@ -2,11 +2,10 @@ node_modules/
 .nuxt/
 .output/
 .env
+data/*.sqlite
 data/*.sqlite-wal
 data/*.sqlite-shm
 backups/
 logs/
-.nuxt-dev.*.log
 .run/
-data/*.sqlite
-data/uploads/
+references/openfoam-source/

@@ -41,6 +41,8 @@ if (Test-Path -LiteralPath (Join-Path $projectRoot 'data\cfdsolve.sqlite')) {
 }
 
 Invoke-NpmCommand @('run', 'db:init') 'Initialize or migrate the database'
+Invoke-NpmCommand @('run', 'knowledge:validate', '--', 'templates\knowledge') 'Validate the complete knowledge catalog'
+Invoke-NpmCommand @('run', 'knowledge:sync') 'Synchronize the complete knowledge catalog'
 Invoke-NpmCommand @('run', 'db:check') 'Check database integrity'
 
 if (-not $SkipTests) {
@@ -48,6 +50,12 @@ if (-not $SkipTests) {
   Invoke-NpmCommand @('run', 'typecheck') 'Run type checking'
   Invoke-NpmCommand @('run', 'test:formula') 'Test formula conversion'
   Invoke-NpmCommand @('run', 'test:knowledge') 'Test knowledge import'
+  Invoke-NpmCommand @('run', 'test:cae-knowledge') 'Audit CAE algorithm knowledge coverage'
+  Invoke-NpmCommand @('run', 'test:knowledge-catalog') 'Audit the unified knowledge catalog'
+  Invoke-NpmCommand @('run', 'test:modelica') 'Test Modelica workbench'
+  Invoke-NpmCommand @('run', 'test:solvers') 'Test CFD solvers'
+  Invoke-NpmCommand @('run', 'test:lab') 'Test parameter sweep and credibility checks'
+  Invoke-NpmCommand @('run', 'test:database') 'Test workspace database semantics'
 }
 
 Invoke-NpmCommand @('run', 'build') 'Build the production bundle'

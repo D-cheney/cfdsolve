@@ -90,13 +90,14 @@ Copy-Item .env.example .env
 | 变量 | 是否必需 | 默认值 | 说明 |
 |---|---|---|---|
 | `CFDSOLVE_DB_PATH` | 否 | `./data/cfdsolve.sqlite` | SQLite 文件位置；相对路径基于启动目录解析 |
+| `CFDSOLVE_ALLOW_LAN` | 否 | `false` | 是否允许非回环主机访问工作区 API；只有受控局域网部署才可设为 `true` |
 
 常用 Nitro 运行变量：
 
 | 变量 | 示例 | 说明 |
 |---|---|---|
 | `NITRO_PORT` | `3000` | 生产服务监听端口 |
-| `NITRO_HOST` | `127.0.0.1` | 监听地址；局域网部署可设为 `0.0.0.0` |
+| `NITRO_HOST` | `127.0.0.1` | 监听地址；局域网部署需同时评估并显式配置 `CFDSOLVE_ALLOW_LAN` |
 
 PowerShell 临时配置示例：
 
@@ -158,11 +159,15 @@ node .output/server/index.mjs
 | `npm run typecheck` | TypeScript/Nuxt 类型检查 | 否 |
 | `npm run test:formula` | 运行公式转换测试 | 否 |
 | `npm run test:knowledge` | 运行知识模板解析、校验和 HTML 清理测试 | 否 |
+| `npm run test:solvers` | 运行 CFD 数值与边界回归测试 | 否 |
+| `npm run test:modelica` | 运行 Modelica Lite 正/负场景测试 | 否 |
+| `npm run test:database` | 运行工作区 SQL 语义和并发迁移测试 | 使用独立临时库 |
 | `npm run db:init` | 创建数据库、执行迁移、写入种子数据 | 是，可重复执行 |
 | `npm run db:check` | 完整性、外键、表、种子和索引检查 | 只读；可能先初始化空库 |
-| `npm run db:backup` | 复制数据库到 `backups/` | 新增备份文件 |
+| `npm run db:backup` | WAL checkpoint 后用 SQLite `VACUUM INTO` 生成并校验备份 | 新增备份文件 |
 | `npm run knowledge:validate -- <文件或目录>` | 只校验知识模板，不写入数据库 | 否 |
 | `npm run knowledge:import -- <文件或目录>` | 导入或更新知识文章 | 是，事务写入并记录审计 |
+| `npm run knowledge:sync` | 校验后同步 `templates/knowledge` 下全部标准知识文章 | 是，单事务批量写入 |
 | `npm run generate` | 生成静态输出 | 不建议用于依赖 API 的完整运行模式 |
 
 ## 9. 数据库配置
@@ -182,7 +187,7 @@ D:\openclaw\software\cfdsolve\data\cfdsolve.sqlite
 - 可重复种子初始化；
 - `PRAGMA optimize`。
 
-数据库当前包含 25 张业务及迁移表，Schema 版本为 1。详细表结构和迁移规则见 `docs/DATABASE.md`。
+数据库通过版本化迁移维护，当前 Schema 版本为 3。详细表结构和迁移规则见 `docs/DATABASE.md`。
 
 ### 9.1 健康检查
 
@@ -199,8 +204,7 @@ GET /api/health/database
   "ok": true,
   "engine": "SQLite",
   "sqliteVersion": "3.x",
-  "schemaVersion": 1,
-  "path": ".../data/cfdsolve.sqlite",
+  "schemaVersion": 3,
   "counts": {
     "users": 1,
     "formulas": 5,
@@ -210,7 +214,7 @@ GET /api/health/database
 }
 ```
 
-不要在公开生产环境直接返回数据库绝对路径。正式部署时应删除或脱敏 `path` 字段，并限制健康接口访问范围。
+健康接口不返回数据库绝对路径。若开放到局域网或公网，仍应限制健康接口访问范围。
 
 ### 9.2 备份
 
@@ -253,13 +257,13 @@ backups/cfdsolve-<ISO时间>.sqlite
 | `site.registration_enabled` | `true` | 是否开放注册 | 已存储，尚未用于拦截注册 |
 | `site.content_review_enabled` | `true` | 内容审核开关 | 已存储，管理流程为演示 |
 | `simulation.daily_task_limit` | `20` | 每日任务配额 | 已存储，尚未服务端限流 |
-| `simulation.concurrent_task_limit` | `2` | 并发任务限制 | 已存储，浏览器求解未使用队列 |
+| `simulation.concurrent_task_limit` | `2` | 并发任务限制 | 已存储；方腔使用浏览器 Worker，但未使用服务端队列 |
 | `simulation.result_retention_days` | `90` | 结果保留周期 | 已存储，尚无自动清理任务 |
 | `modelica.compiler_default_version` | `1.0.0` | 默认编译器版本 | 页面展示使用 |
 | `modelica.language_profile` | `PlatformModelica-1.0` | 语言子集 | 页面展示使用 |
 | `modelica.project_limit` | `20` | 每用户活动项目数 | 已存储，尚未服务端限制 |
 | `modelica.compile_timeout_seconds` | `120` | 编译超时 | 已存储，演示检查器未使用 |
-| `modelica.simulation_timeout_seconds` | `300` | 仿真超时 | 已存储，演示响应未使用 |
+| `modelica.simulation_timeout_seconds` | `300` | 仿真超时 | 已存储，Modelica Lite 尚未读取此配置 |
 | `modelica.max_flat_equations` | `50000` | 扁平方程上限 | 预留 |
 | `modelica.max_result_mb` | `200` | 单次结果上限 | 预留 |
 | `forum.new_user_post_cooldown_hours` | `1` | 新用户发帖冷却 | 预留 |
@@ -289,7 +293,7 @@ backups/cfdsolve-<ISO时间>.sqlite
 | `GET` | `/api/workspace` | 加载固定演示用户的收藏、通知、任务和项目 |
 | `PUT` | `/api/workspace` | 事务性同步工作区并写入审计日志 |
 
-当前 API 没有正式会话鉴权，只适用于本地和受信任的单用户部署。不要直接暴露到公网。
+工作区 API 默认只接受回环主机访问；PUT 还校验同源与 `Sec-Fetch-Site`，并设置 `Cache-Control: no-store`。这仍不等同于正式会话鉴权，只适用于本地单用户部署；不要直接暴露到公网。仅在理解风险后才可用 `CFDSOLVE_ALLOW_LAN=true` 放开主机限制。
 
 ## 13. 安全配置基线
 

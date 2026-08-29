@@ -71,30 +71,37 @@ const latexToUnicode: Record<string, string> = Object.fromEntries([
 const superToNormal: Record<string, string> = { '⁰':'0','¹':'1','²':'2','³':'3','⁴':'4','⁵':'5','⁶':'6','⁷':'7','⁸':'8','⁹':'9','⁺':'+','⁻':'-','ⁿ':'n','ⁱ':'i' }
 const subToNormal: Record<string, string> = { '₀':'0','₁':'1','₂':'2','₃':'3','₄':'4','₅':'5','₆':'6','₇':'7','₈':'8','₉':'9','₊':'+','₋':'-','ₐ':'a','ₑ':'e','ₕ':'h','ᵢ':'i','ⱼ':'j','ₖ':'k','ₗ':'l','ₘ':'m','ₙ':'n','ₒ':'o','ₚ':'p','ᵣ':'r','ₛ':'s','ₜ':'t','ᵤ':'u','ᵥ':'v','ₓ':'x' }
 
-function decodeEntities(text: string) {
-  return text.replace(/&(#x[0-9a-f]+|#\d+|[a-zA-Z]+);/gi, (match, key: string) => {
+function decodeEntities(text: string, diagnostics?: FormulaDiagnostic[]) {
+  return text.replace(/&(#(?:x)?[^;\s&]*|[a-zA-Z]+);/gi, (match, key: string) => {
     if (key.startsWith('#')) {
-      const hexadecimal = key.slice(0, 2).toLowerCase() === '#x'
-      const codePoint = Number.parseInt(key.slice(hexadecimal ? 2 : 1), hexadecimal ? 16 : 10)
-      const validScalar = Number.isInteger(codePoint) && codePoint >= 0 && codePoint <= 0x10ffff && !(codePoint >= 0xd800 && codePoint <= 0xdfff)
-      return validScalar ? String.fromCodePoint(codePoint) : match
+      const hexadecimal = /^#x/i.test(key)
+      const source = key.slice(hexadecimal ? 2 : 1)
+      const validDigits = hexadecimal ? /^[0-9a-f]+$/i.test(source) : /^\d+$/.test(source)
+      const codePoint = validDigits ? Number.parseInt(source, hexadecimal ? 16 : 10) : Number.NaN
+      const validCodePoint = Number.isSafeInteger(codePoint)
+        && codePoint > 0
+        && codePoint <= 0x10ffff
+        && !(codePoint >= 0xd800 && codePoint <= 0xdfff)
+      if (!validCodePoint) {
+        diagnostics?.push({
+          level: 'warning',
+          code: 'HTML_ENTITY_INVALID',
+          message: `非法 HTML 数字实体 ${match} 已保留原文，请核对来源内容。`
+        })
+        return match
+      }
+      try {
+        return String.fromCodePoint(codePoint)
+      } catch {
+        diagnostics?.push({
+          level: 'warning',
+          code: 'HTML_ENTITY_INVALID',
+          message: `无法解码 HTML 数字实体 ${match}，已保留原文。`
+        })
+        return match
+      }
     }
     return htmlEntities[key] ?? match
-  })
-}
-
-function diagnoseNumericEntities(text: string, diagnostics: FormulaDiagnostic[]) {
-  const invalid = new Set<string>()
-  for (const match of text.matchAll(/&#(x[0-9a-f]+|\d+);/gi)) {
-    const key = match[1]
-    const hexadecimal = key[0].toLowerCase() === 'x'
-    const codePoint = Number.parseInt(key.slice(hexadecimal ? 1 : 0), hexadecimal ? 16 : 10)
-    if (!Number.isInteger(codePoint) || codePoint < 0 || codePoint > 0x10ffff || (codePoint >= 0xd800 && codePoint <= 0xdfff)) invalid.add(match[0])
-  }
-  if (invalid.size) diagnostics.push({
-    level: 'warning',
-    code: 'ENTITY_RANGE',
-    message: `检测到超出 Unicode 范围的数值实体，已保留原文：${[...invalid].join('、')}`
   })
 }
 
@@ -139,8 +146,8 @@ function normalizeCharacters(text: string) {
     .replace(/\u2215/g, '/')
 }
 
-export function buildRepairCandidates(raw: string): RepairCandidate[] {
-  const decodedEntities = decodeEntities(raw)
+export function buildRepairCandidates(raw: string, diagnostics?: FormulaDiagnostic[]): RepairCandidate[] {
+  const decodedEntities = decodeEntities(raw, diagnostics)
   const base = normalizeCharacters(decodedEntities)
   const candidates: RepairCandidate[] = [{ label: decodedEntities !== raw ? 'HTML 实体与字符清理' : '原始内容清理', text: base, score: anomalyScore(base) }]
   let current = base
@@ -197,6 +204,36 @@ function convertScripts(text: string) {
   return output
 }
 
+function replaceBalancedMarker(text: string, marker: string, formatter: (inner: string) => string) {
+  let output = ''
+  for (let index = 0; index < text.length;) {
+    if (text.startsWith(marker, index)) {
+      let open = index + marker.length
+      while (/\s/.test(text[open] ?? '')) open++
+      if (text[open] === '(') {
+        let depth = 0, close = -1
+        for (let cursor = open; cursor < text.length; cursor++) {
+          if (text[cursor] === '(') depth++
+          else if (text[cursor] === ')' && --depth === 0) { close = cursor; break }
+        }
+        if (close >= 0) {
+          output += formatter(text.slice(open + 1, close))
+          index = close + 1
+          continue
+        }
+      }
+    }
+    output += text[index++]
+  }
+  return output
+}
+
+function normalizeWordLinearScripts(text: string) {
+  let value = replaceBalancedMarker(text, '^', inner => `^{${normalizeWordLinearScripts(inner)}}`)
+  value = replaceBalancedMarker(value, '_', inner => `_{${normalizeWordLinearScripts(inner)}}`)
+  return value.replace(/_([A-Za-zΑ-Ωα-ω0-9]+)/g, '_{$1}')
+}
+
 function mapUnicodeSymbols(text: string) {
   const chars = [...text]
   return chars.map((char, index) => {
@@ -207,9 +244,9 @@ function mapUnicodeSymbols(text: string) {
 }
 
 function unicodeToLatex(text: string) {
-  let value = convertScripts(text)
+  let value = normalizeWordLinearScripts(convertScripts(text))
+  value = replaceBalancedMarker(value, '√', inner => `\\sqrt{${unicodeToLatex(inner)}}`)
   value = value.replace(/∂\s*([A-Za-zΑ-Ωα-ω]+)\s*\/\s*∂\s*([A-Za-zΑ-Ωα-ω]+)/g, (_match, a, b) => `\\frac{\\partial ${mapUnicodeSymbols(a)}}{\\partial ${mapUnicodeSymbols(b)}}`)
-  value = value.replace(/√\s*\(([^()]*)\)/g, (_match, inner) => `\\sqrt{${unicodeToLatex(inner)}}`)
   value = value.replace(/√\s*([A-Za-zΑ-Ωα-ω0-9]+)/g, (_match, inner) => `\\sqrt{${unicodeToLatex(inner)}}`)
   value = value.replace(/([A-Za-zΑ-Ωα-ω0-9]+)\s*\/\s*(\([^()]+\)|[A-Za-zΑ-Ωα-ω0-9]+)/g, (_match, numerator, denominator) => {
     const den = denominator.startsWith('(') ? denominator.slice(1, -1) : denominator
@@ -336,8 +373,7 @@ function renderLatex(latex: string, diagnostics: FormulaDiagnostic[]) {
 
 export function convertFormula(raw: string, selectedFormat: FormulaFormat = 'auto', preferredText?: string): FormulaConversion {
   const diagnostics: FormulaDiagnostic[] = []
-  diagnoseNumericEntities(raw, diagnostics)
-  const candidates = buildRepairCandidates(raw)
+  const candidates = buildRepairCandidates(raw, diagnostics)
   const repaired = preferredText ?? candidates[0]?.text ?? ''
   const detected = selectedFormat === 'auto' ? detectFormulaFormat(repaired) : selectedFormat
   if (!repaired) diagnostics.push({ level: 'info', code: 'EMPTY', message: '请粘贴或输入需要转换的公式。' })

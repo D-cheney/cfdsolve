@@ -2,7 +2,7 @@
 template_version: "flowlab-knowledge/1.0"
 slug: knowledge-library-roadmap
 title: 流研工坊知识库导航与学习路线
-summary: 按 CFD 基础、数值方法、网格、边界、湍流、传热、多相流、验证确认和 Modelica 九个专题组织全部知识块，并提供面向不同任务的推荐阅读顺序。
+summary: 按十五个专题组织 CFD、结构、热、电磁、声学、粒子法、多体/DAE、多物理、优化、降阶、UQ、验证确认和 Modelica 知识块，并提供任务导向的阅读顺序。
 category:
   slug: knowledge-navigation
   name: 知识库导航
@@ -11,11 +11,11 @@ reading_minutes: 8
 status: PUBLISHED
 author_username: lin-cfd
 published_at: "2026-08-06T01:00:00.000Z"
-tags: [知识地图, 学习路线, CFD, Modelica, 索引]
+tags: [知识地图, 学习路线, CAE, CFD, 有限元, 索引]
 seo:
-  title: CFD 与 Modelica 知识库导航｜流研工坊
-  description: 浏览流研工坊九大知识专题，按任务选择 CFD、验证确认与 Modelica 学习路线。
-  keywords: [CFD 知识库, CFD 学习路线, Modelica 教程, 知识地图]
+  title: CAE、CFD、有限元与 Modelica 知识库导航｜流研工坊
+  description: 浏览十五个 CAE 知识专题，按任务选择流体、结构、多物理、优化和验证路线。
+  keywords: [CAE 知识库, CFD 学习路线, 有限元推导, Modelica 教程]
 ---
 
 # 流研工坊知识库导航与学习路线
@@ -43,7 +43,7 @@ seo:
 2. [CFD 网格质量指标与修复顺序](/knowledge/mesh-quality-metrics)
 3. [边界层网格、首层高度与 y+ 设计](/knowledge/boundary-layer-mesh-yplus)
 4. [CFD 网格无关性与系统加密方法](/knowledge/mesh-independence-study)
-5. [CFD 出口回流与边界一致性检查](/knowledge/outlet-backflow-control)
+5. [CFD 边界条件选择与一致性检查](/knowledge/boundary-condition-selection)
 6. [CFD 入口边界、剖面与湍流量设置](/knowledge/inlet-boundary-specification)
 7. [CFD 出口回流、计算域长度与压力边界](/knowledge/outlet-backflow-control)
 8. [CFD 壁面运动、粗糙度与热边界条件](/knowledge/wall-boundary-heat-transfer)
@@ -86,15 +86,52 @@ seo:
 3. [Modelica 初始化、初始方程与稳态起点](/knowledge/modelica-initialization)
 4. [Modelica 事件、混合系统与 CFD 降阶耦合](/knowledge/modelica-events-cfd-coupling)
 
-## 9. 按任务选择路线
+## 9. CAE 算法总览
+
+1. [CAE 算法全景图](/knowledge/cae-algorithm-taxonomy)
+
+## 10. 结构与有限元
+
+1. [有限元弱式推导](/knowledge/fem-weak-form-derivation)
+2. [线弹性有限元](/knowledge/linear-elasticity-fem-derivation)
+3. [非线性结构、塑性与接触](/knowledge/nonlinear-solid-newton-plasticity-contact)
+4. [结构动力学、模态与时间积分](/knowledge/structural-dynamics-modal-time-integration)
+
+## 11. 通用求解与时间算法
+
+1. [Krylov 迭代与预条件](/knowledge/krylov-preconditioner-derivation)
+2. [非线性 Newton 与 JFNK](/knowledge/nonlinear-newton-globalization)
+3. [ODE/DAE 时间积分](/knowledge/ode-dae-time-integration)
+4. [大规模特征值与 Krylov–Schur](/knowledge/eigenvalue-krylov-schur)
+
+## 12. 跨物理场离散
+
+1. [Maxwell、H(curl) FEM 与 FDTD](/knowledge/maxwell-electromagnetic-fem-fdtd)
+2. [声学 Helmholtz FEM/BEM](/knowledge/acoustic-helmholtz-fem-bem)
+3. [SPH、DEM、LBM、MPM 与 BEM](/knowledge/particle-meshfree-bem-algorithms)
+
+## 13. 多物理耦合
+
+1. [单体/分区耦合与 FSI](/knowledge/multiphysics-monolithic-partitioned-fsi)
+2. [非匹配网格守恒传递](/knowledge/conservative-field-transfer)
+
+## 14. 优化、不确定性与降阶
+
+1. [离散伴随、MMA 与拓扑优化](/knowledge/adjoint-sensitivity-topology-optimization)
+2. [Monte Carlo、PCE、POD 与 DMD](/knowledge/uncertainty-quantification-rom)
+
+## 15. 按任务选择路线
 
 - 入门与首个案例：基础 → 数值方法 → 网格与边界 → 验证确认；
 - 湍流内流与换热：基础 → 网格 → 边界 → 湍流 → 传热 → 验证确认；
 - 自由液面或颗粒：基础 → 瞬态方法 → 网格与边界 → 多相流 → 验证确认；
 - 高速气动：基础 → 数值方法 → 湍流 → 可压缩流 → 验证确认；
 - 系统联合仿真：传热与流动基础 → Modelica → CFD 特性图/降阶耦合 → 验证确认。
+- 结构强度与碰撞：算法总览 → FEM 弱式 → 线弹性 → 非线性/接触 → 动力学 → V&V；
+- 电磁或声学：算法总览 → Krylov/特征值 → 对应物理离散 → V&V；
+- 流固/热固联合：两个单场基础 → 多物理耦合 → 守恒映射 → 时间步与 V&V；
+- CAE 优化：单场模型 → 线性/非线性求解 → 伴随优化 → UQ/ROM → 独立确认。
 
-## 10. 使用原则
+## 16. 使用原则
 
 知识文章用于建立计算方法和检查清单，不能替代具体软件版本手册、项目试验数据或专业审查。关键工程结论应保留输入、网格、日志、验证数据和不确定度说明。
-

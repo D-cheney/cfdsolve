@@ -21,6 +21,20 @@ const unicode = convertFormula('Nu = hL/k = 0.023Re⁰·⁸Pr⁰·⁴')
 assert.match(unicode.latex, /Re\^\{0\.8\}/)
 assert.match(unicode.latex, /Pr\^\{0\.4\}/)
 
+const wordLinear = convertFormula('C_μ^(3/4)')
+assert.equal(wordLinear.latex, String.raw`C_{\mu}^{\frac{3}{4}}`)
+assert.equal(wordLinear.diagnostics.some(item => item.level === 'error'), false)
+
+const nestedWordLinear = convertFormula('x^((a+b)/c) + √((a+b))')
+assert.match(nestedWordLinear.latex, /x\^\{\(a\+b\)\/c\}/)
+assert.match(nestedWordLinear.latex, /\\sqrt\{\(a\+b\)\}/)
+
+for (const invalidEntity of ['&#x110000;', '&#55296;', '&#xNaN;', '&#NaN;']) {
+  const result = convertFormula(`x = ${invalidEntity}`)
+  assert.match(result.repaired, new RegExp(invalidEntity.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')))
+  assert.equal(result.diagnostics.some(item => item.code === 'HTML_ENTITY_INVALID'), true)
+}
+
 const latexSource = String.raw`\frac{d}{dx}(\rho u \phi)=\frac{d}{dx}\left(\Gamma\frac{d\phi}{dx}\right)`
 const latex = convertFormula(latexSource)
 assert.equal(latex.detectedFormat, 'latex')
@@ -33,15 +47,4 @@ assert.equal(lost.diagnostics.some(item => item.code === 'DATA_LOST'), true)
 assert.equal(detectFormulaFormat('<math><mfrac><mi>a</mi><mi>b</mi></mfrac></math>'), 'mathml')
 assert.equal(detectFormulaFormat(String.raw`\sqrt{x}`), 'latex')
 
-const numericEntity = convertFormula('π = &#x3c0;')
-assert.equal(numericEntity.repaired, 'π = π')
-
-const invalidEntity = convertFormula('x = &#999999999;')
-assert.match(invalidEntity.repaired, /&#999999999;/)
-assert.equal(invalidEntity.diagnostics.some(item => item.code === 'ENTITY_RANGE'), true)
-
-const surrogateEntity = convertFormula('x = &#55296;')
-assert.match(surrogateEntity.repaired, /&#55296;/)
-assert.equal(surrogateEntity.diagnostics.some(item => item.code === 'ENTITY_RANGE'), true)
-
-console.log('formula converter: 10 scenarios passed')
+console.log('formula converter: 13 scenarios passed')
