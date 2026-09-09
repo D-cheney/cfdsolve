@@ -19,6 +19,7 @@ const selectedIndex = ref(-1);
 let searchReturnFocus: HTMLElement | null = null;
 const nav = [
   { label: "知识库", to: "/knowledge" },
+  { label: "无网格法", to: "/meshfree" },
   { label: "算法与公式", to: "/algorithms" },
   { label: "CFD 仿真", to: "/simulation" },
   { label: "Modelica", to: "/modelica" },
@@ -28,6 +29,7 @@ const results = computed(() => {
   const q = query.value.trim().toLowerCase();
   if (!q) return [];
   return [
+    { type: "专题", title: "无网格法 SPH 山体滑坡与吉隆泥石流", to: "/meshfree" },
     ...articles.map((x) => ({
       type: "知识",
       title: x.title,

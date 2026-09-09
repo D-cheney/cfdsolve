@@ -52,6 +52,7 @@ if (-not $SkipTests) {
   Invoke-NpmCommand @('run', 'test:knowledge') 'Test knowledge import'
   Invoke-NpmCommand @('run', 'test:cae-knowledge') 'Audit CAE algorithm knowledge coverage'
   Invoke-NpmCommand @('run', 'test:knowledge-catalog') 'Audit the unified knowledge catalog'
+  Invoke-NpmCommand @('run', 'test:meshfree') 'Check meshfree knowledge and media integration'
   Invoke-NpmCommand @('run', 'test:modelica') 'Test Modelica workbench'
   Invoke-NpmCommand @('run', 'test:solvers') 'Test CFD solvers'
   Invoke-NpmCommand @('run', 'test:lab') 'Test parameter sweep and credibility checks'

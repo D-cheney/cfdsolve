@@ -1,0 +1,13 @@
+{
+  "solver": "3-D WCSPH with linear barotropic EOS, Wendland C2, DEM contact",
+  "completed": true,
+  "particle_count": 480000,
+  "particle_spacing_m": 1.8420157493201932,
+  "duration_s": 5400.0,
+  "saved_frames": 237,
+  "elapsed_wall_s": 9914.559192100016,
+  "mass_relative_change": 0.0,
+  "peak_speed_m_s": 42.67128372192383,
+  "peak_density_ratio": 1.1024996040962838,
+  "limitations": "480000 independent 3-D SPH particles, 20x the 24000 baseline; source dimensions and reference volume preserved. Same prototype single-mixture rheology and fixed DEM contact; no melt heat equation or entrainment."
+}

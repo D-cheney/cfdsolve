@@ -12,12 +12,14 @@
 - [布局系统与响应式规范](docs/LAYOUT_SYSTEM.md)
 - [参数扫描与工况对比实验室](docs/SIMULATION_EXPERIMENT_LAB.md)
 - [文档索引](docs/README.md)
+- [无网格法知识与吉隆 SPH 案例](docs/MESHFREE_INTEGRATION.md)：`/meshfree`，9 篇文章、八视角回放和模型资料下载。
 
 ## 本地运行
 
 ```bash
 npm install
 npm run db:init
+npm run knowledge:sync
 npm run dev
 ```
 
@@ -27,7 +29,7 @@ Windows 本地生产部署可直接执行：
 npm run deploy:local
 ```
 
-该命令会完成依赖安装、数据库备份与初始化、11,007 篇知识源校验与同步、检查测试、生产构建、后台启动和健康检查。详细说明见 `docs/LOCAL_DEPLOYMENT.md`。
+该命令会完成依赖安装、数据库备份与初始化、11,016 篇知识源校验与同步、检查测试、生产构建、后台启动和健康检查。详细说明见 `docs/LOCAL_DEPLOYMENT.md`。
 
 打开终端显示的本地地址即可。生产构建使用：
 
@@ -69,7 +71,7 @@ npm run knowledge:import -- templates/knowledge/my-article.md
 
 格式说明见 `templates/knowledge/FORMAT.md`。导入程序会校验元数据、清理生成的 HTML、自动关联分类和标签，并按 `slug` 创建或更新数据库记录。
 
-统一知识库包含 CFD/CAE 专题、OpenFOAM 工程实践、Modelica、OpenFOAM 14 架构和 10,907 份逐文件源码卡，共 11,007 篇可导入文章。总索引见 `templates/knowledge/README.md`。全量同步：
+统一知识库包含 CFD/CAE 专题、无网格法、OpenFOAM 工程实践、Modelica、OpenFOAM 14 架构和 10,907 份逐文件源码卡，共 11,016 篇可导入文章。总索引见 `templates/knowledge/README.md`。全量同步：
 
 ```powershell
 npm run knowledge:validate -- templates\knowledge

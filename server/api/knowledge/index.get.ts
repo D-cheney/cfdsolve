@@ -24,6 +24,8 @@ export default defineEventHandler((event) => {
   if (category) {
     conditions.push('c.slug = ?')
     params.push(category)
+  } else if (collection === 'meshfree') {
+    conditions.push(`c.slug LIKE 'meshfree-%'`)
   } else if (collection === 'openfoam') {
     conditions.push(`c.slug LIKE 'openfoam-%'`)
   } else if (collection === 'modelica') {
@@ -32,7 +34,7 @@ export default defineEventHandler((event) => {
     conditions.push(`c.slug IN (${caeKnowledgeCategorySlugs.map(() => '?').join(', ')})`)
     params.push(...caeKnowledgeCategorySlugs)
   } else if (collection === 'cfd') {
-    conditions.push(`c.slug NOT LIKE 'openfoam-%' AND c.slug <> 'modelica' AND c.slug NOT LIKE 'modelica-%'
+    conditions.push(`c.slug NOT LIKE 'openfoam-%' AND c.slug NOT LIKE 'meshfree-%' AND c.slug <> 'modelica' AND c.slug NOT LIKE 'modelica-%'
       AND c.slug NOT IN (${caeKnowledgeCategorySlugs.map(() => '?').join(', ')})`)
     params.push(...caeKnowledgeCategorySlugs)
   }

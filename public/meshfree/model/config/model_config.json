@@ -1,0 +1,53 @@
+{
+  "model_name": "Purepu_Gyirong_2025_screening_model",
+  "model_purpose": "研究级初筛；不得直接用于预警、工程设计或人员疏散决策",
+  "coordinate_system": "WGS84 input; local tangent-plane metres with origin at Gyirong Port",
+  "source": {
+    "name": "Purepu supraglacial lake source",
+    "latitude": 28.402561,
+    "longitude": 85.646705,
+    "reference_elevation_m": 5160.0
+  },
+  "receptor": {
+    "name": "Gyirong Port / Rasuwagadhi crossing",
+    "latitude": 28.27972,
+    "longitude": 85.37778,
+    "reference_elevation_m": 1850.0
+  },
+  "terrain": {
+    "bbox_wgs84": [85.34, 28.25, 85.69, 28.44],
+    "dem_file": "data/raw/N28E085.hgt.gz",
+    "dem_nominal_resolution_m": 30.0,
+    "routing_resolution_cells": 3,
+    "path_resample_spacing_m": 100.0,
+    "terrain_mesh_spacing_m": 180.0,
+    "valley_relief_threshold_m": 60.0,
+    "maximum_half_width_m": 1500.0
+  },
+  "baseline_scenario": {
+    "description": "冰面湖快速排水后形成的高含沙洪流/泥石流基线情景",
+    "initial_released_volume_m3": 3000000.0,
+    "initial_surge_length_m": 900.0,
+    "particle_count": 2400,
+    "particle_interpretation": "coarse-grained SPH computational parcels, not individual sediment grains",
+    "bulk_density_kg_m3": 1850.0,
+    "initial_velocity_m_s": 12.0,
+    "basal_friction_angle_start_deg": 0.2,
+    "basal_friction_angle_end_deg": 1.5,
+    "quadratic_drag_start_per_m": 0.0004,
+    "quadratic_drag_end_per_m": 0.0008,
+    "mass_amplification_at_port": 6.0,
+    "regularization_velocity_m_s": 0.5,
+    "maximum_simulation_time_s": 5400.0,
+    "output_interval_s": 15.0,
+    "long_duration_mode": true,
+    "retain_particles_at_receptor": true,
+    "deposition_zone_length_m": 900.0
+  },
+  "scenario_bounds_for_later_analysis": {
+    "released_volume_m3": [1000000.0, 5000000.0],
+    "basal_friction_angle_end_deg": [1.5, 6.0],
+    "quadratic_drag_end_per_m": [0.0006, 0.0020],
+    "mass_amplification_at_port": [2.0, 8.0]
+  }
+}

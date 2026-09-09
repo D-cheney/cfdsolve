@@ -1,0 +1,10 @@
+# Tested with CPython 3.11.7 / Windows / CUDA driver 546.12.
+# Prefer a dedicated D: environment; do not replace an unrelated Python stack.
+numpy==1.26.4
+scipy==1.11.4
+matplotlib==3.8.0
+imageio-ffmpeg==0.6.0
+taichi==1.7.4
+dill==0.3.7
+rich==14.3.3
+colorama==0.4.6

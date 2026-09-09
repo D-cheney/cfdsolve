@@ -1,0 +1,5 @@
+# Preserve published downloads byte-for-byte so manifest SHA-256 values remain
+# valid on both Windows and Unix checkouts (including original CRLF documents).
+public/meshfree/** -text whitespace=cr-at-eol,-blank-at-eol
+# Original Markdown uses intentional two-space hard breaks.
+templates/knowledge/meshfree/*.md whitespace=-blank-at-eol

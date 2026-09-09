@@ -2,6 +2,14 @@ node_modules/
 .nuxt/
 .output/
 .env
+.env.*
+!.env.example
+*.pem
+*.key
+*.p12
+*.pfx
+__pycache__/
+*.pyc
 data/*.sqlite
 data/*.sqlite-wal
 data/*.sqlite-shm

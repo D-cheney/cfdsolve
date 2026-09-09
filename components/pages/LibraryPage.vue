@@ -38,10 +38,13 @@ interface KnowledgeCategory {
   slug: string;
   name: string;
   count: number;
-  collection: "cfd" | "openfoam" | "modelica" | "cae";
+  collection: "cfd" | "openfoam" | "modelica" | "cae" | "meshfree";
 }
 const query = ref(String(route.query.q || ""));
-const collection = ref("cfd");
+const validCollections = ["", "cfd", "openfoam", "modelica", "cae", "meshfree"];
+const collectionFromRoute = () => validCollections.includes(String(route.query.collection ?? "cfd"))
+  ? String(route.query.collection ?? "cfd") : "cfd";
+const collection = ref(collectionFromRoute());
 const category = ref("");
 const knowledgePage = ref(0);
 const knowledgePageSize = 40;
@@ -51,6 +54,7 @@ const knowledgeCollections = [
   { slug: "openfoam", name: "OpenFOAM" },
   { slug: "modelica", name: "Modelica" },
   { slug: "cae", name: "CAE 算法" },
+  { slug: "meshfree", name: "无网格法" },
 ] as const;
 const { data: knowledgeCategoriesData } = await useFetch<{
   items: KnowledgeCategory[];
@@ -108,6 +112,7 @@ watch(
   (value) => (query.value = String(value || "")),
 );
 watch([query, collection, category], () => (knowledgePage.value = 0));
+watch(() => route.query.collection, () => (collection.value = collectionFromRoute()));
 watch(collection, () => (category.value = ""));
 const copied = ref("");
 const formulaCategory = ref("全部公式");
