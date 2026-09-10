@@ -1,0 +1,26 @@
+/* Restore the original FluidBackground from ad2cada without covering it with
+   opaque page wrappers. Keep data plots, editors and video surfaces readable. */
+.app-shell { position: relative; z-index: 1; background: transparent; }
+.app-shell > main,
+.page, .home-page, .reading-page, .forum-page, .modelica-hub {
+  background-color: transparent;
+}
+.hero-section, .page-hero, .converter-hero, .modelica-hero,
+.home-page > .section, .path-section, .simulation-showcase,
+.knowledge-feature, .community-section, .converter-notes,
+.auth-brand-panel, .simulation-lab-page, .lab-hero {
+  background: rgba(255, 253, 250, .36);
+}
+.contour-bg { opacity: .16; pointer-events: none; }
+.capability-card, .featured-article, .article-list a, .article-card,
+.formula-card, .algorithm-table, .topic-table, .filter-aside,
+.tool-card, .tool-showcase, .converter-workspace, .model-topology,
+.lab-config-card, .lab-result-card, .lab-case-card, .lab-history-card {
+  background-color: rgba(255, 253, 250, .86);
+}
+.app-header { background: rgba(255, 253, 250, .94); backdrop-filter: blur(12px); }
+/* Preserve the original flow-field illustration at narrow widths as well. */
+@media (max-width: 560px) {
+  .home-page .hero-visual { display: block; margin-bottom: 28px; }
+  .home-page .flow-field { height: 220px; }
+}

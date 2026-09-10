@@ -21,8 +21,8 @@ const size = (bytes: number) => bytes >= 1024 * 1024 ? `${(bytes / 1024 / 1024).
 <template>
   <div class="meshfree-page">
     <section class="meshfree-hero">
-      <div class="container hero-grid">
-        <div>
+      <div class="container meshfree-hero-grid">
+        <div class="meshfree-hero-copy">
           <span class="eyebrow"><Layers3 :size="16" /> 粒子方法 · 理论与案例</span>
           <h1>无网格法<br><span>从建模走向验证</span></h1>
           <p>连接山体滑坡技术方案、SPH 数值方法与吉隆泥石流模型。阅读知识、查看真实计算回放，下载可追溯的模型资料。</p>
@@ -31,15 +31,23 @@ const size = (bytes: number) => bytes >= 1024 * 1024 ? `${(bytes / 1024 / 1024).
             <a class="button secondary" href="#results">查看计算回放<ArrowRight :size="17" /></a>
           </div>
         </div>
-        <figure class="hero-image">
+        <figure class="meshfree-hero-figure">
           <img src="/meshfree/images/01_southeast.png" alt="吉隆源区固定地形上的三维 SPH 速度云图" fetchpriority="high" width="1920" height="1080">
           <figcaption>吉隆源区 · 三维 SPH 既有计算结果</figcaption>
         </figure>
       </div>
     </section>
 
-    <div class="container content">
-      <section aria-labelledby="learning-title">
+    <nav class="meshfree-section-nav" aria-label="无网格法专题分区">
+      <div class="container">
+        <a href="#learning">学习路径 <span>03</span></a>
+        <a href="#models">模型范围 <span>03</span></a>
+        <a href="#results">计算回放 <span>08</span></a>
+        <a href="#downloads">资料下载 <Download :size="14" /></a>
+      </div>
+    </nav>
+    <div class="container meshfree-content">
+      <section id="learning" aria-labelledby="learning-title">
         <div class="section-title"><div><span class="eyebrow">学习路径</span><h2 id="learning-title">先理解方法，再使用模型</h2></div><NuxtLink to="/knowledge?collection=meshfree">全部文章 →</NuxtLink></div>
         <div class="lesson-grid">
           <NuxtLink v-for="(lesson, index) in lessons" :key="lesson.slug" :to="`/knowledge/${lesson.slug}`" class="lesson-card">
@@ -48,7 +56,7 @@ const size = (bytes: number) => bytes >= 1024 * 1024 ? `${(bytes / 1024 / 1024).
         </div>
       </section>
 
-      <section aria-labelledby="versions-title">
+      <section id="models" aria-labelledby="versions-title">
         <div class="section-title"><div><span class="eyebrow">模型范围</span><h2 id="versions-title">三个层次，各自回答不同问题</h2></div></div>
         <div class="version-grid">
           <article><span class="tag">技术方案</span><h3>山体滑坡全过程</h3><p>固体力学 SPH、土体弹塑性、强度软化与孔压的分阶段路线。属于建模方案，尚不能等同于当前泥石流求解器已实现的能力。</p><NuxtLink to="/knowledge/meshfree-landslide-plan">阅读滑坡方案 →</NuxtLink></article>
@@ -92,9 +100,4 @@ const size = (bytes: number) => bytes >= 1024 * 1024 ? `${(bytes / 1024 / 1024).
   </div>
 </template>
 
-<style scoped>
-.meshfree-page a.button:not(.secondary){color:#fff}
-.meshfree-page{color:#18354b;font-size:15px;line-height:1.7}.meshfree-hero{padding:58px 0;background:linear-gradient(125deg,#edf6fa,#f8fafb);border-bottom:1px solid #dbe7ee}.hero-grid{display:grid;grid-template-columns:1fr 1fr;gap:48px;align-items:center}.eyebrow{display:flex;align-items:center;gap:8px;color:#39718d;font-size:12px;letter-spacing:.08em;font-weight:650}.meshfree-hero h1{font-size:clamp(34px,3.5vw,50px);line-height:1.3;margin:18px 0}.meshfree-hero h1 span{color:#317694}.meshfree-hero p{max-width:560px;color:#547080}.actions{display:flex;gap:12px;flex-wrap:wrap;margin-top:24px}.hero-image{margin:0;border:1px solid #ccdde6;background:#fff;border-radius:12px;overflow:hidden;box-shadow:0 12px 32px #163d5710}img{display:block;width:100%;height:auto}figcaption{padding:12px 16px;color:#547080;font-size:13px}.content{padding-top:44px;padding-bottom:56px}.content>section+section{margin-top:56px}section[id]{scroll-margin-top:84px}.section-title{display:flex;align-items:end;justify-content:space-between;gap:20px;margin-bottom:20px}h2{font-size:26px;line-height:1.4;margin:6px 0 0}h3{font-size:18px;line-height:1.5;margin:12px 0 8px}a{color:#1769aa}.lesson-grid,.version-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:18px}.lesson-card,.version-grid article{padding:25px;border:1px solid #dbe5eb;border-radius:10px;background:white}.lesson-card{color:inherit;transition:border-color .15s,box-shadow .15s}.lesson-card:hover{border-color:#4898bd;box-shadow:0 6px 24px #163d5710}.lesson-number{font-size:14px;font-weight:700;color:#4389a9}.lesson-card p,.version-grid p{color:#587081;margin-bottom:18px}.read-link{display:flex;align-items:center;gap:8px;color:#1769aa;font-size:13px}.tag{background:#edf5f8;color:#316b84;padding:4px 9px;border-radius:4px;font-size:12px}.version-grid a{font-size:13px}.metrics{display:grid;grid-template-columns:repeat(4,1fr);border:1px solid #dbe5eb;border-radius:10px;background:#fff;margin:0 0 18px;padding:20px}.metrics>div{padding:0 18px;border-right:1px solid #e1e9ee}.metrics>div:last-child{border:0}.metrics dt{font-size:12px;color:#607c8c}.metrics dd{margin:4px 0 0;font-size:29px;font-weight:650}.metrics small{font-size:13px;font-weight:400}.context-note{display:flex;gap:12px;padding:16px 20px;background:#edf5f8;border-radius:8px;color:#315f77}.context-note svg{flex-shrink:0;margin-top:4px}.context-note p{margin:0}.playback-note{color:#607888;margin:20px 0;font-size:13px}.video-grid,.figure-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:20px}.video-card,.figure-grid figure{margin:0;border:1px solid #dbe5eb;border-radius:10px;background:white;overflow:hidden}.video-card video{display:block;width:100%;aspect-ratio:16/9;background:#edf2f4}.video-card>div{display:flex;justify-content:space-between;align-items:center;gap:12px;padding:12px 18px}.video-card h3{margin:0;font-size:16px}.video-card a{display:flex;align-items:center;gap:6px;font-size:12px}.figure-grid{margin-top:20px}.document-list{border:1px solid #dbe5eb;border-radius:10px;background:white;overflow:hidden}.document-list article{display:flex;justify-content:space-between;align-items:center;gap:16px;padding:17px 22px}.document-list article+article{border-top:1px solid #e5ebef}.document-list article>a:last-child{font-size:12px;flex-shrink:0;color:#607c8c}.download-panel{display:flex;align-items:center;gap:30px;justify-content:space-between;padding:25px;margin-top:20px;border-radius:10px;background:#edf5f8}.download-panel h3{margin-top:0}.download-panel p{max-width:790px;color:#587081;margin-bottom:0}.download-panel .button{flex-shrink:0}.file-list{list-style:none;padding:0}.file-list li{display:flex;justify-content:space-between;gap:12px;padding:8px 0;border-bottom:1px solid #e5ebef;font-size:13px}.file-list a{overflow-wrap:anywhere}.file-list span{flex-shrink:0;color:#607c8c}details{padding:20px 0}summary{cursor:pointer;color:#1769aa}.evidence-links{font-size:13px}a:focus-visible,summary:focus-visible{outline:3px solid #3996c5;outline-offset:4px}
-@media(max-width:900px){.hero-grid{grid-template-columns:1fr;gap:28px}.meshfree-hero{padding:34px 0}.lesson-grid,.version-grid{grid-template-columns:1fr}.lesson-card,.version-grid article{padding:20px}.download-panel{align-items:start;flex-direction:column;gap:16px}}
-@media(max-width:600px){.video-grid,.figure-grid{grid-template-columns:1fr}.section-title{align-items:start;flex-direction:column;gap:10px}.section-title>a{font-size:13px}h2{font-size:23px}.metrics{grid-template-columns:1fr 1fr;gap:18px;padding:16px}.metrics>div{padding:0 8px;border:0}.metrics dd{font-size:25px}.document-list article{align-items:start;flex-direction:column;gap:5px;padding:15px}.content>section+section{margin-top:38px}}
-</style>
+<style scoped src="../../assets/css/meshfree.css"></style>

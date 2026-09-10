@@ -2,7 +2,7 @@ export default defineNuxtConfig({
   compatibilityDate: '2025-07-15',
   devtools: { enabled: false },
   modules: ['@pinia/nuxt'],
-  css: ['katex/dist/katex.min.css', '~/assets/css/main.css'],
+  css: ['katex/dist/katex.min.css', '~/assets/css/main.css', '~/assets/css/fluid-surfaces.css'],
   app: {
     head: {
       htmlAttrs: { lang: 'zh-CN' },
