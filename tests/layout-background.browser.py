@@ -18,33 +18,40 @@ with sync_playwright() as p:
     browser = p.chromium.launch(channel='msedge', headless=True)
     page = browser.new_page(viewport={'width': 1440, 'height': 900}, reduced_motion='no-preference')
     page.on('pageerror', lambda error: report['errors'].append(str(error)))
-    page.goto(args.url + '/meshfree', wait_until='load', timeout=60000)
+    page.goto(args.url + '/knowledge?collection=meshfree', wait_until='load', timeout=60000)
     page.locator('.fluid-canvas').wait_for(state='visible')
+    page.locator('.article-row').first.wait_for(state='visible')
+
     for width, height in [(1440, 900), (1024, 768), (768, 1024), (390, 844)]:
         page.set_viewport_size({'width': width, 'height': height})
         page.evaluate('window.scrollTo(0, 0)')
         page.wait_for_timeout(250)
         state = page.evaluate('''() => ({
-          width: innerWidth, height: innerHeight, documentWidth: document.documentElement.scrollWidth,
-          canvas: {width: document.querySelector('.fluid-canvas').clientWidth, height: document.querySelector('.fluid-canvas').clientHeight},
+          width: innerWidth,
+          height: innerHeight,
+          documentWidth: document.documentElement.scrollWidth,
+          canvas: {
+            width: document.querySelector('.fluid-canvas').clientWidth,
+            height: document.querySelector('.fluid-canvas').clientHeight
+          },
           pointerEvents: getComputedStyle(document.querySelector('.fluid-canvas')).pointerEvents,
-          heroHeight: document.querySelector('.meshfree-hero').getBoundingClientRect().height,
-          actionBottom: document.querySelector('.actions').getBoundingClientRect().bottom,
-          videoCount: document.querySelectorAll('video').length,
+          collectionCount: document.querySelectorAll('.knowledge-collection-strip button').length,
+          articleCount: document.querySelectorAll('.article-row').length,
+          layoutColumns: getComputedStyle(document.querySelector('.discovery-layout')).gridTemplateColumns,
           runningCSS: document.getAnimations().filter(a => a.playState === 'running').length,
-          panel: getComputedStyle(document.querySelector('.lesson-card')).backgroundColor,
+          panel: getComputedStyle(document.querySelector('.article-row')).borderBottomColor,
         })''')
         assert state['documentWidth'] <= width, state
         assert state['canvas'] == {'width': width, 'height': height}, state
-        assert state['actionBottom'] < height, state
-        assert state['videoCount'] == 8
+        assert state['collectionCount'] == 6, state
+        assert state['articleCount'] >= 6, state
         assert state['runningCSS'] >= 8, state
         assert state['pointerEvents'] == 'none'
         frame1 = page.locator('.fluid-canvas').evaluate('(c) => c.toDataURL()')
         page.wait_for_timeout(450)
         frame2 = page.locator('.fluid-canvas').evaluate('(c) => c.toDataURL()')
         assert frame1 != frame2, 'Ambient flow must move without pointer input'
-        page.screenshot(path=str(output / f'meshfree-{width}.png'), full_page=False)
+        page.screenshot(path=str(output / f'knowledge-{width}.png'), full_page=False)
         state['ambientFrameChanges'] = True
         report['viewports'].append(state)
 
@@ -56,13 +63,6 @@ with sync_playwright() as p:
     assert energy > .1, energy
     report['pointerEnergy'] = energy
     page.screenshot(path=str(output / 'pointer-flow.png'))
-    page.get_by_role('navigation', name='无网格法专题分区').get_by_role('link', name='资料下载').click()
-    page.wait_for_timeout(500)
-    anchor = page.locator('#downloads').bounding_box()
-    nav = page.locator('.meshfree-section-nav').bounding_box()
-    assert anchor['y'] >= nav['y'] + nav['height'], (anchor, nav)
-    report['anchorClearance'] = anchor['y'] - nav['y'] - nav['height']
-    page.screenshot(path=str(output / 'downloads-desktop.png'))
 
     # The effect is mounted above the route tree and must survive client navigation.
     page.get_by_role('link', name='CFD菜鸟首页').click()
@@ -71,11 +71,20 @@ with sync_playwright() as p:
     assert page.locator('.cfd-intro').is_visible()
     assert page.get_by_role('heading', name='CFD菜鸟').is_visible()
     page.screenshot(path=str(output / 'home-intro-desktop.png'))
+
+    # Moving the mouse or turning the wheel must not enter the functional home page.
     page.mouse.move(160, 180)
-    page.mouse.move(420, 260, steps=4)
+    page.mouse.move(520, 300, steps=8)
+    page.mouse.wheel(0, 520)
+    page.wait_for_timeout(900)
+    assert page.locator('.cfd-intro').is_visible()
+    assert not page.locator('.home-page').evaluate('(e) => e.classList.contains("interface-ready")')
+    report['homeIntroIgnoresMoveAndWheel'] = True
+
+    page.locator('.intro-enter').click()
     page.locator('.cfd-intro').wait_for(state='detached', timeout=3000)
     assert page.locator('.home-page').evaluate('(e) => e.classList.contains("interface-ready")')
-    report['homeIntroPointerReveal'] = True
+    report['homeIntroClickReveal'] = True
 
     frame_intervals = page.evaluate('''() => new Promise(resolve => {
       const values = []; let previous = performance.now();
@@ -111,13 +120,12 @@ with sync_playwright() as p:
     assert stopped != page.locator('.fluid-canvas').evaluate('(c) => c.toDataURL()')
     report['liveMotionPreference'] = 'passed'
 
-    # The intro remains usable when the operating system requests less motion.
+    # The click-only intro remains usable when the operating system requests less motion.
     page.emulate_media(reduced_motion='reduce')
-    page.evaluate("sessionStorage.removeItem('cfd-rookie-home-intro-seen')")
     page.reload(wait_until='load')
     assert page.locator('.cfd-intro').is_visible()
     assert page.evaluate("document.getAnimations().filter(a=>a.playState==='running').length") == 0
-    page.locator('.cfd-intro').dispatch_event('click')
+    page.locator('.intro-enter').click()
     assert page.locator('.cfd-intro').count() == 0
     report['reducedMotionClickIntro'] = 'passed'
     assert not report['errors'], report['errors']

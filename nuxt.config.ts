@@ -8,7 +8,7 @@ export default defineNuxtConfig({
       htmlAttrs: { lang: 'zh-CN' },
       title: 'CFD菜鸟｜CFD 与 Modelica 工程仿真平台',
       meta: [
-        { name: 'description', content: '面向 CFD、系统仿真与航空发动机工程用户的知识、计算、建模与社区平台。' },
+        { name: 'description', content: 'CFD、OpenFOAM、Modelica、CAE 与无网格法知识库及工程计算工具。' },
         { name: 'theme-color', content: '#1769AA' },
         { name: 'viewport', content: 'width=device-width, initial-scale=1' }
       ]

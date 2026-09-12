@@ -19,7 +19,14 @@
   background-color: rgba(255, 253, 250, .86);
 }
 .app-header { background: rgba(255, 253, 250, .94); backdrop-filter: blur(12px); }
+.discovery-page .discovery-layout { grid-template-columns: 220px minmax(0, 1fr); }
 /* Preserve the original flow-field illustration at narrow widths as well. */
+@media (max-width: 1100px) {
+  .discovery-page .discovery-layout { grid-template-columns: 200px minmax(0, 1fr); }
+}
+@media (max-width: 820px) {
+  .discovery-page .discovery-layout { grid-template-columns: 1fr; }
+}
 @media (max-width: 560px) {
   .home-page .hero-visual { display: block; margin-bottom: 28px; }
   .home-page .flow-field { height: 220px; }

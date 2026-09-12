@@ -255,6 +255,20 @@ export const databaseMigrations: DatabaseMigration[] = [
       `CREATE INDEX IF NOT EXISTS idx_content_items_kind_status_published
         ON content_items(kind, status, published_at DESC)`
     ]
+  },
+  {
+    version: 5,
+    name: 'remove_retired_meshfree_case_content',
+    statements: [
+      `DELETE FROM content_items WHERE slug IN (
+        'meshfree-cloud-480k',
+        'meshfree-jilong-historical-report',
+        'meshfree-jilong-overview',
+        'meshfree-landslide-plan',
+        'meshfree-reusable-workflow',
+        'meshfree-sph3d-model'
+      )`
+    ]
   }
 ]
 

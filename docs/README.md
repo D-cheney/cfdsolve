@@ -9,8 +9,7 @@
 | [布局系统与响应式规范](LAYOUT_SYSTEM.md) | 产品、设计、前端和测试人员 | 全局栅格、页面模式、四档响应式结构和布局验收规则 |
 | [参数扫描与工况对比实验室](SIMULATION_EXPERIMENT_LAB.md) | 仿真用户、产品、研发和测试人员 | 批量工况、趋势对比、可信度清单、导出与功能边界 |
 | [知识文章模板格式](../templates/knowledge/FORMAT.md) | 内容编辑、后台开发人员 | 模板字段、校验规则、导入命令和数据库写入行为 |
-| [统一知识库总索引](../templates/knowledge/README.md) | 学习者、内容编辑、审核人员 | 11,016 篇 CFD、CAE、无网格法、OpenFOAM、Modelica 与逐文件源码知识卡 |
-| [无网格法网站集成](MESHFREE_INTEGRATION.md) | 学习者、内容编辑、部署与测试人员 | SPH 学习路径、吉隆案例、原始资料下载和验证边界 |
+| [统一知识库总索引](../templates/knowledge/README.md) | 学习者、内容编辑、审核人员 | 11,025 篇 CFD、CAE、无网格法、OpenFOAM、Modelica 与逐文件源码知识卡 |
 
 阅读建议：
 

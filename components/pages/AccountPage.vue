@@ -127,8 +127,8 @@ const bookmarkedCount = computed(() => store.bookmarks.length);
         <NuxtLink to="/" class="brand"
           >CFD菜鸟 <small>CFD ROOKIE</small></NuxtLink
         >
-        <h1>把工程推理和计算结果<br />留在一条可复现链路上</h1>
-        <p>登录后管理仿真任务、Modelica 项目、收藏与社区讨论。</p>
+        <h1>CFD 知识与计算工作区</h1>
+        <p>管理仿真任务、Modelica 项目和收藏。</p>
         <div class="auth-proof">
           <span><CheckCircle2 />本地 SQLite 数据持久化</span
           ><span><CheckCircle2 />自动迁移与初始化</span

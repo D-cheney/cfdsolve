@@ -19,7 +19,7 @@ const files = folders.flatMap((folder) => {
     .map((name) => ({ folder, name, url: new URL(name, directory) }));
 });
 
-assert.equal(files.length, 16, "CAE 算法新增知识块数量发生变化时，应同步更新覆盖审计");
+assert.equal(files.length, 19, "CAE 算法新增知识块数量发生变化时，应同步更新覆盖审计");
 
 const articles = files.map(({ folder, name, url }) => {
   const source = readFileSync(url, "utf8");

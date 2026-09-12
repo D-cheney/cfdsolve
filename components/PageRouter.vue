@@ -4,7 +4,6 @@ const route = useRoute();
 const path = computed(() => route.path);
 const component = computed(() => {
   if (path.value === "/") return resolveComponent("PagesHomePage");
-  if (path.value === "/meshfree") return resolveComponent("PagesMeshfreePage");
   if (
     path.value === "/knowledge" ||
     path.value.startsWith("/knowledge/") ||

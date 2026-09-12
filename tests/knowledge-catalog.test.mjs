@@ -78,6 +78,37 @@ for (const requiredSlug of [
   assert.ok(articles.some(item => item.data.slug === requiredSlug), `知识路径缺少关键主题：${requiredSlug}`)
 }
 
+for (const retiredSlug of [
+  'meshfree-cloud-480k',
+  'meshfree-jilong-historical-report',
+  'meshfree-jilong-overview',
+  'meshfree-landslide-plan',
+  'meshfree-reusable-workflow',
+  'meshfree-sph3d-model'
+]) {
+  assert.ok(!articles.some(item => item.data.slug === retiredSlug), `已撤下的无网格算例仍在知识库：${retiredSlug}`)
+}
+
+for (const addedSlug of [
+  'flow-scale-and-nondimensionalization',
+  'linearization-residual-and-convergence',
+  'sampling-error-and-integral-metrics',
+  'openfoam-dictionary-resolution',
+  'openfoam-schemes-solvers-coupling',
+  'openfoam-log-diagnostics',
+  'modelica-kb-units-scaling',
+  'modelica-kb-event-hysteresis',
+  'modelica-kb-result-validation',
+  'fem-contact-convergence',
+  'partitioned-coupling-stability',
+  'doe-sensitivity-screening',
+  'meshfree-kernel-selection',
+  'meshfree-boundary-treatment',
+  'meshfree-neighbor-search'
+]) {
+  assert.ok(articles.some(item => item.data.slug === addedSlug), `知识分类缺少新增主题：${addedSlug}`)
+}
+
 const collectionCounts = Object.fromEntries(['cfd', 'openfoam', 'modelica', 'cae', 'meshfree'].map(name => [name, 0]))
 for (const item of articles) collectionCounts[knowledgeCollectionFor(String(item.data.category?.slug || ''))] += 1
 assert.ok(Object.values(collectionCounts).every(count => count > 0), `五大知识集合必须都有内容：${JSON.stringify(collectionCounts)}`)

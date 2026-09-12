@@ -6,15 +6,15 @@
 
 | 集合 | 位置 | 可导入文章 | 说明 |
 |---|---|---:|---|
-| CFD/CAE 专题库 | [`library/`](library/README.md) | 56 | CFD 基础、数值方法、网格、V&V、结构、电磁、声学、多物理、优化与降阶 |
-| OpenFOAM 工程库 | [`openfoam/`](openfoam/README.md) | 16 | 安装、案例、网格、物理模型、数值设置、运行与排错 |
-| Modelica 专题库 | [`modelica/`](modelica/README.md) | 13 | 语言、组件、DAE、事件、物理域、求解与联合仿真 |
+| CFD/CAE 专题库 | [`library/`](library/README.md) | 62 | CFD 基础、数值方法、网格、V&V、结构、电磁、声学、多物理、优化与降阶 |
+| OpenFOAM 工程库 | [`openfoam/`](openfoam/README.md) | 19 | 安装、案例、网格、物理模型、数值设置、运行与排错 |
+| Modelica 专题库 | [`modelica/`](modelica/README.md) | 16 | 语言、组件、DAE、事件、物理域、求解与联合仿真 |
 | OpenFOAM 14 架构库 | [`openfoam-source-v14/`](openfoam-source-v14/README.md) | 14 | 源码架构、离散、求解流程、模型基础设施与二次开发 |
 | OpenFOAM 14 逐文件库 | [`openfoam-source-files-v14/`](openfoam-source-files-v14/README.md) | 10,907 | 固定源码基线的逐文件中文解析与 17 类导航 |
 | 导入示例 | [`examples/`](examples/) | 1 | 模板与导入链路回归样例 |
-| 无网格法专题 | [`meshfree/`](meshfree/README.md) | 9 | SPH 原理、山体滑坡方案、吉隆案例、验证与复现 |
+| 无网格法知识 | [`meshfree/`](meshfree/README.md) | 6 | 方法选型、SPH 离散、核函数、边界、邻域搜索与验证 |
 
-合计 11,016 篇可导入 Markdown 文章。逐文件库属于“源码参考”层级，静态分析结论应结合编译、调试和算例验证；其路径、行数和显式依赖为确定性提取，宏展开、模板实例及运行时选择关系可能不完整。
+合计 11,025 篇可导入 Markdown 文章。逐文件库属于“源码参考”层级，静态分析结论应结合编译、调试和算例验证；其路径、行数和显式依赖为确定性提取，宏展开、模板实例及运行时选择关系可能不完整。
 
 ## 全量同步
 

@@ -6,6 +6,6 @@
 2. [质量、动量、能量与组分守恒检查](conservation-balance-checks.md)
 3. [GCI 与离散不确定度报告](gci-discretization-uncertainty.md)
 4. [力系数、平均统计与可复现报告](force-coefficients-reporting.md)
+5. [后处理采样误差与积分量核对](sampling-error-and-integral-metrics.md)
 
 建议把本目录的检查项转化为每个项目的验收表，并与原始输入、求解日志和后处理脚本一起归档。
-

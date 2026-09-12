@@ -7,6 +7,6 @@
 3. [压力—速度耦合方法](pressure-velocity-coupling.md)
 4. [瞬态时间步与 Courant 数](transient-time-step-courant.md)
 5. [残差、监控量与收敛判定](residuals-and-convergence.md)
+6. [非线性线性化、残差与收敛判定](linearization-residual-and-convergence.md)
 
 阅读时应把“稳定”“收敛”“准确”区分开：稳定解可能存在较大数值耗散，残差收敛也不代表网格或物理模型正确。
-

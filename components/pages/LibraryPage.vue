@@ -54,7 +54,7 @@ const knowledgeCollections = [
   { slug: "openfoam", name: "OpenFOAM", description: "使用方法与源码" },
   { slug: "modelica", name: "Modelica", description: "方程式系统建模" },
   { slug: "cae", name: "CAE 算法", description: "结构、多物理与优化" },
-  { slug: "meshfree", name: "无网格法", description: "SPH、案例与验证" },
+  { slug: "meshfree", name: "无网格法", description: "SPH 方法与验证" },
 ] as const;
 const { data: knowledgeCategoriesData } = await useFetch<{
   items: KnowledgeCategory[];
@@ -513,8 +513,8 @@ function changeKnowledgePage(page: number) {
     <section class="page-hero">
       <div class="container">
         <span class="kicker">KNOWLEDGE BASE</span>
-        <h1>体系化理解 CFD 与 CAE</h1>
-        <p>统一检索 CFD 理论、OpenFOAM 源码、Modelica 系统建模与多物理场算法。</p>
+        <h1>工程知识库</h1>
+        <p>按分类查找 CFD、OpenFOAM、Modelica、CAE 与无网格法资料。</p>
         <div class="page-search">
           <Search :size="19" /><input
             v-model="query"
@@ -562,11 +562,6 @@ function changeKnowledgePage(page: number) {
             <strong>{{ activeCategoryName }}</strong
             ><span>共 {{ totalKnowledgeArticles }} 篇</span>
           </div>
-          <select>
-            <option>推荐排序</option>
-            <option>最近更新</option>
-            <option>阅读时长</option>
-          </select>
         </div>
         <NuxtLink
           v-for="item in filteredArticles"
@@ -612,23 +607,6 @@ function changeKnowledgePage(page: number) {
           >下一页</button>
         </nav>
       </section>
-      <aside class="discovery-side">
-        <div class="side-card">
-          <small>推荐路径</small><strong>CFD 基础到验证</strong>
-          <p>5 大集合 · {{ knowledgeCategoriesData?.totalArticles || totalKnowledgeArticles }} 篇内容</p>
-          <div class="progress"><i style="width: 18%"></i></div>
-          <NuxtLink to="/knowledge/knowledge-library-roadmap"
-            >查看知识地图</NuxtLink
-          >
-        </div>
-        <div class="side-card">
-          <strong>热门标签</strong>
-          <div class="tag-cloud">
-            <span>SIMPLE</span><span>y+</span><span>有限体积</span
-            ><span>RANS</span><span>网格</span><span>Modelica</span>
-          </div>
-        </div>
-      </aside>
     </div>
   </div>
 

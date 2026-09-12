@@ -186,7 +186,7 @@ Nuxt 文件路由入口：
 5. 带有 `body_html` 的文章详情使用服务端清理后的 HTML；
 6. 旧演示文章没有数据库正文时继续显示原页面正文。
 
-知识文章以 YAML Front Matter + Markdown 文件维护。当前统一源目录包含 11,007 篇可导入文章：CFD/CAE 专题、OpenFOAM 工程实践、Modelica、OpenFOAM 14 架构，以及 10,907 份逐文件源码卡。公式在导入阶段进行 KaTeX 语法校验，服务端生成 HTML/MathML 后再执行白名单清理。大规模列表使用服务端搜索、集合/分类过滤和分页，不再一次向浏览器发送全部正文或全部元数据。模板、校验和导入流程见 `templates/knowledge/FORMAT.md`。
+知识文章以 YAML Front Matter + Markdown 文件维护。当前统一源目录包含 11,025 篇可导入文章：CFD/CAE 专题、无网格法、OpenFOAM 工程实践、Modelica、OpenFOAM 14 架构，以及 10,907 份逐文件源码卡。公式在导入阶段进行 KaTeX 语法校验，服务端生成 HTML/MathML 后再执行白名单清理。大规模列表使用服务端搜索、集合/分类过滤和分页，不再一次向浏览器发送全部正文或全部元数据。模板、校验和导入流程见 `templates/knowledge/FORMAT.md`。
 
 ### 7.2 算法页
 
@@ -688,7 +688,7 @@ npm run knowledge:sync
 |---|---|
 | `npm run test:formula` | 13 个乱码修复、非法实体、Unicode、Word 线性公式、LaTeX 和诊断场景 |
 | `npm run test:knowledge` | 模板解析、字段校验、目录提取、KaTeX/MathML 渲染、非法公式拒绝和 HTML 清理 |
-| `npm run test:cae-knowledge` | 16 个 CAE 算法知识块、6 个新专题、推导结构、公式、MathML、参考资料和全景图覆盖词 |
+| `npm run test:cae-knowledge` | 19 个 CAE 算法知识块、6 个专题、推导结构、公式、MathML、参考资料和全景图覆盖词 |
 | `npm run test:solvers` | CFD 求解器正常工况、边界输入、矩形方腔、收敛状态和尺度一致性 |
 | `npm run test:lab` | 线性/对数/整数扫描、指标提取、层流适用性和未收敛可信度检查 |
 | `npm run test:modelica` | 四个模板、方程签名、参数边界、非有限结果和时间积分 |
