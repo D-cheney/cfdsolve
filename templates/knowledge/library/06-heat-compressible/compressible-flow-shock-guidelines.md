@@ -13,7 +13,7 @@ author_username: lin-cfd
 published_at: "2026-08-06T00:00:00.000Z"
 tags: [可压缩流, 马赫数, 激波, 总压, 超声速]
 seo:
-  title: 可压缩 CFD 与激波计算指南｜流研工坊
+  title: 可压缩 CFD 与激波计算指南｜CFD菜鸟
   description: 正确设置总静参数、亚声速和超声速边界，并检查激波与守恒关系。
   keywords: [可压缩 CFD, 激波捕捉, 总压总温, 超声速边界]
 ---

@@ -13,7 +13,7 @@ author_username: lin-cfd
 published_at: "2026-08-29T00:00:00.000Z"
 tags: [电磁场, Maxwell方程, Hcurl有限元, FDTD, PML]
 seo:
-  title: Maxwell、H(curl) 有限元与 FDTD 推导｜流研工坊
+  title: Maxwell、H(curl) 有限元与 FDTD 推导｜CFD菜鸟
   description: 推导计算电磁学旋度弱式、边元和 Yee-FDTD 的稳定性与边界处理。
   keywords: [Maxwell有限元, Hcurl, FDTD, Yee网格]
 ---

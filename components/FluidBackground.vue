@@ -28,6 +28,11 @@ let lastTs = 0
 let running = false
 let rippleCooldown = 0
 let motionPreference = null
+let quality = 1
+let targetFrameInterval = 0
+let lastPaintTs = 0
+let sampledFrames = 0
+let sampledRenderTime = 0
 
 const mouse = { x: -9999, y: -9999, vx: 0, vy: 0, px: -9999, py: -9999, seen: false }
 const field = { x: 0, y: 0, targetX: 0, targetY: 0, energy: 0, targetEnergy: 0 }
@@ -98,14 +103,15 @@ function drawAmbientFlow(now, dt) {
   ctx.lineCap = 'round'
   ctx.lineJoin = 'round'
 
-  const lineCount = W < 720 ? 8 : 14
+  const lineCount = W < 720 ? 7 : Math.max(9, Math.round(13 * quality))
   const gap = H / (lineCount - 1)
   for (let line = 0; line < lineCount; line++) {
     const baseY = line * gap
     const phase = line * 0.78 + time * (0.72 + (line % 3) * 0.09)
     const points = []
 
-    for (let x = -50; x <= W + 50; x += 34) {
+    const pointGap = quality < .8 ? 46 : 36
+    for (let x = -50; x <= W + 50; x += pointGap) {
       const wave = Math.sin(x * 0.0056 + phase) * (18 + line % 4 * 4)
       const secondary = Math.sin(x * 0.0021 - time * 0.86 + line * 1.3) * 21
       const noise = (noise2(x * 0.0022 + time, line * 0.23 + time * 0.35) - 0.5) * 34
@@ -136,10 +142,10 @@ function drawAmbientFlow(now, dt) {
     ctx.lineWidth = 1.15 + (line % 2) * 0.45
     ctx.stroke()
 
-    if (line % 3 === 0) {
+    if (line % (quality < .8 ? 5 : 4) === 0) {
       ctx.strokeStyle = `rgba(239,137,69,${alpha * 0.58})`
-      ctx.lineWidth = 10 + field.energy * 6
-      ctx.filter = 'blur(7px)'
+      ctx.lineWidth = 9 + field.energy * 5
+      ctx.filter = quality < .8 ? 'blur(4px)' : 'blur(6px)'
       ctx.stroke()
       ctx.filter = 'none'
     }
@@ -243,6 +249,10 @@ function drawRipples(dt) {
 
 function step(now) {
   if (!running) return
+  raf = requestAnimationFrame(step)
+  if (targetFrameInterval && now - lastPaintTs < targetFrameInterval) return
+  lastPaintTs = now
+  const renderStarted = performance.now()
   const dt = Math.min(0.05, (now - lastTs) / 1000 || 0.016)
   lastTs = now
   const t = now * 0.0001
@@ -306,13 +316,27 @@ function step(now) {
 
   ctx.filter = 'none'
   ctx.globalCompositeOperation = 'source-over'
-  raf = requestAnimationFrame(step)
+  sampledFrames += 1
+  sampledRenderTime += performance.now() - renderStarted
+  if (sampledFrames >= 90) {
+    const averageRenderTime = sampledRenderTime / sampledFrames
+    // 画面绘制超过一帧预算时自动降一级，避免高分屏上争抢主线程。
+    if (averageRenderTime > 12 && quality > .7) {
+      quality = .7
+      targetFrameInterval = 1000 / 45
+      particles = particles.slice(0, Math.max(42, Math.round(particles.length * .72)))
+      if (canvasEl.value) canvasEl.value.dataset.quality = 'adaptive'
+    }
+    sampledFrames = 0
+    sampledRenderTime = 0
+  }
 }
 
 function resize() {
-  const dpr = Math.min(window.devicePixelRatio || 1, 1.5)
   W = window.innerWidth
   H = window.innerHeight
+  const dprLimit = quality < .8 ? 1 : W * H > 2_100_000 ? 1.2 : 1.4
+  const dpr = Math.min(window.devicePixelRatio || 1, dprLimit)
   if (!field.x && !field.y) {
     field.x = field.targetX = W * 0.5
     field.y = field.targetY = H * 0.5
@@ -331,8 +355,17 @@ function init() {
   if (!canvas) return
   ctx = canvas.getContext('2d')
   if (!ctx) return
+  const deviceMemory = Number(navigator.deviceMemory || 8)
+  const hardwareConcurrency = Number(navigator.hardwareConcurrency || 8)
+  if (deviceMemory <= 4 || hardwareConcurrency <= 4 || window.innerWidth * window.innerHeight > 2_800_000) {
+    quality = .72
+    targetFrameInterval = 1000 / 50
+    canvas.dataset.quality = 'balanced'
+  } else {
+    canvas.dataset.quality = 'full'
+  }
   resize()
-  const count = Math.round(Math.min(118, Math.max(58, (W * H) / 17500)))
+  const count = Math.round(Math.min(102, Math.max(48, (W * H) / 20500)) * quality)
   particles = Array.from({ length: count }, makeParticle)
   running = true
   lastTs = performance.now()
@@ -361,7 +394,8 @@ function onMove(event) {
   field.targetY = y
   field.targetEnergy = Math.min(1.45, 0.38 + Math.hypot(mouse.vx, mouse.vy) * 0.045)
   trail.push({ x, y, vx: mouse.vx, vy: mouse.vy, life: 1 })
-  if (trail.length > 68) trail.splice(0, trail.length - 68)
+  const trailLimit = quality < .8 ? 44 : 58
+  if (trail.length > trailLimit) trail.splice(0, trail.length - trailLimit)
   mouse.px = x
   mouse.py = y
   mouse.seen = true
@@ -451,6 +485,7 @@ onBeforeUnmount(() => {
   pointer-events: none;
   opacity: 1;
   mix-blend-mode: multiply;
+  contain: strict;
 }
 
 .ambient-mesh,
@@ -482,6 +517,7 @@ onBeforeUnmount(() => {
   filter: blur(44px);
   opacity: calc(.46 + var(--flow-energy) * .1);
   will-change: transform;
+  transform: translateZ(0);
 }
 
 .ribbon-one {

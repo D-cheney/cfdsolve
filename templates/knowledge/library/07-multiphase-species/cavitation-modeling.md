@@ -13,7 +13,7 @@ author_username: lin-cfd
 published_at: "2026-08-06T00:00:00.000Z"
 tags: [空化, 汽蚀, 蒸气压, 空化数, 相变]
 seo:
-  title: CFD 空化模型与汽蚀判读｜流研工坊
+  title: CFD 空化模型与汽蚀判读｜CFD菜鸟
   description: 正确设置蒸气压和空化质量传递，并理解蒸气体积分数与真实汽蚀损伤的区别。
   keywords: [空化 CFD, 汽蚀, 空化数, 饱和蒸气压]
 ---

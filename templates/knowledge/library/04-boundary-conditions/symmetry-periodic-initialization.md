@@ -13,7 +13,7 @@ author_username: lin-cfd
 published_at: "2026-08-06T00:00:00.000Z"
 tags: [对称边界, 周期边界, 非共形接口, 初始化, 参考压力]
 seo:
-  title: CFD 对称周期接口与初始化｜流研工坊
+  title: CFD 对称周期接口与初始化｜CFD菜鸟
   description: 判断对称与周期假设，检查接口守恒，并构造与边界一致的初始流场。
   keywords: [CFD 对称边界, 周期边界, 网格接口, 初始化]
 ---

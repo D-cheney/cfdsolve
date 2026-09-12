@@ -13,7 +13,7 @@ author_username: lin-cfd
 published_at: "2026-08-06T00:00:00.000Z"
 tags: [RANS, 湍流模型, 模型选择, 雷诺应力, 工程CFD]
 seo:
-  title: RANS 湍流模型选择框架｜流研工坊
+  title: RANS 湍流模型选择框架｜CFD菜鸟
   description: 根据流动特征、近壁需求和验证数据选择适合的 RANS 湍流模型。
   keywords: [RANS 模型, 湍流模型选择, k-epsilon, k-omega SST]
 ---

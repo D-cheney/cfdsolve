@@ -13,7 +13,7 @@ author_username: lin-cfd
 published_at: "2026-08-29T00:00:00.000Z"
 tags: [ODE, DAE, Runge-Kutta, BDF, 自适应时间步]
 seo:
-  title: ODE 与 DAE 时间积分公式推导｜流研工坊
+  title: ODE 与 DAE 时间积分公式推导｜CFD菜鸟
   description: 推导 RK、隐式 Euler、BDF、Newton 线性化、自适应误差控制与一致初始化。
   keywords: [ODE积分, DAE求解, BDF, Runge-Kutta]
 ---

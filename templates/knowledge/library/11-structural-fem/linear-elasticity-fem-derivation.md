@@ -13,7 +13,7 @@ author_username: lin-cfd
 published_at: "2026-08-29T00:00:00.000Z"
 tags: [线弹性, 虚功原理, 刚度矩阵, 应力恢复, 有限元]
 seo:
-  title: 线弹性有限元刚度矩阵完整推导｜流研工坊
+  title: 线弹性有限元刚度矩阵完整推导｜CFD菜鸟
   description: 从强平衡到虚功弱式、B 矩阵、材料矩阵、装配和应力恢复。
   keywords: [线弹性有限元, 虚功, B矩阵, Hooke定律]
 ---

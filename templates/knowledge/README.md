@@ -1,4 +1,4 @@
-# 流研工坊统一知识库
+# CFD菜鸟统一知识库
 
 本目录是网站知识内容的唯一源目录。部署程序会递归识别带有 `flowlab-knowledge/1.0` Front Matter 的 Markdown 文件，先全量校验，再以单个数据库事务同步到 SQLite；普通 `README.md`、索引和生成报告只用于仓库导航，不写入文章表。
 

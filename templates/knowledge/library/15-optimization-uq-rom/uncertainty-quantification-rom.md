@@ -13,7 +13,7 @@ author_username: lin-cfd
 published_at: "2026-08-29T00:00:00.000Z"
 tags: [不确定性量化, Monte Carlo, PCE, POD, DMD, 降阶模型]
 seo:
-  title: CAE 不确定性量化与 POD/DMD 降阶推导｜流研工坊
+  title: CAE 不确定性量化与 POD/DMD 降阶推导｜CFD菜鸟
   description: 从概率估计、正交多项式和 SVD 推导 CAE UQ 与降阶模型核心算法。
   keywords: [UQ, Monte Carlo, PCE, POD, DMD]
 ---

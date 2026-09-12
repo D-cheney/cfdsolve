@@ -13,7 +13,7 @@ author_username: lin-cfd
 published_at: "2026-08-29T00:00:00.000Z"
 tags: [声学, Helmholtz方程, 声学有限元, 边界元, PML]
 seo:
-  title: 声学 Helmholtz 有限元与边界元推导｜流研工坊
+  title: 声学 Helmholtz 有限元与边界元推导｜CFD菜鸟
   description: 从线化守恒方程推导声波、Helmholtz 弱式、BEM 和开放边界算法。
   keywords: [计算声学, Helmholtz, 声学FEM, 声学BEM]
 ---

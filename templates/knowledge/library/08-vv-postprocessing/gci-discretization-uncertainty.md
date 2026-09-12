@@ -13,7 +13,7 @@ author_username: lin-cfd
 published_at: "2026-08-06T00:00:00.000Z"
 tags: [GCI, Richardson外推, 离散误差, 网格收敛, 数值验证]
 seo:
-  title: CFD 网格收敛指数 GCI｜流研工坊
+  title: CFD 网格收敛指数 GCI｜CFD菜鸟
   description: 使用系统加密网格、表观阶次和 GCI 量化 CFD 空间离散不确定度。
   keywords: [GCI, 网格收敛指数, Richardson 外推, 离散不确定度]
 ---

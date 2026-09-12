@@ -13,7 +13,7 @@ author_username: lin-cfd
 published_at: "2026-08-06T00:00:00.000Z"
 tags: [SIMPLE, PISO, 压力速度耦合, 不可压缩流, 收敛]
 seo:
-  title: SIMPLE、PISO 与压力速度耦合｜流研工坊
+  title: SIMPLE、PISO 与压力速度耦合｜CFD菜鸟
   description: 理解不可压缩 CFD 中压力修正、连续性约束和常见耦合算法。
   keywords: [SIMPLE 算法, PISO, 压力修正, 压力速度耦合]
 ---

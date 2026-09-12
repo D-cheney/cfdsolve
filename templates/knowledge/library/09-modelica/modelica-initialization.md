@@ -13,7 +13,7 @@ author_username: lin-cfd
 published_at: "2026-08-06T00:00:00.000Z"
 tags: [Modelica初始化, initial equation, start值, DAE, 稳态初始化]
 seo:
-  title: Modelica 初始化与稳态起点｜流研工坊
+  title: Modelica 初始化与稳态起点｜CFD菜鸟
   description: 正确使用 start、fixed 和 initial equation，解决 DAE 初始化欠定与过定问题。
   keywords: [Modelica initialization, initial equation, fixed, DAE初始化]
 ---

@@ -13,7 +13,7 @@ author_username: lin-cfd
 published_at: "2026-08-06T00:00:00.000Z"
 tags: [残差, 收敛判定, 守恒误差, 监控量, CFD]
 seo:
-  title: CFD 残差与收敛判定｜流研工坊
+  title: CFD 残差与收敛判定｜CFD菜鸟
   description: 联合残差、守恒和工程监控量判断 CFD 是否真正达到可接受的收敛状态。
   keywords: [CFD 残差, 收敛标准, 质量不平衡, 监控量]
 ---

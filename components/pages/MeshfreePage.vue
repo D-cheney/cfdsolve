@@ -2,7 +2,7 @@
 import { ArrowRight, Download, BookOpen, Layers3, CheckCircle2 } from 'lucide-vue-next'
 import manifest from '~/public/meshfree/manifest.json'
 
-useHead({ title: '无网格法 · SPH 知识与吉隆案例｜流研工坊' })
+useHead({ title: '无网格法 · SPH 知识与吉隆案例｜CFD菜鸟' })
 const videoGrid = ref<HTMLElement | null>(null)
 function playExclusive(event: Event) {
   for (const video of videoGrid.value?.querySelectorAll('video') || []) {

@@ -13,7 +13,7 @@ author_username: lin-cfd
 published_at: "2026-08-29T00:00:00.000Z"
 tags: [有限元, 弱式, Galerkin, 单元矩阵, 变分法]
 seo:
-  title: 有限元弱式与单元矩阵完整推导｜流研工坊
+  title: 有限元弱式与单元矩阵完整推导｜CFD菜鸟
   description: 从 Poisson 强式逐步得到有限元弱式、边界项、单元刚度和装配方程。
   keywords: [有限元推导, 弱形式, Galerkin, 单元刚度]
 ---

@@ -13,7 +13,7 @@ author_username: lin-cfd
 published_at: "2026-08-06T00:00:00.000Z"
 tags: [压力出口, 出口回流, 计算域, 压力基准, 边界条件]
 seo:
-  title: CFD 出口回流与压力边界｜流研工坊
+  title: CFD 出口回流与压力边界｜CFD菜鸟
   description: 判断出口回流是否为物理现象，并通过计算域与回流条件控制边界污染。
   keywords: [压力出口, CFD 回流, 出口边界, 计算域长度]
 ---

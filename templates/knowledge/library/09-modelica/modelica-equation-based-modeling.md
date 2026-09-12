@@ -13,7 +13,7 @@ author_username: lin-cfd
 published_at: "2026-08-06T00:00:00.000Z"
 tags: [Modelica, 方程式建模, 模型平衡, DAE, 系统仿真]
 seo:
-  title: Modelica 方程式建模与模型平衡｜流研工坊
+  title: Modelica 方程式建模与模型平衡｜CFD菜鸟
   description: 从物理方程、变量和参数建立结构平衡的 Modelica 可复用组件。
   keywords: [Modelica 教程, 方程式建模, 模型平衡, DAE]
 ---

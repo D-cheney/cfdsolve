@@ -16,7 +16,7 @@ tags:
   - 质量守恒
   - CFD
 seo:
-  title: CFD 边界条件选择与一致性检查｜流研工坊
+  title: CFD 边界条件选择与一致性检查｜CFD菜鸟
   description: 结合守恒、流动方向和可测量量，系统检查 CFD 入口、出口、壁面与对称边界。
   keywords:
     - CFD 边界条件

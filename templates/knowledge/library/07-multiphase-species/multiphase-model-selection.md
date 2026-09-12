@@ -13,7 +13,7 @@ author_username: lin-cfd
 published_at: "2026-08-06T00:00:00.000Z"
 tags: [多相流, VOF, Euler-Euler, Euler-Lagrange, 模型选择]
 seo:
-  title: CFD 多相流模型选择框架｜流研工坊
+  title: CFD 多相流模型选择框架｜CFD菜鸟
   description: 根据界面形态、浓度和相间耦合选择适合的多相 CFD 方法。
   keywords: [多相流模型, VOF, Euler-Euler, DPM]
 ---

@@ -13,7 +13,7 @@ author_username: lin-cfd
 published_at: "2026-08-06T00:00:00.000Z"
 tags: [控制方程, 质量守恒, 动量守恒, 能量守恒, Navier-Stokes]
 seo:
-  title: CFD 质量、动量与能量守恒方程｜流研工坊
+  title: CFD 质量、动量与能量守恒方程｜CFD菜鸟
   description: 从控制体和通量观点理解 CFD 求解的质量、动量与能量方程及闭合关系。
   keywords: [连续性方程, Navier-Stokes, 能量方程, 守恒形式]
 ---

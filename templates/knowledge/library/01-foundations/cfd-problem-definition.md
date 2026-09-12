@@ -13,7 +13,7 @@ author_username: lin-cfd
 published_at: "2026-08-06T00:00:00.000Z"
 tags: [CFD, 问题定义, 建模流程, 工程仿真]
 seo:
-  title: CFD 问题定义与标准计算流程｜流研工坊
+  title: CFD 问题定义与标准计算流程｜CFD菜鸟
   description: 从目标量、计算域、物理假设、边界条件到验证依据，建立可复现的 CFD 工作流。
   keywords: [CFD 工作流, 计算域, 物理建模, 仿真流程]
 ---

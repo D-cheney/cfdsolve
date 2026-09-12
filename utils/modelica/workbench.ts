@@ -173,7 +173,7 @@ export function simulateModelicaLite(source: string, experimentInput: Partial<Mo
   const analysis = analyzeModelica(source)
   const experiment = normalizedExperiment(experimentInput)
   const parameters = Object.fromEntries(analysis.symbols.filter(symbol => symbol.kind === 'parameter').map(symbol => [symbol.name, value(overrides, symbol.name, symbol.value ?? 0)]))
-  const base = { id: newRunId(), label: `实验 ${new Date().toLocaleString('zh-CN')}`, createdAt: new Date().toISOString(), engine: 'FlowLab Modelica Lite 1.0', experiment: experiment ?? defaultModelicaExperiment(), parameters }
+  const base = { id: newRunId(), label: `实验 ${new Date().toLocaleString('zh-CN')}`, createdAt: new Date().toISOString(), engine: 'CFD菜鸟 Modelica Lite 1.0', experiment: experiment ?? defaultModelicaExperiment(), parameters }
   const errors = analysis.diagnostics.filter(item => item.severity === 'error')
   if (errors.length || !experiment) return { ...base, status: 'FAILED', time: [], variables: [], summary: { points: 0, steps: 0, events: 0 }, messages: [...errors.map(item => `${item.code}: ${item.text}`), ...(experiment ? [] : ['MO9002: 实验配置无效；请检查起止时间、输出间隔和容差。'])] }
   let result: ReturnType<typeof integrate>
@@ -207,7 +207,7 @@ export function simulateModelicaLite(source: string, experimentInput: Partial<Mo
 
 export function compileOutput(analysis: ModelicaAnalysis) {
   const errors = analysis.diagnostics.filter(item => item.severity === 'error').length
-  return `[checker] FlowLab Modelica Lite 1.0\n[parser] ${analysis.modelName ?? 'unknown'} · ${analysis.symbols.length} symbols\n[semantic] ${analysis.equationCount} equations · ${errors} error(s)\n${errors ? '[failed] 请先修复错误再运行。' : '[success] 源码检查完成；可运行受支持模板。'}`
+  return `[checker] CFD菜鸟 Modelica Lite 1.0\n[parser] ${analysis.modelName ?? 'unknown'} · ${analysis.symbols.length} symbols\n[semantic] ${analysis.equationCount} equations · ${errors} error(s)\n${errors ? '[failed] 请先修复错误再运行。' : '[success] 源码检查完成；可运行受支持模板。'}`
 }
 
 export function runToCsv(run: ModelicaRun) {

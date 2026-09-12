@@ -13,7 +13,7 @@ author_username: lin-cfd
 published_at: "2026-08-06T00:00:00.000Z"
 tags: [能量方程, 对流传热, 导热, 换热系数, 能量守恒]
 seo:
-  title: CFD 能量方程与传热建模｜流研工坊
+  title: CFD 能量方程与传热建模｜CFD菜鸟
   description: 理解能量方程中的对流、导热和源项，并用总能量收支验证结果。
   keywords: [CFD 能量方程, 对流换热, 热流, 换热系数]
 ---

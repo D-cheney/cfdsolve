@@ -13,7 +13,7 @@ author_username: lin-cfd
 published_at: "2026-08-29T00:00:00.000Z"
 tags: [网格映射, L2投影, Mortar, 守恒插值, 多物理耦合]
 seo:
-  title: 非匹配网格守恒映射算法｜流研工坊
+  title: 非匹配网格守恒映射算法｜CFD菜鸟
   description: 从 L2 投影和虚功一致性推导场变量与载荷的守恒传递。
   keywords: [网格映射, 守恒插值, Mortar, L2投影]
 ---

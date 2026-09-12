@@ -13,7 +13,7 @@ author_username: lin-cfd
 published_at: "2026-08-06T00:00:00.000Z"
 tags: [流体物性, 单位, 量纲, 黏度, 传热]
 seo:
-  title: 流体物性、单位与量纲检查｜流研工坊
+  title: 流体物性、单位与量纲检查｜CFD菜鸟
   description: 掌握 CFD 常用物性的含义、单位、温压依赖和数量级检查方法。
   keywords: [动力黏度, 运动黏度, 流体物性, CFD 单位]
 ---

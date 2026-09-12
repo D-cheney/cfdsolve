@@ -132,9 +132,9 @@ onBeforeUnmount(() => window.removeEventListener("keydown", handleKeys));
       >
         <Menu :size="21" />
       </button>
-      <NuxtLink to="/" class="brand" aria-label="流研工坊首页"
+      <NuxtLink to="/" class="brand" aria-label="CFD菜鸟首页"
         ><span class="brand-mark"><i></i><i></i><i></i></span
-        ><span>流研工坊<small>FLOWLAB</small></span></NuxtLink
+        ><span>CFD菜鸟<small>CFD ROOKIE</small></span></NuxtLink
       >
       <nav class="primary-nav" aria-label="主导航">
         <NuxtLink

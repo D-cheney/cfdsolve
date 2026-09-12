@@ -13,7 +13,7 @@ author_username: lin-cfd
 published_at: "2026-08-06T00:00:00.000Z"
 tags: [网格质量, 非正交, 偏斜, 长宽比, 网格修复]
 seo:
-  title: CFD 网格质量指标与修复｜流研工坊
+  title: CFD 网格质量指标与修复｜CFD菜鸟
   description: 理解非正交、偏斜和尺寸跳变对 CFD 离散误差与稳定性的影响。
   keywords: [网格非正交, 网格偏斜, CFD 网格质量, 负体积]
 ---

@@ -13,7 +13,7 @@ author_username: lin-cfd
 published_at: "2026-08-29T00:00:00.000Z"
 tags: [Newton法, JFNK, 线搜索, 信赖域, 非线性求解]
 seo:
-  title: Newton 与 JFNK 非线性求解算法推导｜流研工坊
+  title: Newton 与 JFNK 非线性求解算法推导｜CFD菜鸟
   description: 推导 Newton、Jacobian-free Newton-Krylov、inexact Newton 与全局化策略。
   keywords: [Newton法, JFNK, 非线性残量, 线搜索]
 ---

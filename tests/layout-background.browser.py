@@ -65,9 +65,32 @@ with sync_playwright() as p:
     page.screenshot(path=str(output / 'downloads-desktop.png'))
 
     # The effect is mounted above the route tree and must survive client navigation.
-    page.get_by_role('link', name='流研工坊首页').click()
+    page.get_by_role('link', name='CFD菜鸟首页').click()
     page.locator('.home-page').wait_for()
     assert page.locator('.fluid-canvas').count() == 1
+    assert page.locator('.cfd-intro').is_visible()
+    assert page.get_by_role('heading', name='CFD菜鸟').is_visible()
+    page.screenshot(path=str(output / 'home-intro-desktop.png'))
+    page.mouse.move(160, 180)
+    page.mouse.move(420, 260, steps=4)
+    page.locator('.cfd-intro').wait_for(state='detached', timeout=3000)
+    assert page.locator('.home-page').evaluate('(e) => e.classList.contains("interface-ready")')
+    report['homeIntroPointerReveal'] = True
+
+    frame_intervals = page.evaluate('''() => new Promise(resolve => {
+      const values = []; let previous = performance.now();
+      function sample(now) {
+        values.push(now - previous); previous = now;
+        if (values.length < 75) requestAnimationFrame(sample);
+        else resolve(values.slice(5).sort((a, b) => a - b));
+      }
+      requestAnimationFrame(sample);
+    })''')
+    p95 = frame_intervals[int(len(frame_intervals) * .95)]
+    assert p95 < 55, p95
+    report['animationFrameP95Ms'] = round(p95, 2)
+    report['canvasQuality'] = page.locator('.fluid-canvas').get_attribute('data-quality')
+
     page.set_viewport_size({'width': 390, 'height': 844})
     assert page.locator('.hero-visual').is_visible(), 'Keep the original flow illustration on mobile'
     assert page.evaluate('document.documentElement.scrollWidth <= innerWidth')
@@ -87,6 +110,16 @@ with sync_playwright() as p:
     assert page.locator('.fluid-canvas').is_visible()
     assert stopped != page.locator('.fluid-canvas').evaluate('(c) => c.toDataURL()')
     report['liveMotionPreference'] = 'passed'
+
+    # The intro remains usable when the operating system requests less motion.
+    page.emulate_media(reduced_motion='reduce')
+    page.evaluate("sessionStorage.removeItem('cfd-rookie-home-intro-seen')")
+    page.reload(wait_until='load')
+    assert page.locator('.cfd-intro').is_visible()
+    assert page.evaluate("document.getAnimations().filter(a=>a.playState==='running').length") == 0
+    page.locator('.cfd-intro').dispatch_event('click')
+    assert page.locator('.cfd-intro').count() == 0
+    report['reducedMotionClickIntro'] = 'passed'
     assert not report['errors'], report['errors']
     browser.close()
 

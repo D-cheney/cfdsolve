@@ -13,7 +13,7 @@ author_username: lin-cfd
 published_at: "2026-08-06T00:00:00.000Z"
 tags: [网格无关性, 网格加密, 数值不确定度, GCI, 验证]
 seo:
-  title: CFD 网格无关性研究方法｜流研工坊
+  title: CFD 网格无关性研究方法｜CFD菜鸟
   description: 用系统加密、目标量和局部场比较完成可审计的 CFD 网格无关性研究。
   keywords: [网格无关性, 网格收敛, GCI, CFD 验证]
 ---

@@ -1,8 +1,8 @@
-# 流研工坊知识库总索引
+# CFD菜鸟知识库总索引
 
-本目录是可直接导入流研工坊 SQLite 知识库的文章源文件。每篇非 `README.md` 文件都是一个独立知识块，采用 `flowlab-knowledge/1.0` Front Matter；目录中的 `README.md` 仅用于人工导航，不参与批量导入。
+本目录是可直接导入CFD菜鸟 SQLite 知识库的文章源文件。每篇非 `README.md` 文件都是一个独立知识块，采用 `flowlab-knowledge/1.0` Front Matter；目录中的 `README.md` 仅用于人工导航，不参与批量导入。
 
-站内可阅读的导航文章：[流研工坊知识库导航与学习路线](knowledge-library-roadmap.md)。
+站内可阅读的导航文章：[CFD菜鸟知识库导航与学习路线](knowledge-library-roadmap.md)。
 
 ## 专题地图
 

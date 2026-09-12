@@ -1,7 +1,7 @@
 ---
 template_version: "flowlab-knowledge/1.0"
 slug: knowledge-library-roadmap
-title: 流研工坊知识库导航与学习路线
+title: CFD菜鸟知识库导航与学习路线
 summary: 按十五个专题组织 CFD、结构、热、电磁、声学、粒子法、多体/DAE、多物理、优化、降阶、UQ、验证确认和 Modelica 知识块，并提供任务导向的阅读顺序。
 category:
   slug: knowledge-navigation
@@ -13,12 +13,12 @@ author_username: lin-cfd
 published_at: "2026-08-06T01:00:00.000Z"
 tags: [知识地图, 学习路线, CAE, CFD, 有限元, 索引]
 seo:
-  title: CAE、CFD、有限元与 Modelica 知识库导航｜流研工坊
+  title: CAE、CFD、有限元与 Modelica 知识库导航｜CFD菜鸟
   description: 浏览十五个 CAE 知识专题，按任务选择流体、结构、多物理、优化和验证路线。
   keywords: [CAE 知识库, CFD 学习路线, 有限元推导, Modelica 教程]
 ---
 
-# 流研工坊知识库导航与学习路线
+# CFD菜鸟知识库导航与学习路线
 
 知识库把一个完整仿真项目拆成可独立检索的知识块。建议先从目标任务出发选择路线，再进入专题逐篇阅读；遇到具体设置问题时，也可直接从分类或标签定位文章。
 

@@ -13,7 +13,7 @@ author_username: lin-cfd
 published_at: "2026-08-06T00:00:00.000Z"
 tags: [Modelica连接器, flow变量, stream变量, 能量守恒, 组件连接]
 seo:
-  title: Modelica 连接器与连接方程｜流研工坊
+  title: Modelica 连接器与连接方程｜CFD菜鸟
   description: 理解 potential、flow、stream 变量及其自动生成的守恒连接方程。
   keywords: [Modelica connector, flow, stream, connect方程]
 ---

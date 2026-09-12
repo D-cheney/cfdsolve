@@ -13,7 +13,7 @@ author_username: lin-cfd
 published_at: "2026-08-06T00:00:00.000Z"
 tags: [壁面边界, 移动壁面, 粗糙度, 热流, 共轭传热]
 seo:
-  title: CFD 壁面与热边界条件设置｜流研工坊
+  title: CFD 壁面与热边界条件设置｜CFD菜鸟
   description: 正确设置静止或运动壁面、粗糙度、恒温、热流和共轭传热条件。
   keywords: [CFD 壁面条件, 恒温壁面, 热流边界, 移动壁面]
 ---

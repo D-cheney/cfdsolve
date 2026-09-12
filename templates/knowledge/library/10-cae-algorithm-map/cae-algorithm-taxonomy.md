@@ -13,7 +13,7 @@ author_username: lin-cfd
 published_at: "2026-08-29T00:00:00.000Z"
 tags: [CAE, 算法地图, 数值方法, 多物理场, 验证确认]
 seo:
-  title: CAE 全领域算法分类与学习地图｜流研工坊
+  title: CAE 全领域算法分类与学习地图｜CFD菜鸟
   description: 从连续模型到离散、代数求解、耦合、优化和 V&V 的完整 CAE 算法地图。
   keywords: [CAE 算法, 有限元, 有限体积, 多物理场, 数值求解]
 ---

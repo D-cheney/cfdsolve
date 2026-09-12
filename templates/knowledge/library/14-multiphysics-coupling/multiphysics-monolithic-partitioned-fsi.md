@@ -13,7 +13,7 @@ author_username: lin-cfd
 published_at: "2026-08-29T00:00:00.000Z"
 tags: [多物理场, 流固耦合, 分区耦合, Aitken松弛, 界面守恒]
 seo:
-  title: 多物理与流固耦合算法完整推导｜流研工坊
+  title: 多物理与流固耦合算法完整推导｜CFD菜鸟
   description: 推导单体/分区耦合、FSI 界面条件、Aitken 松弛和守恒映射。
   keywords: [流固耦合, FSI, 分区算法, Aitken松弛]
 ---

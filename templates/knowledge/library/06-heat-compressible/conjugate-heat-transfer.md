@@ -13,7 +13,7 @@ author_username: lin-cfd
 published_at: "2026-08-06T00:00:00.000Z"
 tags: [共轭传热, 固体导热, 接触热阻, 薄壁, 热平衡]
 seo:
-  title: CFD 共轭传热与接触热阻｜流研工坊
+  title: CFD 共轭传热与接触热阻｜CFD菜鸟
   description: 同时求解流体对流与固体导热，并正确处理薄壁、接口和接触热阻。
   keywords: [共轭传热, CHT, 接触热阻, 薄壁模型]
 ---

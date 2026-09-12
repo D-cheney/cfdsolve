@@ -42,6 +42,19 @@ markdown.inline.ruler.after('escape', 'math_inline', (state, silent) => {
   return true
 })
 
+markdown.inline.ruler.before('escape', 'math_tex_inline', (state, silent) => {
+  const start = state.pos
+  if (state.src.slice(start, start + 2) !== '\\(') return false
+  const end = state.src.indexOf('\\)', start + 2)
+  if (end < 0 || /\n/.test(state.src.slice(start + 2, end))) return false
+  if (!silent) {
+    const token = state.push('math_inline', 'math', 0)
+    token.content = state.src.slice(start + 2, end)
+  }
+  state.pos = end + 2
+  return true
+})
+
 markdown.block.ruler.before('fence', 'math_block', (state, startLine, endLine, silent) => {
   const start = state.bMarks[startLine] + state.tShift[startLine]
   const max = state.eMarks[startLine]
@@ -66,6 +79,30 @@ markdown.block.ruler.before('fence', 'math_block', (state, startLine, endLine, s
     const lineEnd = state.eMarks[nextLine]
     const line = state.src.slice(lineStart, lineEnd)
     if (line.trim() === '$$') break
+    body.push(line)
+  }
+  if (nextLine >= endLine) return false
+  const token = state.push('math_block', 'math', 0)
+  token.block = true
+  token.content = body.join('\n')
+  token.map = [startLine, nextLine + 1]
+  state.line = nextLine + 1
+  return true
+})
+
+markdown.block.ruler.before('fence', 'math_tex_block', (state, startLine, endLine, silent) => {
+  const start = state.bMarks[startLine] + state.tShift[startLine]
+  const max = state.eMarks[startLine]
+  if (state.src.slice(start, max).trim() !== '\\[') return false
+  if (silent) return true
+
+  const body: string[] = []
+  let nextLine = startLine + 1
+  for (; nextLine < endLine; nextLine++) {
+    const lineStart = state.bMarks[nextLine] + state.tShift[nextLine]
+    const lineEnd = state.eMarks[nextLine]
+    const line = state.src.slice(lineStart, lineEnd)
+    if (line.trim() === '\\]') break
     body.push(line)
   }
   if (nextLine >= endLine) return false
@@ -167,7 +204,15 @@ function safeHtml(source: string) {
 
 function validateMath(source: string) {
   const expressions: string[] = []
-  const withoutBlocks = source.replace(/\$\$([\s\S]*?)\$\$/g, (_match, expression: string) => {
+  let withoutBlocks = source.replace(/\$\$([\s\S]*?)\$\$/g, (_match, expression: string) => {
+    expressions.push(expression)
+    return ''
+  })
+  withoutBlocks = withoutBlocks.replace(/\\\[([\s\S]*?)\\\]/g, (_match, expression: string) => {
+    expressions.push(expression)
+    return ''
+  })
+  withoutBlocks = withoutBlocks.replace(/\\\(([^\n]*?)\\\)/g, (_match, expression: string) => {
     expressions.push(expression)
     return ''
   })
@@ -220,6 +265,7 @@ export function parseKnowledgeTemplate(source: string, sourceFile = 'inline.md')
   const seoTitle = cleanText(data.seo?.title) || title
   const seoDescription = cleanText(data.seo?.description) || summary
   const body = parsed.content.trim()
+  const visibleText = `${title}\n${summary}\n${categoryName}\n${body}`
 
   if (templateVersion !== TEMPLATE_VERSION) issues.push(`template_version 必须为 ${TEMPLATE_VERSION}`)
   if (id && (!idPattern.test(id) || id.length > 120)) issues.push('id 只能包含字母、数字、点、下划线和连字符，且不超过 120 字符')
@@ -242,6 +288,14 @@ export function parseKnowledgeTemplate(source: string, sourceFile = 'inline.md')
   if (seoKeywords.length > 20 || seoKeywords.some(keyword => keyword.length > 60)) issues.push('seo.keywords 最多 20 个，单项不超过 60 字符')
   if (body.length < 100) issues.push('Markdown 正文不能少于 100 字符')
   if (!/^#\s+.+/m.test(body)) issues.push('正文必须包含一个一级标题')
+  if (/\uFFFD|锟斤拷|鈥[\u0080-\uFFFF]?|â(?:€™|€œ|€)|Ã[\u0080-\uFFFF]/u.test(visibleText)) issues.push('正文或元数据包含疑似编码乱码')
+  if (/[\u0000-\u0008\u000B\u000C\u000E-\u001F]/u.test(visibleText)) issues.push('正文或元数据包含不可见控制字符')
+  const delimiterPairs = [['\\(', '\\)'], ['\\[', '\\]']] as const
+  for (const [opening, closing] of delimiterPairs) {
+    const openings = body.split(opening).length - 1
+    const closings = body.split(closing).length - 1
+    if (openings !== closings) issues.push(`公式定界符 ${opening} 与 ${closing} 数量不一致`)
+  }
   issues.push(...validateMath(body))
 
   if (issues.length) throw new KnowledgeTemplateError(issues.map(issue => `${sourceFile}: ${issue}`))

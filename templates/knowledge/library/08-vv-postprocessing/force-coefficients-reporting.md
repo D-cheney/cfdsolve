@@ -13,7 +13,7 @@ author_username: lin-cfd
 published_at: "2026-08-06T00:00:00.000Z"
 tags: [升力系数, 阻力系数, 时间平均, 频谱, 可复现性]
 seo:
-  title: CFD 力系数与可复现报告｜流研工坊
+  title: CFD 力系数与可复现报告｜CFD菜鸟
   description: 定义一致的升阻力系数、统计窗口和频谱，并形成可复现 CFD 报告。
   keywords: [升力系数, 阻力系数, CFD 后处理, 时间平均]
 ---

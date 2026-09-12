@@ -13,7 +13,7 @@ author_username: lin-cfd
 published_at: "2026-08-06T00:00:00.000Z"
 tags: [LES, DES, 亚格子模型, 瞬态湍流, 入口湍流]
 seo:
-  title: LES 与混合 RANS–LES 入门｜流研工坊
+  title: LES 与混合 RANS–LES 入门｜CFD菜鸟
   description: 了解 LES/DES 的网格、时间步、入口湍流和统计收敛要求。
   keywords: [LES, DES, 亚格子模型, 湍流瞬态]
 ---

@@ -13,7 +13,7 @@ author_username: lin-cfd
 published_at: "2026-08-06T00:00:00.000Z"
 tags: [有限体积法, 离散, 通量, 局部守恒, CFD]
 seo:
-  title: CFD 有限体积法基础｜流研工坊
+  title: CFD 有限体积法基础｜CFD菜鸟
   description: 从控制体积分、面通量和源项理解有限体积离散及局部守恒性。
   keywords: [有限体积法, 控制体, 面通量, CFD 离散]
 ---

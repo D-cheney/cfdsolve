@@ -49,12 +49,12 @@ const category = ref("");
 const knowledgePage = ref(0);
 const knowledgePageSize = 40;
 const knowledgeCollections = [
-  { slug: "", name: "全部内容" },
-  { slug: "cfd", name: "CFD 理论" },
-  { slug: "openfoam", name: "OpenFOAM" },
-  { slug: "modelica", name: "Modelica" },
-  { slug: "cae", name: "CAE 算法" },
-  { slug: "meshfree", name: "无网格法" },
+  { slug: "", name: "全部内容", description: "跨领域统一检索" },
+  { slug: "cfd", name: "CFD 理论", description: "物理—离散—验证" },
+  { slug: "openfoam", name: "OpenFOAM", description: "使用方法与源码" },
+  { slug: "modelica", name: "Modelica", description: "方程式系统建模" },
+  { slug: "cae", name: "CAE 算法", description: "结构、多物理与优化" },
+  { slug: "meshfree", name: "无网格法", description: "SPH、案例与验证" },
 ] as const;
 const { data: knowledgeCategoriesData } = await useFetch<{
   items: KnowledgeCategory[];
@@ -176,6 +176,12 @@ const totalKnowledgeArticles = computed(
 const collectionArticleCount = computed(() =>
   categories.value.reduce((sum, item) => sum + item.count, 0),
 );
+function collectionCount(slug: string) {
+  const items = knowledgeCategoriesData.value?.items || [];
+  return slug
+    ? items.filter((item) => item.collection === slug).reduce((sum, item) => sum + item.count, 0)
+    : knowledgeCategoriesData.value?.totalArticles || 0;
+}
 const knowledgePageCount = computed(() =>
   Math.max(1, Math.ceil(totalKnowledgeArticles.value / knowledgePageSize)),
 );
@@ -316,7 +322,7 @@ function changeKnowledgePage(page: number) {
             <h1>{{ article.title }}</h1>
             <p class="article-lead">{{ article.summary }}</p>
             <div class="article-meta">
-              <span>{{ article.author || "流研工坊编辑部" }}</span
+              <span>{{ article.author || "CFD菜鸟编辑部" }}</span
               ><span><Clock :size="15" />{{ article.read }}</span
               ><span>{{
                 article.updatedAt
@@ -526,9 +532,9 @@ function changeKnowledgePage(page: number) {
         :aria-selected="collection === item.slug"
         @click="collection = item.slug"
       >
-        {{ item.name }}
+        <strong>{{ item.name }}</strong>
+        <small>{{ item.description }} · {{ collectionCount(item.slug) }}</small>
       </button>
-      <span>{{ knowledgeCategoriesData?.totalArticles || totalKnowledgeArticles }} 篇已发布内容</span>
     </div>
     <div class="container discovery-layout">
       <aside class="filter-aside">
@@ -609,7 +615,7 @@ function changeKnowledgePage(page: number) {
       <aside class="discovery-side">
         <div class="side-card">
           <small>推荐路径</small><strong>CFD 基础到验证</strong>
-          <p>4 大集合 · {{ knowledgeCategoriesData?.totalArticles || totalKnowledgeArticles }} 篇内容</p>
+          <p>5 大集合 · {{ knowledgeCategoriesData?.totalArticles || totalKnowledgeArticles }} 篇内容</p>
           <div class="progress"><i style="width: 18%"></i></div>
           <NuxtLink to="/knowledge/knowledge-library-roadmap"
             >查看知识地图</NuxtLink

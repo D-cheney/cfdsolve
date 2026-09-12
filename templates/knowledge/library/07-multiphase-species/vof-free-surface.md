@@ -13,7 +13,7 @@ author_username: lin-cfd
 published_at: "2026-08-06T00:00:00.000Z"
 tags: [VOF, 自由液面, 表面张力, 接触角, 界面捕捉]
 seo:
-  title: VOF 自由液面与界面捕捉｜流研工坊
+  title: VOF 自由液面与界面捕捉｜CFD菜鸟
   description: 正确设置 VOF 体积分数、表面张力、接触角、网格和时间步。
   keywords: [VOF 方法, 自由液面 CFD, 表面张力, 接触角]
 ---

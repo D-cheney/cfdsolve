@@ -13,7 +13,7 @@ author_username: lin-cfd
 published_at: "2026-08-06T00:00:00.000Z"
 tags: [入口边界, 速度入口, 质量流量, 总压, 湍流强度]
 seo:
-  title: CFD 入口边界与湍流量设置｜流研工坊
+  title: CFD 入口边界与湍流量设置｜CFD菜鸟
   description: 选择速度、质量流量或总压入口，并正确提供速度剖面、温度和湍流参数。
   keywords: [CFD 入口条件, 速度入口, 总压入口, 湍流强度]
 ---

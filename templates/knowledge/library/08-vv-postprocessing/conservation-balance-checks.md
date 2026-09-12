@@ -13,7 +13,7 @@ author_username: lin-cfd
 published_at: "2026-08-06T00:00:00.000Z"
 tags: [质量守恒, 能量守恒, 组分守恒, 控制体, 后处理]
 seo:
-  title: CFD 全局守恒检查方法｜流研工坊
+  title: CFD 全局守恒检查方法｜CFD菜鸟
   description: 用控制体通量与源项检查质量、能量、动量和组分平衡。
   keywords: [CFD 质量不平衡, 能量平衡, 通量积分, 守恒检查]
 ---

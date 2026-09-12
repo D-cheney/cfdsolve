@@ -13,7 +13,7 @@ author_username: lin-cfd
 published_at: "2026-08-29T00:00:00.000Z"
 tags: [特征值, Lanczos, Arnoldi, Krylov-Schur, 模态分析]
 seo:
-  title: Lanczos、Arnoldi 与 Krylov-Schur 推导｜流研工坊
+  title: Lanczos、Arnoldi 与 Krylov-Schur 推导｜CFD菜鸟
   description: 从 Rayleigh-Ritz 投影理解大规模广义特征值算法和模态误差。
   keywords: [特征值算法, Lanczos, Arnoldi, Krylov-Schur]
 ---

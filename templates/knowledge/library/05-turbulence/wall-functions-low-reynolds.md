@@ -13,7 +13,7 @@ author_username: lin-cfd
 published_at: "2026-08-06T00:00:00.000Z"
 tags: [壁函数, 低雷诺模型, 近壁处理, y+, 摩擦阻力]
 seo:
-  title: CFD 壁函数与低雷诺近壁处理｜流研工坊
+  title: CFD 壁函数与低雷诺近壁处理｜CFD菜鸟
   description: 在壁函数和解析至壁面策略之间选择，并用 y+ 检查摩擦与换热结果。
   keywords: [壁函数, 低雷诺湍流模型, y+, 近壁网格]
 ---

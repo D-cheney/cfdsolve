@@ -13,7 +13,7 @@ author_username: lin-cfd
 published_at: "2026-08-06T00:00:00.000Z"
 tags: [边界层网格, y+, 首层高度, 壁函数, 棱柱层]
 seo:
-  title: CFD 边界层网格与 y+ 设计｜流研工坊
+  title: CFD 边界层网格与 y+ 设计｜CFD菜鸟
   description: 根据近壁模型目标计算首层高度，并检查棱柱层覆盖和 y+ 分布。
   keywords: [y+ 计算, 首层网格高度, 边界层网格, 壁函数]
 ---

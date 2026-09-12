@@ -13,7 +13,7 @@ author_username: lin-cfd
 published_at: "2026-08-06T00:00:00.000Z"
 tags: [k-omega SST, 分离流, 逆压梯度, y+, 湍流]
 seo:
-  title: k-ω SST 湍流模型指南｜流研工坊
+  title: k-ω SST 湍流模型指南｜CFD菜鸟
   description: 理解 SST 模型的混合机制，并正确设置近壁网格和自由来流湍流量。
   keywords: [k-omega SST, SST 湍流模型, 分离流, 逆压梯度]
 ---

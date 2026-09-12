@@ -13,7 +13,7 @@ author_username: lin-cfd
 published_at: "2026-08-29T00:00:00.000Z"
 tags: [Krylov, 共轭梯度, GMRES, 预条件, 线性求解器]
 seo:
-  title: Krylov、CG、GMRES 与预条件推导｜流研工坊
+  title: Krylov、CG、GMRES 与预条件推导｜CFD菜鸟
   description: 从 Krylov 子空间投影推导 CG 和 GMRES，说明预条件与可靠残差判据。
   keywords: [CG推导, GMRES推导, Krylov, 预条件]
 ---

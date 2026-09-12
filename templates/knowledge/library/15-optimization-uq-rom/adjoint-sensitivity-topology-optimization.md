@@ -13,7 +13,7 @@ author_username: lin-cfd
 published_at: "2026-08-29T00:00:00.000Z"
 tags: [伴随法, 灵敏度, 拓扑优化, MMA, SIMP]
 seo:
-  title: CAE 离散伴随与拓扑优化推导｜流研工坊
+  title: CAE 离散伴随与拓扑优化推导｜CFD菜鸟
   description: 推导状态方程灵敏度、离散伴随梯度和 SIMP 拓扑优化算法。
   keywords: [伴随法, 拓扑优化, SIMP, MMA]
 ---

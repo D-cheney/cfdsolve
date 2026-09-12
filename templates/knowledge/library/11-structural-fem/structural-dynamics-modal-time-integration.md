@@ -13,7 +13,7 @@ author_username: lin-cfd
 published_at: "2026-08-29T00:00:00.000Z"
 tags: [结构动力学, 模态分析, Newmark, 阻尼, 特征值]
 seo:
-  title: 结构动力学模态与 Newmark 算法推导｜流研工坊
+  title: 结构动力学模态与 Newmark 算法推导｜CFD菜鸟
   description: 推导质量刚度特征值、模态正交、Rayleigh 阻尼和 Newmark 有效刚度。
   keywords: [模态分析, Newmark, 结构动力学, Rayleigh阻尼]
 ---

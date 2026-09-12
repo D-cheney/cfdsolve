@@ -105,7 +105,7 @@ function exportWorkspace() {
   );
   const link = document.createElement("a");
   link.href = url;
-  link.download = `flowlab-workspace-${new Date().toISOString().slice(0, 10)}.json`;
+  link.download = `cfd-rookie-workspace-${new Date().toISOString().slice(0, 10)}.json`;
   link.click();
   URL.revokeObjectURL(url);
 }
@@ -125,7 +125,7 @@ const bookmarkedCount = computed(() => store.bookmarks.length);
     <div class="auth-brand-panel">
       <div>
         <NuxtLink to="/" class="brand"
-          >流研工坊 <small>FLOWLAB</small></NuxtLink
+          >CFD菜鸟 <small>CFD ROOKIE</small></NuxtLink
         >
         <h1>把工程推理和计算结果<br />留在一条可复现链路上</h1>
         <p>登录后管理仿真任务、Modelica 项目、收藏与社区讨论。</p>
@@ -137,7 +137,7 @@ const bookmarkedCount = computed(() => store.bookmarks.length);
       </div>
     </div>
     <form class="auth-card" @submit.prevent="submit">
-      <NuxtLink to="/" class="mobile-brand">流研工坊</NuxtLink
+      <NuxtLink to="/" class="mobile-brand">CFD菜鸟</NuxtLink
       ><span class="kicker">{{
         register ? "CREATE ACCOUNT" : "LOCAL DEMO"
       }}</span>
@@ -198,7 +198,7 @@ const bookmarkedCount = computed(() => store.bookmarks.length);
 
   <div v-else-if="adminPage && adminAuthorized" class="admin-page">
     <aside class="admin-sidebar">
-      <NuxtLink to="/" class="brand">流研工坊 <small>ADMIN</small></NuxtLink>
+      <NuxtLink to="/" class="brand">CFD菜鸟 <small>ADMIN</small></NuxtLink>
       <nav>
         <small>运营</small
         ><NuxtLink to="/admin" class="active"

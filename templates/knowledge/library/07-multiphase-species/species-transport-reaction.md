@@ -13,7 +13,7 @@ author_username: lin-cfd
 published_at: "2026-08-06T00:00:00.000Z"
 tags: [组分输运, 扩散, 化学反应, 质量分数, 元素守恒]
 seo:
-  title: CFD 组分输运与反应源项｜流研工坊
+  title: CFD 组分输运与反应源项｜CFD菜鸟
   description: 设置质量分数、扩散系数和反应源项，并验证组分、元素和能量守恒。
   keywords: [组分输运, 质量分数, CFD 扩散, 反应流]
 ---

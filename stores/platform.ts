@@ -91,7 +91,7 @@ export const usePlatformStore = defineStore("platform", {
     notifications: [
       {
         id: "n1",
-        title: "欢迎使用流研工坊离线版",
+        title: "欢迎使用CFD菜鸟离线版",
         text: "所有项目、任务和收藏保存在本机浏览器中。",
         read: false,
       },

@@ -13,7 +13,7 @@ author_username: lin-cfd
 published_at: "2026-08-06T00:00:00.000Z"
 tags: [网格, 六面体, 四面体, 多面体, 网格拓扑]
 seo:
-  title: CFD 网格拓扑与单元类型选择｜流研工坊
+  title: CFD 网格拓扑与单元类型选择｜CFD菜鸟
   description: 根据几何、流向和梯度选择六面体、四面体、多面体与棱柱网格。
   keywords: [CFD 网格, 六面体网格, 多面体网格, 四面体网格]
 ---

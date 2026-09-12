@@ -13,7 +13,7 @@ author_username: lin-cfd
 published_at: "2026-08-06T00:00:00.000Z"
 tags: [Modelica事件, 混合系统, CFD耦合, 降阶模型, 联合仿真]
 seo:
-  title: Modelica 事件与 CFD 降阶耦合｜流研工坊
+  title: Modelica 事件与 CFD 降阶耦合｜CFD菜鸟
   description: 管理 Modelica 离散事件，并用特性图、降阶模型或联合仿真连接 CFD 与系统模型。
   keywords: [Modelica when, reinit, CFD Modelica耦合, 降阶模型]
 ---

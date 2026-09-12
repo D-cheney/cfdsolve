@@ -13,7 +13,7 @@ author_username: lin-cfd
 published_at: "2026-08-06T00:00:00.000Z"
 tags: [对流离散, 迎风格式, 中心差分, 有界性, 数值耗散]
 seo:
-  title: CFD 对流项离散格式选择｜流研工坊
+  title: CFD 对流项离散格式选择｜CFD菜鸟
   description: 比较迎风、中心与高分辨率格式，兼顾稳定、有界和空间精度。
   keywords: [一阶迎风, 二阶迎风, 中心差分, 数值耗散]
 ---

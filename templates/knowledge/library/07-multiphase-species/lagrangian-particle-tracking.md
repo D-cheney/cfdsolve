@@ -13,7 +13,7 @@ author_username: lin-cfd
 published_at: "2026-08-06T00:00:00.000Z"
 tags: [颗粒追踪, DPM, 双向耦合, 沉积, 湍流扩散]
 seo:
-  title: CFD 拉格朗日颗粒追踪指南｜流研工坊
+  title: CFD 拉格朗日颗粒追踪指南｜CFD菜鸟
   description: 设置颗粒受力、注入、壁面行为与双向耦合，并检查颗粒统计量。
   keywords: [DPM, 拉格朗日颗粒, 颗粒沉积, 双向耦合]
 ---

@@ -13,7 +13,7 @@ author_username: lin-cfd
 published_at: "2026-08-29T00:00:00.000Z"
 tags: [SPH, DEM, LBM, MPM, BEM, 无网格法]
 seo:
-  title: SPH、DEM、LBM、MPM 与 BEM 算法公式｜流研工坊
+  title: SPH、DEM、LBM、MPM 与 BEM 算法公式｜CFD菜鸟
   description: 比较主要粒子法、介观法、物质点法和边界元的离散公式与适用边界。
   keywords: [SPH算法, DEM算法, LBM算法, MPM, BEM]
 ---

@@ -1,4 +1,4 @@
-# 流研工坊本地全量部署
+# CFD菜鸟本地全量部署
 
 本文适用于 Windows PowerShell。本项目使用随 Node.js 运行的 SQLite，不需要另外安装 MySQL、PostgreSQL 或 Redis。
 

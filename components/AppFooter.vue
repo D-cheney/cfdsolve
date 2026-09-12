@@ -2,7 +2,7 @@
   <footer class="app-footer">
     <div class="footer-inner">
       <div class="footer-brand">
-        <div class="brand">流研工坊 <small>FLOWLAB</small></div>
+        <div class="brand">CFD菜鸟 <small>CFD ROOKIE</small></div>
         <p>把理论、计算与工程讨论放在同一条可复现链路上。</p>
         <span class="offline-badge">● 本地离线数据模式</span>
       </div>
@@ -23,7 +23,7 @@
       </div>
     </div>
     <div class="footer-bottom">
-      <span>© 2026 FlowLab · 站点版本 1.0.0-local</span
+      <span>© 2026 CFD菜鸟 · 站点版本 1.0.0-local</span
       ><span>结果用于教学与工程估算，请独立验证关键结论</span>
     </div>
   </footer>

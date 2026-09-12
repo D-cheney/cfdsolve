@@ -13,7 +13,7 @@ author_username: lin-cfd
 published_at: "2026-08-06T00:00:00.000Z"
 tags: [无量纲数, 雷诺数, 马赫数, 普朗特数, 相似理论]
 seo:
-  title: CFD 常用无量纲数与尺度判断｜流研工坊
+  title: CFD 常用无量纲数与尺度判断｜CFD菜鸟
   description: 用雷诺数、马赫数、普朗特数等无量纲数判断 CFD 中的主导物理机制。
   keywords: [雷诺数, 马赫数, 普朗特数, 佩克莱数]
 ---

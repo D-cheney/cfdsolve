@@ -13,7 +13,7 @@ author_username: lin-cfd
 published_at: "2026-08-06T00:00:00.000Z"
 tags: [热辐射, 发射率, P1, 离散坐标, 视角系数]
 seo:
-  title: CFD 热辐射模型选择｜流研工坊
+  title: CFD 热辐射模型选择｜CFD菜鸟
   description: 根据光学厚度和几何遮挡选择表面或介质辐射模型，并检查能量守恒。
   keywords: [CFD 辐射模型, P1, 离散坐标, 视角系数]
 ---

@@ -13,7 +13,7 @@ author_username: lin-cfd
 published_at: "2026-08-06T00:00:00.000Z"
 tags: [验证, 确认, 不确定度, V&V, CFD质量]
 seo:
-  title: CFD 验证、确认与不确定度｜流研工坊
+  title: CFD 验证、确认与不确定度｜CFD菜鸟
   description: 区分方程是否算对与模型是否代表现实，建立 CFD 可信度证据链。
   keywords: [CFD 验证, CFD 确认, 不确定度, V&V]
 ---

@@ -13,7 +13,7 @@ author_username: lin-cfd
 published_at: "2026-08-29T00:00:00.000Z"
 tags: [非线性有限元, Newton法, J2塑性, 返回映射, 接触]
 seo:
-  title: 非线性有限元 Newton、塑性与接触推导｜流研工坊
+  title: 非线性有限元 Newton、塑性与接触推导｜CFD菜鸟
   description: 从残量和一致切线推导非线性结构 Newton 迭代、J2 返回映射与罚接触。
   keywords: [非线性有限元, J2塑性, 径向返回, 接触算法]
 ---

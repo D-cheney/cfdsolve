@@ -13,7 +13,7 @@ author_username: lin-cfd
 published_at: "2026-08-06T00:00:00.000Z"
 tags: [k-epsilon, RNG, 可实现模型, 湍流耗散率, 壁函数]
 seo:
-  title: k-ε 湍流模型使用指南｜流研工坊
+  title: k-ε 湍流模型使用指南｜CFD菜鸟
   description: 比较标准、RNG 和可实现 k-ε 模型的假设、适用流动和近壁要求。
   keywords: [k-epsilon, RNG k-epsilon, realizable k-epsilon, 湍流模型]
 ---

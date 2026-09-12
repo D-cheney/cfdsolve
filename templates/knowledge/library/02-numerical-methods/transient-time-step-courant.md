@@ -13,7 +13,7 @@ author_username: lin-cfd
 published_at: "2026-08-06T00:00:00.000Z"
 tags: [瞬态CFD, 时间步, Courant数, 时间尺度, 频率]
 seo:
-  title: 瞬态 CFD 时间步与 Courant 数｜流研工坊
+  title: 瞬态 CFD 时间步与 Courant 数｜CFD菜鸟
   description: 从物理时间尺度、CFL 和目标频率确定瞬态 CFD 的时间步与采样时长。
   keywords: [CFD 时间步, Courant 数, CFL, 瞬态计算]
 ---
