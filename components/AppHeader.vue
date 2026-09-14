@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { Search, Bell, Menu, X, UserRound, ChevronDown } from "lucide-vue-next";
+import { Search, Menu, X } from "lucide-vue-next";
 import {
   articles,
   algorithms,
@@ -13,7 +13,6 @@ const router = useRouter();
 const store = usePlatformStore();
 const mobileOpen = ref(false);
 const searchOpen = ref(false);
-const accountOpen = ref(false);
 const query = ref("");
 const selectedIndex = ref(-1);
 let searchReturnFocus: HTMLElement | null = null;
@@ -109,7 +108,6 @@ function handleKeys(e: KeyboardEvent) {
   if (e.key === "Escape") {
     if (searchOpen.value) closeSearch();
     mobileOpen.value = false;
-    accountOpen.value = false;
   }
 }
 onMounted(() => {
@@ -152,55 +150,6 @@ onBeforeUnmount(() => window.removeEventListener("keydown", handleKeys));
         >
           <Search :size="18" /><span>搜索全站</span><kbd>Ctrl K</kbd>
         </button>
-        <NuxtLink
-          v-if="store.user"
-          to="/notifications"
-          class="icon-button notify"
-          aria-label="通知"
-          ><Bell :size="20" /><b v-if="store.unread">{{
-            store.unread
-          }}</b></NuxtLink
-        >
-        <div v-if="store.user" class="account-wrap">
-          <button
-            class="avatar-button"
-            aria-label="打开账号菜单"
-            :aria-expanded="accountOpen"
-            @click="accountOpen = !accountOpen"
-          >
-            <span>{{ store.user.name.slice(0, 1) }}</span
-            ><ChevronDown :size="14" />
-          </button>
-          <div v-if="accountOpen" class="account-menu">
-            <div>
-              <strong>{{ store.user.name }}</strong
-              ><small>{{ store.user.role }} · 离线模式</small>
-            </div>
-            <NuxtLink to="/me/overview" @click="accountOpen = false"
-              >个人中心</NuxtLink
-            >
-            <NuxtLink to="/me/tasks" @click="accountOpen = false"
-              >仿真任务</NuxtLink
-            >
-            <NuxtLink to="/me/modelica" @click="accountOpen = false"
-              >Modelica 项目</NuxtLink
-            >
-            <button
-              @click="
-                store.logout();
-                accountOpen = false;
-              "
-            >
-              退出登录
-            </button>
-          </div>
-        </div>
-        <template v-else
-          ><NuxtLink to="/login" class="login-link">登录</NuxtLink
-          ><NuxtLink to="/register" class="button small"
-            >注册</NuxtLink
-          ></template
-        >
       </div>
     </div>
   </header>
@@ -227,9 +176,6 @@ onBeforeUnmount(() => window.removeEventListener("keydown", handleKeys));
         :to="item.to"
         @click="mobileOpen = false"
         >{{ item.label }}</NuxtLink
-      >
-      <NuxtLink to="/me/overview" @click="mobileOpen = false"
-        >个人中心</NuxtLink
       >
     </aside>
   </div>

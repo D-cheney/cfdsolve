@@ -15,12 +15,11 @@ const uid = (prefix = "") =>
   `${prefix}${Date.now().toString(36)}${Math.random().toString(36).slice(2, 6)}`;
 let databaseSyncTimer: ReturnType<typeof setTimeout> | undefined;
 type WorkspaceSection =
-  "user" | "bookmarks" | "notifications" | "tasks" | "projects";
+  "bookmarks" | "notifications" | "tasks" | "projects";
 const pendingWorkspaceSections = new Set<WorkspaceSection>();
 
 interface WorkspacePayload {
   database: boolean;
-  user: { name: string; username: string; role: string };
   bookmarks: string[];
   notifications: Array<{
     id: string;
@@ -86,7 +85,6 @@ export const usePlatformStore = defineStore("platform", {
     ready: false,
     databaseConnected: false,
     databaseError: "",
-    user: null as null | { name: string; username: string; role: string },
     bookmarks: [] as string[],
     notifications: [
       {
@@ -128,7 +126,6 @@ export const usePlatformStore = defineStore("platform", {
       if (raw) {
         try {
           const saved = JSON.parse(raw);
-          this.user = saved.user ?? null;
           this.bookmarks = saved.bookmarks ?? [];
           this.notifications = saved.notifications ?? this.notifications;
           this.tasks = saved.tasks ?? [];
@@ -171,7 +168,6 @@ export const usePlatformStore = defineStore("platform", {
         } else this.notifications = workspace.notifications;
         this.tasks = mergeTasks(this.tasks, workspace.tasks);
         this.projects = mergeProjects(this.projects, workspace.projects);
-        if (this.user) this.user = workspace.user;
         if (hadLocalState) this.persist();
         else this.saveLocal();
       } catch (error) {
@@ -187,7 +183,6 @@ export const usePlatformStore = defineStore("platform", {
         localStorage.setItem(
           "flowlab-state-v1",
           JSON.stringify({
-            user: this.user,
             bookmarks: this.bookmarks,
             notifications: this.notifications,
             tasks: this.tasks,
@@ -204,7 +199,6 @@ export const usePlatformStore = defineStore("platform", {
     },
     persist(
       sections: WorkspaceSection[] = [
-        "user",
         "bookmarks",
         "notifications",
         "tasks",
@@ -220,7 +214,6 @@ export const usePlatformStore = defineStore("platform", {
         const requested = new Set(pendingWorkspaceSections);
         pendingWorkspaceSections.clear();
         const body: Record<string, unknown> = {};
-        if (requested.has("user")) body.user = this.user;
         if (requested.has("bookmarks")) body.bookmarks = this.bookmarks;
         if (requested.has("notifications"))
           body.notifications = this.notifications;
@@ -239,14 +232,6 @@ export const usePlatformStore = defineStore("platform", {
             error instanceof Error ? error.message : "数据库同步失败";
         }
       }, 180);
-    },
-    login(name = "林工程师") {
-      this.user = { name, username: "lin-cfd", role: "注册用户" };
-      this.persist(["user"]);
-    },
-    logout() {
-      this.user = null;
-      this.saveLocal();
     },
     toggleBookmark(key: string) {
       this.bookmarks = this.bookmarks.includes(key)

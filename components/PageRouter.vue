@@ -20,17 +20,6 @@ const component = computed(() => {
     return resolveComponent("PagesModelicaPage");
   if (path.value === "/forum" || path.value.startsWith("/forum/"))
     return resolveComponent("PagesCommunityPage");
-  if (
-    path.value === "/login" ||
-    path.value === "/register" ||
-    path.value === "/notifications" ||
-    path.value === "/me" ||
-    path.value.startsWith("/me/") ||
-    path.value === "/admin" ||
-    path.value.startsWith("/admin/") ||
-    path.value.startsWith("/user/")
-  )
-    return resolveComponent("PagesAccountPage");
   if (["/terms", "/privacy", "/disclaimer"].includes(path.value))
     return resolveComponent("PagesLegalPage");
   return null;

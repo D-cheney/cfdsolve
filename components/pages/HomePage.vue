@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ArrowRight, BookOpen, FlaskConical, Boxes, Calculator, Check, Copy, MousePointer2 } from 'lucide-vue-next'
+import { ArrowRight, BookOpen, FlaskConical, Boxes, Calculator, Check, Copy } from 'lucide-vue-next'
 import { articles, algorithms, formulas, tools } from '~/utils/content'
 const activeTool = ref(0)
 const copied = ref('')
@@ -30,7 +30,7 @@ function revealIntro() {
   introTimer = setTimeout(() => {
     showIntro.value = false
     introLeaving.value = false
-  }, 680)
+  }, 760)
 }
 
 function handleIntroKey(event: KeyboardEvent) {
@@ -63,33 +63,14 @@ async function copyFormula(text: string, name: string) { await navigator.clipboa
       v-if="showIntro"
       class="cfd-intro"
       :class="{ leaving: introLeaving }"
-      role="dialog"
-      aria-modal="true"
-      aria-label="CFD菜鸟网站开场"
+      role="button"
+      aria-label="进入 CFD菜鸟功能页面"
       tabindex="0"
       @click="revealIntro"
       @keydown="handleIntroKey"
-    >
-      <div class="intro-grid" aria-hidden="true"></div>
-      <div class="intro-flow" aria-hidden="true">
-        <i v-for="i in 18" :key="i" :style="{ '--i': i }"></i>
-        <span class="intro-vortex"><b>ω</b><small>FLOW FIELD</small></span>
-      </div>
-      <div class="intro-copy">
-        <span class="intro-kicker">COMPUTATIONAL FLUID DYNAMICS</span>
-        <h1><span>CFD</span>菜鸟</h1>
-        <p>CFD · CAE · Modelica 知识与计算工具</p>
-        <button class="intro-enter" type="button" @click.stop="revealIntro">
-          <MousePointer2 :size="17" />点击进入
-          <ArrowRight :size="18" />
-        </button>
-      </div>
-      <div class="intro-readout" aria-hidden="true">
-        <span>Re <b>100</b></span><span>Co <b>0.42</b></span><span>R <b>7.2e−07</b></span>
-      </div>
-    </div>
+    ></div>
 
-    <div class="home-interface">
+    <div class="home-interface" :inert="showIntro ? true : undefined" :aria-hidden="showIntro ? 'true' : undefined">
     <section class="hero-section">
       <div class="contour-bg"></div>
       <div class="container hero-grid">
@@ -162,11 +143,17 @@ async function copyFormula(text: string, name: string) { await navigator.clipboa
 
 <style scoped>
 :global(html.home-intro-open) { overflow: hidden; }
+:global(.app-header) { transition: opacity .5s ease; }
+:global(html.home-intro-open .app-header) {
+  opacity: 0;
+  visibility: hidden;
+  pointer-events: none;
+}
 
 .home-interface {
-  opacity: .18;
-  transform: translateY(24px) scale(.992);
-  transition: opacity .75s ease, transform .75s cubic-bezier(.22, 1, .36, 1);
+  opacity: 0;
+  transform: translateY(18px) scale(.994);
+  transition: opacity .76s ease, transform .76s cubic-bezier(.22, 1, .36, 1);
 }
 
 .interface-ready .home-interface {
@@ -175,7 +162,6 @@ async function copyFormula(text: string, name: string) { await navigator.clipboa
 }
 
 .cfd-intro {
-  --intro-orange: #e65f18;
   position: fixed;
   z-index: 120;
   inset: 0;
@@ -183,162 +169,48 @@ async function copyFormula(text: string, name: string) { await navigator.clipboa
   place-items: center;
   overflow: hidden;
   cursor: pointer;
-  color: #173247;
-  background:
-    radial-gradient(circle at 72% 46%, rgba(255, 181, 106, .56), transparent 21%),
-    radial-gradient(circle at 26% 20%, rgba(255, 255, 255, .86), transparent 32%),
-    linear-gradient(125deg, rgba(255, 253, 251, .98), rgba(248, 235, 224, .97) 55%, rgba(255, 248, 241, .98));
-  isolation: isolate;
-  animation: intro-arrive .65s ease both;
+  outline: none;
+  touch-action: manipulation;
+  background: transparent;
+  transform: translateZ(0);
+  backface-visibility: hidden;
+  will-change: opacity, transform;
 }
 
 .cfd-intro.leaving {
   pointer-events: none;
-  animation: intro-leave .68s cubic-bezier(.7, 0, .3, 1) forwards;
+  animation: intro-leave .76s cubic-bezier(.4, 0, .2, 1) forwards;
 }
 
-.intro-grid {
-  position: absolute;
-  inset: -20%;
-  opacity: .38;
-  background-image:
-    linear-gradient(rgba(23, 105, 170, .09) 1px, transparent 1px),
-    linear-gradient(90deg, rgba(23, 105, 170, .09) 1px, transparent 1px);
-  background-size: 46px 46px;
-  mask-image: radial-gradient(circle at 62% 50%, #000 0 18%, transparent 66%);
-  transform: perspective(900px) rotateX(62deg) translateY(21%);
-  animation: intro-grid-drift 13s linear infinite;
-}
-
-.intro-flow {
-  position: absolute;
-  inset: 7% -9% 3% 34%;
-  filter: drop-shadow(0 24px 42px rgba(153, 76, 28, .12));
-}
-
-.intro-flow > i {
-  --i: 1;
-  position: absolute;
-  left: calc((var(--i) - 1) * 1.75%);
-  top: calc(4% + var(--i) * 4.25%);
-  width: calc(100% - var(--i) * 2.1%);
-  height: calc(74% - var(--i) * 2.3%);
-  border: 1px solid rgba(222, 91, 20, calc(.2 + var(--i) * .006));
-  border-left-color: transparent;
-  border-radius: 48% 58% 53% 44%;
-  transform: rotate(calc((var(--i) - 9) * .9deg));
-  animation: streamline-pulse calc(5.8s + var(--i) * .12s) ease-in-out infinite alternate;
-}
-
-.intro-vortex {
-  position: absolute;
-  left: 50%;
-  top: 39%;
-  display: grid;
-  place-items: center;
-  width: clamp(94px, 10vw, 148px);
-  aspect-ratio: 1;
-  border: 1px solid rgba(230, 95, 24, .45);
-  border-radius: 50%;
-  background: radial-gradient(circle, rgba(255, 250, 245, .9), rgba(255, 158, 87, .16) 52%, transparent 72%);
-  box-shadow: 0 0 0 18px rgba(230, 95, 24, .035), 0 0 0 42px rgba(230, 95, 24, .025);
-  animation: vortex-float 5s ease-in-out infinite;
-}
-
-.intro-vortex b { font: 400 clamp(35px, 4vw, 58px)/1 Georgia, serif; color: var(--intro-orange); }
-.intro-vortex small { margin-top: -22px; color: #8b5d3f; font: 8px/1 var(--font-mono); letter-spacing: .16em; }
-
-.intro-copy {
-  position: relative;
-  z-index: 2;
-  width: min(1180px, calc(100% - 56px));
-  padding-right: 48%;
-}
-
-.intro-kicker {
-  color: #9b5830;
-  font: 700 11px/1 var(--font-mono);
-  letter-spacing: .17em;
-}
-
-.intro-copy h1 {
-  margin: 18px 0 18px;
-  font-size: clamp(62px, 8vw, 126px);
-  font-weight: 650;
-  line-height: .94;
-  letter-spacing: -.065em;
-}
-
-.intro-copy h1 span { color: var(--color-primary-600); }
-.intro-copy p { max-width: 520px; margin: 0 0 32px; color: #526a7a; font-size: clamp(15px, 1.4vw, 19px); line-height: 1.8; }
-
-.intro-enter {
-  display: inline-flex;
-  align-items: center;
-  gap: 10px;
-  min-height: 48px;
-  padding: 0 17px;
-  border: 1px solid rgba(23, 105, 170, .28);
-  border-radius: 7px;
-  background: rgba(255, 255, 255, .72);
-  color: var(--color-primary-700);
-  box-shadow: 0 14px 36px rgba(45, 73, 94, .09);
-  backdrop-filter: blur(12px);
-  font-size: 13px;
-}
-
-.intro-enter svg:last-child { margin-left: 5px; animation: intro-arrow 1.5s ease-in-out infinite; }
-
-.knowledge-map-section { background: var(--color-surface-50); }
+.knowledge-map-section { background: transparent; }
 .knowledge-map-grid { display: grid; grid-template-columns: repeat(5, 1fr); gap: 12px; }
-.knowledge-map-grid > a { position: relative; min-height: 178px; padding: 22px; border: 1px solid var(--color-border-200); border-radius: 8px; background: #fff; }
+.knowledge-map-grid > a { position: relative; min-height: 178px; padding: 22px; border: 1px solid var(--color-border-200); border-radius: 8px; background: transparent; }
 .knowledge-map-grid > a:hover { border-color: var(--color-primary-500); box-shadow: 0 12px 30px rgba(24, 64, 96, .07); }
 .knowledge-map-grid span { color: var(--color-primary-600); font: 11px var(--font-mono); }
 .knowledge-map-grid h3 { margin: 26px 0 7px; font-size: 18px; }
 .knowledge-map-grid p { margin: 0; color: var(--color-text-600); font-size: 12px; line-height: 1.75; }
 .knowledge-map-grid svg { position: absolute; right: 18px; bottom: 18px; color: var(--color-primary-600); }
 
-.intro-readout {
-  position: absolute;
-  right: clamp(24px, 5vw, 74px);
-  bottom: clamp(22px, 5vh, 54px);
-  display: flex;
-  gap: 22px;
-  color: #8a6c59;
-  font: 9px var(--font-mono);
-  letter-spacing: .08em;
-}
+:global(.home-page .hero-section) { background: transparent; }
+:global(.home-page .capability-card) { background: transparent; }
+:global(.home-page .capability-card:hover) { background: transparent; }
+:global(.home-page .knowledge-feature) { background: transparent; }
+:global(.home-page .featured-article),
+:global(.home-page .article-list a),
+:global(.home-page .tool-preview) { background-color: transparent; }
+:global(.home-page .simulation-showcase) { background: rgba(16, 43, 65, .91); }
 
-.intro-readout b { margin-left: 4px; color: #345267; font-weight: 600; }
-
-@keyframes intro-arrive { from { transform: scale(1.025); } }
-@keyframes intro-leave { to { opacity: 0; transform: scale(1.035); filter: blur(9px); } }
-@keyframes intro-grid-drift { to { background-position: 46px 46px, 46px 46px; } }
-@keyframes streamline-pulse { to { transform: rotate(calc((var(--i) - 9) * .9deg + 2deg)) translate3d(9px, -4px, 0); opacity: .55; } }
-@keyframes vortex-float { 50% { transform: translate3d(10px, -9px, 0) scale(1.04); } }
-@keyframes intro-arrow { 50% { transform: translateX(4px); } }
+@keyframes intro-leave { to { opacity: 0; transform: translateZ(0) scale(1.018); } }
 
 @media (max-width: 820px) {
   .knowledge-map-grid { grid-template-columns: repeat(2, 1fr); }
-  .intro-copy { padding: 0 10% 42%; text-align: center; }
-  .intro-copy p { margin-inline: auto; }
-  .intro-flow { inset: 46% -38% -12% -20%; opacity: .8; }
-  .intro-vortex { left: 48%; top: 32%; }
-  .intro-readout { right: 50%; transform: translateX(50%); white-space: nowrap; }
 }
 
 @media (max-width: 560px) {
   .knowledge-map-grid { grid-template-columns: 1fr; }
-  .intro-copy { width: calc(100% - 28px); padding: 0 4% 48%; }
-  .intro-copy h1 { font-size: clamp(58px, 20vw, 84px); }
-  .intro-copy p { font-size: 14px; line-height: 1.7; }
-  .intro-enter { width: 100%; justify-content: center; font-size: 12px; }
-  .intro-flow { inset: 48% -58% -8% -44%; }
-  .intro-readout { gap: 12px; }
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .home-interface, .cfd-intro, .cfd-intro.leaving, .intro-grid, .intro-flow > i,
-  .intro-vortex, .intro-enter svg:last-child { animation: none; transition: none; }
+  .home-interface, .cfd-intro, .cfd-intro.leaving { animation: none; transition: none; }
 }
 </style>

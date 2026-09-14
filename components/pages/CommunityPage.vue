@@ -16,8 +16,7 @@ import {
 } from "lucide-vue-next";
 import { forumTopics } from "~/utils/content";
 const route = useRoute(),
-  router = useRouter(),
-  store = usePlatformStore();
+  router = useRouter();
 const postDetail = computed(() =>
   /^\/forum\/posts\/[^/]+\/?$/.test(route.path),
 );
@@ -203,8 +202,8 @@ function addReply() {
     ...items,
     {
       id: items.length + 1,
-      author: store.user?.name || "本地访客",
-      role: "注册用户",
+      author: "本地访客",
+      role: "社区成员",
       time: "刚刚",
       text: replyText.value.trim(),
       likes: 0,
@@ -229,8 +228,7 @@ function focusReply() {
   replyEditor.value?.focus();
 }
 function startTopic() {
-  if (!store.user) router.push({ path: "/login", query: { next: "/forum" } });
-  else draftOpen.value = true;
+  draftOpen.value = true;
 }
 function publishTopic() {
   if (draftTitle.value.trim().length < 8 || draftBody.value.trim().length < 20)

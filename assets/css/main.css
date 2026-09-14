@@ -419,3 +419,67 @@ body:has(.modelica-ide) .app-footer{display:none}
   .credibility-check-grid{grid-template-columns:1fr}
   .lab-history-list time{display:none}
 }
+
+/* Keep the global flow field visible through large page surfaces and content cards. */
+.page-hero{background:transparent}
+.path-section,.knowledge-feature,.community-section{background-color:transparent}
+.workbench-page,.result-page,.post-page,.modelica-result,.simulation-lab-page{background-color:transparent}
+.modelica-hero{background-color:rgba(19,43,63,.91)}
+.capability-card,.knowledge-map-grid>a,.featured-article,.article-list a,
+.topic-table,.forum-sections,.topic-stream,.post-card,.reply-editor,
+.tool-card,.parameter-panel,.work-area,.summary-grid,.result-tabs,.result-content,.result-lower>div,
+.side-card,.algorithm-detail-card,.formula-card,.converter-workspace,.model-result-grid,.library-grid>div,
+.lab-config-card,.lab-running-panel,.lab-result-card,.lab-case-card,.lab-empty-panel,.lab-history-card{
+  background-color:transparent
+}
+.comparison-note,.table-head,.formula-display,.converter-panel-head,.input-footer,
+.tool-card-visual,.model-equation,.lab-defaults,.lab-config-card>header,
+.modelica-steps,.modelica-support,.project-table,.post-card header{
+  background-color:transparent
+}
+.word-guide,.inline-alert.info{background-color:transparent}
+.modelica-ide{background-color:transparent}
+.editor-center,.project-explorer,.model-inspector,.bottom-panel,.ide-toolbar,.canvas-toolbar{
+  background-color:transparent
+}
+.canvas-workbench{background-color:transparent}
+
+/* White framed content stays outlined while the animated streamlines remain unobstructed. */
+.page-search,.knowledge-collection-strip button,.filter-aside,.visual-toolbar,.visual-lower,
+.tool-preview,.preview-plot,.formula-display,.formula-list>div,.algorithm-list a,
+.estimate-box>div,.model-equation,.project-table,.task-table,.converter-history,
+.converter-notes,.converter-notes>.container>div,.lab-metrics,.credibility-check-grid>div{
+  background-color:transparent
+}
+
+/* Form controls align to their panel keylines and never create page-level overflow. */
+form,label,input,select,textarea{min-width:0}
+input,select,textarea{max-width:100%}
+.page-search.large{width:min(720px,100%)}
+.field-row>label,.unit-input,.settings-form,.settings-form section{min-width:0}
+
+/* Compound fields own the focus ring; their borderless inner inputs do not draw a second box. */
+input:focus,select:focus,textarea:focus{
+  box-shadow:inset 0 0 0 1px rgba(23,105,170,.2)
+}
+input:focus-visible,select:focus-visible,textarea:focus-visible{outline:none}
+.page-search:focus-within,.unit-input:focus-within,.auth-card>label>div:focus-within{
+  border-color:var(--color-primary-600);
+  box-shadow:inset 0 0 0 1px rgba(23,105,170,.2)
+}
+.page-search input:focus,.unit-input input:focus,.auth-card input:focus,.search-modal-input input:focus{
+  border-color:transparent!important;
+  box-shadow:none
+}
+.search-modal-input:focus-within{box-shadow:inset 0 -2px var(--color-primary-600)}
+
+@media(max-width:820px){
+  .account-sidebar,.account-content{width:100%;min-width:0}
+  .account-sidebar nav{max-width:100%}
+}
+
+@media(max-width:560px){
+  .lab-config-card .field-row.two{grid-template-columns:minmax(0,1fr)}
+  .account-content .list-toolbar{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:8px;width:100%}
+  .account-content .page-search.inline{width:100%}
+}
