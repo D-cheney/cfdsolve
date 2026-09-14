@@ -6,7 +6,14 @@ const copied = ref('')
 const showIntro = ref(true)
 const introLeaving = ref(false)
 const interfaceReady = ref(false)
+const splitX = ref('50vw')
+const splitY = ref('50vh')
 let introTimer: ReturnType<typeof setTimeout> | undefined
+
+const introSplitStyle = computed<Record<string, string>>(() => ({
+  '--split-x': splitX.value,
+  '--split-y': splitY.value,
+}))
 
 const knowledgeCollections = [
   { name: 'CFD 理论', topics: '流体基础 · 离散方法 · 湍流 · 验证', to: '/knowledge?collection=cfd' },
@@ -18,19 +25,21 @@ const knowledgeCollections = [
 
 useHead({ title: 'CFD菜鸟｜CFD 知识库与工程工具' })
 
-function revealIntro() {
+function revealIntro(event?: MouseEvent) {
   if (!showIntro.value || introLeaving.value) return
+  const viewportWidth = Math.max(1, document.documentElement.clientWidth || window.innerWidth)
+  const viewportHeight = Math.max(1, document.documentElement.clientHeight || window.innerHeight)
+  const originX = event ? Math.min(viewportWidth, Math.max(0, event.clientX)) : viewportWidth / 2
+  const originY = event ? Math.min(viewportHeight, Math.max(0, event.clientY)) : viewportHeight / 2
+  splitX.value = `${originX}px`
+  splitY.value = `${originY}px`
+
   interfaceReady.value = true
-  const reduceMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches
-  if (reduceMotion) {
-    showIntro.value = false
-    return
-  }
   introLeaving.value = true
   introTimer = setTimeout(() => {
     showIntro.value = false
     introLeaving.value = false
-  }, 760)
+  }, 2260)
 }
 
 function handleIntroKey(event: KeyboardEvent) {
@@ -63,12 +72,23 @@ async function copyFormula(text: string, name: string) { await navigator.clipboa
       v-if="showIntro"
       class="cfd-intro"
       :class="{ leaving: introLeaving }"
+      :style="introSplitStyle"
       role="button"
       aria-label="进入 CFD菜鸟功能页面"
       tabindex="0"
       @click="revealIntro"
       @keydown="handleIntroKey"
-    ></div>
+    >
+      <span class="intro-title">CFD菜鸟</span>
+      <div class="intro-shards" aria-hidden="true">
+        <span v-for="corner in ['top-left', 'top-right', 'bottom-left', 'bottom-right']" :key="corner" class="intro-shard" :class="corner">
+          <i>CFD菜鸟</i>
+        </span>
+        <span class="intro-axis horizontal"></span>
+        <span class="intro-axis vertical"></span>
+        <span class="intro-origin"></span>
+      </div>
+    </div>
 
     <div class="home-interface" :inert="showIntro ? true : undefined" :aria-hidden="showIntro ? 'true' : undefined">
     <section class="hero-section">
@@ -153,7 +173,7 @@ async function copyFormula(text: string, name: string) { await navigator.clipboa
 .home-interface {
   opacity: 0;
   transform: translateY(18px) scale(.994);
-  transition: opacity .76s ease, transform .76s cubic-bezier(.22, 1, .36, 1);
+  transition: opacity 1.3s ease, transform 1.3s cubic-bezier(.22, 1, .36, 1);
 }
 
 .interface-ready .home-interface {
@@ -177,9 +197,148 @@ async function copyFormula(text: string, name: string) { await navigator.clipboa
   will-change: opacity, transform;
 }
 
+.intro-title,
+.intro-shard i {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  margin: 0;
+  color: rgba(50, 91, 116, .115);
+  font-family: FangSong, FangSong_GB2312, STFangsong, serif;
+  font-size: clamp(56px, 14.2vw, 218px);
+  font-style: normal;
+  font-weight: 400;
+  line-height: 1;
+  letter-spacing: .1em;
+  white-space: nowrap;
+  text-shadow:
+    0 0 22px rgba(116, 181, 216, .16),
+    0 18px 48px rgba(86, 139, 169, .1),
+    0 -12px 42px rgba(255, 255, 255, .72);
+  transform: translate(-50%, -50%);
+  user-select: none;
+}
+
+.intro-title {
+  z-index: 2;
+  transition: opacity .08s linear, filter .08s linear;
+}
+
+.intro-shard i {
+  color: rgba(50, 91, 116, .16);
+}
+
+.intro-shards {
+  position: absolute;
+  z-index: 3;
+  inset: 0;
+  visibility: hidden;
+  pointer-events: none;
+}
+
+.intro-shard {
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+  background: linear-gradient(135deg, rgba(226, 241, 249, .985), rgba(255, 255, 255, .97));
+  filter: drop-shadow(0 0 18px rgba(75, 145, 181, .42));
+  transform: translate3d(0, 0, 0);
+  will-change: transform;
+}
+
+.intro-shard.top-left {
+  clip-path: polygon(0 0, var(--split-x) 0, var(--split-x) var(--split-y), 0 var(--split-y));
+}
+
+.intro-shard.top-right {
+  clip-path: polygon(var(--split-x) 0, 100% 0, 100% var(--split-y), var(--split-x) var(--split-y));
+}
+
+.intro-shard.bottom-left {
+  clip-path: polygon(0 var(--split-y), var(--split-x) var(--split-y), var(--split-x) 100%, 0 100%);
+}
+
+.intro-shard.bottom-right {
+  clip-path: polygon(var(--split-x) var(--split-y), 100% var(--split-y), 100% 100%, var(--split-x) 100%);
+}
+
+.intro-axis {
+  position: absolute;
+  z-index: 5;
+  display: block;
+  background: rgba(81, 165, 210, .88);
+  box-shadow: 0 0 22px rgba(91, 180, 226, .9);
+  opacity: 0;
+}
+
+.intro-axis.horizontal {
+  top: var(--split-y);
+  right: calc(100% - var(--split-x));
+  left: var(--split-x);
+  height: 2px;
+}
+
+.intro-axis.vertical {
+  top: var(--split-y);
+  bottom: calc(100% - var(--split-y));
+  left: var(--split-x);
+  width: 2px;
+}
+
+.intro-origin {
+  position: absolute;
+  z-index: 6;
+  top: var(--split-y);
+  left: var(--split-x);
+  width: 12px;
+  height: 12px;
+  border: 1px solid rgba(101, 180, 222, .84);
+  border-radius: 50%;
+  box-shadow: 0 0 22px rgba(101, 180, 222, .7);
+  opacity: 0;
+  transform: translate(-50%, -50%) scale(.35);
+}
+
 .cfd-intro.leaving {
   pointer-events: none;
-  animation: intro-leave .76s cubic-bezier(.4, 0, .2, 1) forwards;
+  animation: intro-shell-leave 2.26s linear forwards !important;
+}
+
+.cfd-intro.leaving > .intro-title {
+  opacity: 0;
+  filter: blur(8px);
+}
+
+.cfd-intro.leaving .intro-shards {
+  visibility: visible;
+}
+
+.cfd-intro.leaving .intro-shard.top-left {
+  animation: shard-top-left 2.2s cubic-bezier(.32, 0, .18, 1) forwards !important;
+}
+
+.cfd-intro.leaving .intro-shard.top-right {
+  animation: shard-top-right 2.2s cubic-bezier(.32, 0, .18, 1) forwards !important;
+}
+
+.cfd-intro.leaving .intro-shard.bottom-left {
+  animation: shard-bottom-left 2.2s cubic-bezier(.32, 0, .18, 1) forwards !important;
+}
+
+.cfd-intro.leaving .intro-shard.bottom-right {
+  animation: shard-bottom-right 2.2s cubic-bezier(.32, 0, .18, 1) forwards !important;
+}
+
+.cfd-intro.leaving .intro-axis.horizontal {
+  animation: split-horizontal 1.05s ease-out forwards !important;
+}
+
+.cfd-intro.leaving .intro-axis.vertical {
+  animation: split-vertical 1.05s ease-out forwards !important;
+}
+
+.cfd-intro.leaving .intro-origin {
+  animation: split-origin 1.12s ease-out forwards !important;
 }
 
 .knowledge-map-section { background: transparent; }
@@ -307,7 +466,52 @@ async function copyFormula(text: string, name: string) { await navigator.clipboa
   box-shadow: 0 12px 28px rgba(25, 63, 91, .09);
 }
 
-@keyframes intro-leave { to { opacity: 0; transform: translateZ(0) scale(1.018); } }
+@keyframes intro-shell-leave {
+  0%, 88% { opacity: 1; }
+  100% { opacity: 0; }
+}
+
+@keyframes shard-top-left {
+  0%, 8% { transform: translate3d(0, 0, 0) rotate(0); }
+  58% { transform: translate3d(-42vw, -34vh, 0) rotate(-1.8deg); }
+  100% { transform: translate3d(-108vw, -108vh, 0) rotate(-3deg); }
+}
+
+@keyframes shard-top-right {
+  0%, 8% { transform: translate3d(0, 0, 0) rotate(0); }
+  58% { transform: translate3d(42vw, -34vh, 0) rotate(1.8deg); }
+  100% { transform: translate3d(108vw, -108vh, 0) rotate(3deg); }
+}
+
+@keyframes shard-bottom-left {
+  0%, 8% { transform: translate3d(0, 0, 0) rotate(0); }
+  58% { transform: translate3d(-42vw, 34vh, 0) rotate(1.8deg); }
+  100% { transform: translate3d(-108vw, 108vh, 0) rotate(3deg); }
+}
+
+@keyframes shard-bottom-right {
+  0%, 8% { transform: translate3d(0, 0, 0) rotate(0); }
+  58% { transform: translate3d(42vw, 34vh, 0) rotate(-1.8deg); }
+  100% { transform: translate3d(108vw, 108vh, 0) rotate(-3deg); }
+}
+
+@keyframes split-horizontal {
+  0% { opacity: 0; }
+  12%, 68% { right: 0; left: 0; opacity: 1; }
+  100% { right: 0; left: 0; opacity: 0; }
+}
+
+@keyframes split-vertical {
+  0% { opacity: 0; }
+  12%, 68% { top: 0; bottom: 0; opacity: 1; }
+  100% { top: 0; bottom: 0; opacity: 0; }
+}
+
+@keyframes split-origin {
+  0% { opacity: 0; transform: translate(-50%, -50%) scale(.35); }
+  24% { opacity: 1; }
+  100% { opacity: 0; transform: translate(-50%, -50%) scale(9); }
+}
 
 @media (max-width: 820px) {
   .knowledge-map-grid { grid-template-columns: repeat(2, 1fr); }
@@ -318,6 +522,8 @@ async function copyFormula(text: string, name: string) { await navigator.clipboa
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .home-interface, .cfd-intro, .cfd-intro.leaving { animation: none; transition: none; }
+  .home-interface {
+    transition: opacity 1.3s ease, transform 1.3s cubic-bezier(.22, 1, .36, 1) !important;
+  }
 }
 </style>

@@ -16,11 +16,11 @@ const backdropEl = ref(null)
 
 const TAU = Math.PI * 2
 const COLORS = [
-  [205, 76, 20],
-  [230, 101, 28],
-  [237, 139, 69],
-  [166, 105, 68],
-  [72, 116, 145]
+  [112, 126, 138],
+  [145, 157, 168],
+  [107, 167, 205],
+  [145, 194, 222],
+  [75, 139, 181]
 ]
 
 let ctx = null
@@ -271,14 +271,14 @@ function drawFieldLines(time) {
   ctx.lineCap = 'round'
   ctx.lineJoin = 'round'
   ctx.globalCompositeOperation = 'multiply'
-  ctx.strokeStyle = `rgba(226, 106, 36, ${.04 + pointer.energy * .01})`
+  ctx.strokeStyle = `rgba(111, 146, 168, ${.038 + pointer.energy * .012})`
   ctx.lineWidth = quality < .8 ? 10 : 14
   for (const path of paths.filter((_, index) => index % 3 === 1)) strokePath(path)
 
   for (let index = 0; index < paths.length; index += 1) {
     ctx.strokeStyle = index % 4 === 0
-      ? `rgba(42, 99, 135, ${.23 + pointer.energy * .035})`
-      : `rgba(164, 62, 14, ${.27 + pointer.energy * .04})`
+      ? `rgba(94, 159, 200, ${.26 + pointer.energy * .035})`
+      : `rgba(102, 116, 128, ${.24 + pointer.energy * .035})`
     ctx.lineWidth = index % 3 === 0 ? 1.85 : 1.2
     strokePath(paths[index])
   }
@@ -286,12 +286,12 @@ function drawFieldLines(time) {
   // 亮色流束沿已经积分出的轨迹前进，让速度方向一眼可见。
   ctx.globalCompositeOperation = 'source-over'
   for (let index = 0; index < paths.length; index += 1) {
-    const blue = index % 4 === 0
+    const blue = index % 3 === 0
     ctx.setLineDash(quality < .8 ? [34, 104] : [48, 126])
     ctx.lineDashOffset = -time * (blue ? 66 : 88) - index * 23
     ctx.strokeStyle = blue
-      ? `rgba(42, 118, 164, ${.48 + pointer.energy * .05})`
-      : `rgba(238, 91, 18, ${.54 + pointer.energy * .065})`
+      ? `rgba(105, 176, 218, ${.55 + pointer.energy * .055})`
+      : `rgba(126, 140, 151, ${.42 + pointer.energy * .045})`
     ctx.lineWidth = quality < .8 ? 2.05 : 2.65
     strokePath(paths[index])
   }
@@ -328,7 +328,7 @@ function drawParticles() {
   drawParticlePass(5, quality < .8 ? .28 : .25, 1.38)
 
   ctx.globalCompositeOperation = 'source-over'
-  ctx.fillStyle = 'rgba(255, 244, 231, .72)'
+  ctx.fillStyle = 'rgba(224, 241, 250, .78)'
   ctx.beginPath()
   for (let index = 0; index < particles.length; index += quality < .8 ? 5 : 4) {
     const particle = particles[index]
@@ -344,9 +344,9 @@ function drawPointerTrail() {
   const first = pointerTrail[0]
   const last = pointerTrail[pointerTrail.length - 1]
   const gradient = ctx.createLinearGradient(first.x, first.y, last.x, last.y)
-  gradient.addColorStop(0, 'rgba(238, 92, 18, 0)')
-  gradient.addColorStop(.45, 'rgba(243, 112, 30, .3)')
-  gradient.addColorStop(1, 'rgba(255, 224, 187, .92)')
+  gradient.addColorStop(0, 'rgba(126, 196, 232, 0)')
+  gradient.addColorStop(.42, 'rgba(126, 196, 232, .34)')
+  gradient.addColorStop(1, 'rgba(190, 228, 247, .96)')
 
   ctx.save()
   ctx.lineCap = 'round'
@@ -359,13 +359,13 @@ function drawPointerTrail() {
     ctx.quadraticCurveTo(point.x, point.y, (point.x + next.x) * .5, (point.y + next.y) * .5)
   }
   ctx.lineTo(last.x, last.y)
-  ctx.strokeStyle = 'rgba(225, 75, 8, .11)'
+  ctx.strokeStyle = 'rgba(112, 190, 230, .13)'
   ctx.lineWidth = 25
   ctx.stroke()
   ctx.strokeStyle = gradient
   ctx.lineWidth = 6.5
   ctx.stroke()
-  ctx.strokeStyle = 'rgba(255, 249, 238, .86)'
+  ctx.strokeStyle = 'rgba(232, 247, 255, .94)'
   ctx.lineWidth = 1.15
   ctx.stroke()
   ctx.restore()
@@ -380,7 +380,7 @@ function drawPointerParticles() {
     ctx.moveTo(spark.x + spark.size, spark.y)
     ctx.arc(spark.x, spark.y, spark.size * spark.life, 0, TAU)
   }
-  ctx.fillStyle = 'rgba(238, 94, 19, .72)'
+  ctx.fillStyle = 'rgba(125, 197, 233, .72)'
   ctx.fill()
   ctx.restore()
 }
@@ -394,7 +394,7 @@ function drawInteraction() {
   for (const ripple of ripples) {
     ctx.beginPath()
     ctx.arc(ripple.x, ripple.y, ripple.radius, 0, TAU)
-    ctx.strokeStyle = `rgba(233, 85, 15, ${ripple.life * .34})`
+    ctx.strokeStyle = `rgba(112, 190, 230, ${ripple.life * .36})`
     ctx.lineWidth = 1.2 + ripple.life * 2
     ctx.stroke()
   }
@@ -405,9 +405,9 @@ function drawInteraction() {
   }
   const radius = 82 + pointer.energy * 62
   const glow = ctx.createRadialGradient(pointer.x, pointer.y, 0, pointer.x, pointer.y, radius)
-  glow.addColorStop(0, `rgba(255, 245, 227, ${.42 * pointer.energy})`)
-  glow.addColorStop(.22, `rgba(240, 104, 25, ${.17 * pointer.energy})`)
-  glow.addColorStop(1, 'rgba(222, 91, 20, 0)')
+  glow.addColorStop(0, `rgba(218, 242, 255, ${.46 * pointer.energy})`)
+  glow.addColorStop(.22, `rgba(111, 190, 231, ${.2 * pointer.energy})`)
+  glow.addColorStop(1, 'rgba(111, 190, 231, 0)')
   ctx.fillStyle = glow
   ctx.fillRect(pointer.x - radius, pointer.y - radius, radius * 2, radius * 2)
   ctx.restore()
@@ -689,10 +689,7 @@ onBeforeUnmount(() => {
   inset: 0;
   overflow: hidden;
   pointer-events: none;
-  background:
-    radial-gradient(circle at 14% 7%, rgba(255, 184, 124, .3), transparent 34%),
-    radial-gradient(circle at 86% 78%, rgba(211, 133, 78, .21), transparent 38%),
-    linear-gradient(125deg, #fffdfb 0%, #f8eee5 46%, #fff9f3 72%, #f6e8db 100%);
+  background: #fff;
   background-size: 150% 150%;
   transform: translateZ(0);
   animation: fluid-breathe 18s ease-in-out infinite alternate;
@@ -702,10 +699,10 @@ onBeforeUnmount(() => {
   content: '';
   position: absolute;
   inset: -28%;
-  opacity: calc(.2 + var(--flow-energy) * .075);
+  opacity: calc(.12 + var(--flow-energy) * .055);
   background:
-    conic-gradient(from 105deg at 48% 52%, transparent 0 18%, rgba(236, 113, 41, .11) 25%, transparent 35% 61%, rgba(84, 126, 151, .075) 70%, transparent 79%),
-    radial-gradient(circle 300px at var(--cursor-x) var(--cursor-y), rgba(237, 115, 41, .18), transparent 72%);
+    conic-gradient(from 105deg at 48% 52%, transparent 0 18%, rgba(149, 198, 225, .11) 25%, transparent 35% 61%, rgba(126, 140, 151, .07) 70%, transparent 79%),
+    radial-gradient(circle 300px at var(--cursor-x) var(--cursor-y), rgba(131, 202, 238, .2), transparent 72%);
   transform: translate3d(var(--flow-x), var(--flow-y), 0) rotate(-4deg);
   transition: opacity .28s ease;
   animation: fluid-caustic 24s ease-in-out infinite alternate;
@@ -742,7 +739,7 @@ onBeforeUnmount(() => {
   width: 68vmax;
   aspect-ratio: 1.8;
   border-radius: 50%;
-  opacity: calc(.32 + var(--flow-energy) * .035);
+  opacity: calc(.16 + var(--flow-energy) * .025);
   filter: blur(64px);
   will-change: transform;
 }
@@ -750,21 +747,21 @@ onBeforeUnmount(() => {
 .wash-one {
   top: -22vmax;
   left: -28vmax;
-  background: radial-gradient(ellipse, rgba(247, 137, 66, .36), transparent 68%);
+  background: radial-gradient(ellipse, rgba(167, 207, 229, .22), transparent 68%);
   animation: wash-one 21s ease-in-out infinite alternate;
 }
 
 .wash-two {
   top: 31vh;
   right: -34vmax;
-  background: radial-gradient(ellipse, rgba(192, 113, 69, .28), transparent 68%);
+  background: radial-gradient(ellipse, rgba(170, 181, 190, .17), transparent 68%);
   animation: wash-two 27s ease-in-out infinite alternate;
 }
 
 .wash-three {
   bottom: -29vmax;
   left: 18vw;
-  background: radial-gradient(ellipse, rgba(91, 137, 164, .16), transparent 68%);
+  background: radial-gradient(ellipse, rgba(117, 181, 216, .18), transparent 68%);
   animation: wash-three 31s ease-in-out infinite alternate;
 }
 
@@ -772,8 +769,8 @@ onBeforeUnmount(() => {
   inset: -12%;
   opacity: .18;
   background-image:
-    linear-gradient(rgba(96, 77, 64, .055) 1px, transparent 1px),
-    linear-gradient(90deg, rgba(96, 77, 64, .055) 1px, transparent 1px);
+    linear-gradient(rgba(112, 130, 143, .045) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(112, 130, 143, .045) 1px, transparent 1px);
   background-size: 72px 72px;
   mask-image: radial-gradient(ellipse at center, #000 8%, transparent 76%);
   transform: translate3d(calc(var(--flow-x) * .22), calc(var(--flow-y) * .22), 0);
@@ -783,7 +780,7 @@ onBeforeUnmount(() => {
 .fluid-grain {
   inset: 0;
   opacity: .1;
-  background-image: radial-gradient(rgba(70, 47, 32, .2) .55px, transparent .7px);
+  background-image: radial-gradient(rgba(97, 118, 132, .16) .55px, transparent .7px);
   background-size: 5px 5px;
   mask-image: linear-gradient(to bottom, #000, transparent 84%);
 }

@@ -55,6 +55,24 @@ with sync_playwright() as p:
         state['ambientFrameChanges'] = True
         report['viewports'].append(state)
 
+    # Reading and tool workspaces use a stable white background and do not mount the
+    # animation at all, so no hidden requestAnimationFrame loop consumes resources.
+    focus_pages = [
+        ('/knowledge/navier-stokes', '.reading-page'),
+        ('/simulation', '.simulation-lab-banner'),
+        ('/formulas/convert', '.formula-converter-page'),
+        ('/modelica/projects/demo-project/editor', '.modelica-ide'),
+    ]
+    for path, selector in focus_pages:
+        page.goto(args.url + path, wait_until='load', timeout=60000)
+        page.locator(selector).wait_for(state='visible')
+        assert page.locator('.fluid-canvas').count() == 0, path
+        assert page.locator('.fluid-backdrop').count() == 0, path
+    report['focusPagesWithoutFlowAnimation'] = [path for path, _ in focus_pages]
+
+    page.goto(args.url + '/knowledge?collection=meshfree', wait_until='load', timeout=60000)
+    page.locator('.fluid-canvas').wait_for(state='visible')
+
     page.set_viewport_size({'width': 1440, 'height': 900})
     page.mouse.move(120, 150)
     page.mouse.move(900, 450, steps=12)
@@ -69,7 +87,9 @@ with sync_playwright() as p:
     page.locator('.home-page').wait_for()
     assert page.locator('.fluid-canvas').count() == 1
     assert page.locator('.cfd-intro').is_visible()
-    assert page.locator('.cfd-intro').evaluate('(e) => e.textContent.trim()') == ''
+    assert page.locator('.intro-title').text_content().strip() == 'CFD菜鸟'
+    assert page.locator('.intro-shard').count() == 4
+    assert 'fangsong' in page.locator('.intro-title').evaluate('(e) => getComputedStyle(e).fontFamily.toLowerCase()')
     assert page.locator('.intro-enter, .intro-copy, .intro-readout').count() == 0
     assert page.locator('.home-interface').get_attribute('inert') is not None
     assert page.locator('.app-header').evaluate("e => getComputedStyle(e).visibility") == 'hidden'
@@ -101,14 +121,33 @@ with sync_playwright() as p:
     report['homeIntroIgnoresMoveAndWheel'] = True
 
     page.locator('.cfd-intro').click(position={'x': 120, 'y': 120})
+    page.wait_for_function('''() => {
+      const first = document.querySelector('.intro-shard');
+      if (!first) return false;
+      const matrix = new DOMMatrixReadOnly(getComputedStyle(first).transform);
+      return matrix.m41 < -5 && matrix.m42 < -5;
+    }''', timeout=2500)
     page.wait_for_timeout(180)
     transition = page.evaluate('''() => ({
-      introOpacity: Number(getComputedStyle(document.querySelector('.cfd-intro')).opacity),
-      interfaceOpacity: Number(getComputedStyle(document.querySelector('.home-interface')).opacity)
+      splitX: document.querySelector('.cfd-intro').style.getPropertyValue('--split-x'),
+      splitY: document.querySelector('.cfd-intro').style.getPropertyValue('--split-y'),
+      shardTranslations: [...document.querySelectorAll('.intro-shard')].map(element => {
+        const matrix = new DOMMatrixReadOnly(getComputedStyle(element).transform);
+        return { x: matrix.m41, y: matrix.m42 };
+      }),
+      interfaceOpacity: Number(getComputedStyle(document.querySelector('.home-interface')).opacity),
+      shardCount: document.querySelectorAll('.intro-shard').length
     })''')
-    assert 0 < transition['introOpacity'] < 1, transition
+    assert transition['splitX'] == '120px' and transition['splitY'] == '120px', transition
+    translations = transition['shardTranslations']
+    assert translations[0]['x'] < -5 and translations[0]['y'] < -5, transition
+    assert translations[1]['x'] > 5 and translations[1]['y'] < -5, transition
+    assert translations[2]['x'] < -5 and translations[2]['y'] > 5, transition
+    assert translations[3]['x'] > 5 and translations[3]['y'] > 5, transition
     assert 0 < transition['interfaceOpacity'] < 1, transition
+    assert transition['shardCount'] == 4, transition
     report['homeIntroCrossfade'] = transition
+    page.screenshot(path=str(output / 'home-intro-split.png'))
     page.locator('.cfd-intro').wait_for(state='detached', timeout=3000)
     assert page.locator('.home-page').evaluate('(e) => e.classList.contains("interface-ready")')
     assert page.locator('.home-interface').get_attribute('inert') is None
@@ -134,7 +173,7 @@ with sync_playwright() as p:
     page.set_viewport_size({'width': 390, 'height': 844})
     page.reload(wait_until='load')
     assert page.locator('.cfd-intro').is_visible()
-    assert page.locator('.cfd-intro').evaluate('(e) => e.textContent.trim()') == ''
+    assert page.locator('.intro-title').text_content().strip() == 'CFD菜鸟'
     page.screenshot(path=str(output / 'home-intro-mobile.png'))
 
     # A mobile browser can emit resize bursts while its address bar expands. Those events
@@ -187,7 +226,20 @@ with sync_playwright() as p:
     assert page.locator('.cfd-intro').is_visible()
     assert page.locator('.fluid-canvas').is_visible()
     page.locator('.cfd-intro').click(position={'x': 80, 'y': 120})
-    assert page.locator('.cfd-intro').count() == 0
+    assert page.locator('.cfd-intro').evaluate('(e) => e.classList.contains("leaving")')
+    page.wait_for_function('''() => {
+      const first = document.querySelector('.intro-shard');
+      if (!first) return false;
+      const matrix = new DOMMatrixReadOnly(getComputedStyle(first).transform);
+      return matrix.m41 < -5 && matrix.m42 < -5;
+    }''', timeout=2500)
+    reduced_transforms = page.locator('.intro-shard').evaluate_all('''elements => elements.map(element => {
+      const matrix = new DOMMatrixReadOnly(getComputedStyle(element).transform);
+      return { x: matrix.m41, y: matrix.m42 };
+    })''')
+    assert reduced_transforms[0]['x'] < -5 and reduced_transforms[0]['y'] < -5, reduced_transforms
+    assert reduced_transforms[3]['x'] > 5 and reduced_transforms[3]['y'] > 5, reduced_transforms
+    page.locator('.cfd-intro').wait_for(state='detached', timeout=3500)
     report['reducedMotionClickIntro'] = 'passed'
     assert not report['errors'], report['errors']
     browser.close()
