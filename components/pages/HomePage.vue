@@ -200,6 +200,113 @@ async function copyFormula(text: string, name: string) { await navigator.clipboa
 :global(.home-page .tool-preview) { background-color: transparent; }
 :global(.home-page .simulation-showcase) { background: rgba(16, 43, 65, .91); }
 
+/* Functional entry points float above the flow without rectangular card chrome. */
+:global(.home-page .capability-grid) {
+  gap: clamp(24px, 3.5vw, 54px);
+}
+
+:global(.home-page .capability-card) {
+  isolation: isolate;
+  overflow: visible;
+  border: 0;
+  border-radius: 0;
+  box-shadow: none;
+  filter: drop-shadow(0 14px 14px rgba(25, 63, 91, .08));
+  transition: transform .32s cubic-bezier(.22, 1, .36, 1), filter .32s ease;
+}
+
+:global(.home-page .capability-card::before) {
+  content: '';
+  position: absolute;
+  z-index: -1;
+  inset: 8% 0 2%;
+  border-radius: 50%;
+  background: radial-gradient(ellipse at 35% 42%, rgba(255, 252, 247, .58), rgba(255, 244, 232, .18) 48%, transparent 75%);
+  filter: blur(18px);
+  opacity: .56;
+  pointer-events: none;
+  transition: opacity .32s ease, transform .32s ease;
+}
+
+:global(.home-page .capability-card:hover) {
+  transform: translateY(-9px);
+  filter: drop-shadow(0 22px 18px rgba(25, 63, 91, .13));
+}
+
+:global(.home-page .capability-card:hover::before) {
+  opacity: .9;
+  transform: scale(1.06);
+}
+
+:global(.home-page .capability-card .cap-icon) {
+  border: 0;
+  background: rgba(238, 246, 252, .56);
+  box-shadow: 0 10px 28px rgba(23, 105, 170, .12);
+  backdrop-filter: blur(5px);
+  transition: transform .32s cubic-bezier(.22, 1, .36, 1), box-shadow .32s ease;
+}
+
+:global(.home-page .capability-card:hover .cap-icon) {
+  transform: translateY(-3px) rotate(-3deg);
+  box-shadow: 0 16px 32px rgba(23, 105, 170, .18);
+}
+
+:global(.home-page .capability-card .card-link) {
+  width: max-content;
+  text-shadow: 0 6px 18px rgba(23, 105, 170, .16);
+  transition: gap .24s ease, transform .24s ease;
+}
+
+:global(.home-page .capability-card:hover .card-link) {
+  gap: 12px;
+  transform: translateX(3px);
+}
+
+.knowledge-map-grid > a {
+  isolation: isolate;
+  overflow: visible;
+  border: 0;
+  border-radius: 0;
+  box-shadow: none;
+  filter: drop-shadow(0 12px 14px rgba(25, 63, 91, .06));
+  transition: transform .3s cubic-bezier(.22, 1, .36, 1), filter .3s ease;
+}
+
+.knowledge-map-grid > a::before {
+  content: '';
+  position: absolute;
+  z-index: -1;
+  inset: 12% 0 4%;
+  border-radius: 50%;
+  background: radial-gradient(ellipse, rgba(255, 251, 245, .42), transparent 72%);
+  filter: blur(16px);
+  pointer-events: none;
+}
+
+.knowledge-map-grid > a:hover {
+  border-color: transparent;
+  box-shadow: none;
+  transform: translateY(-7px);
+  filter: drop-shadow(0 20px 18px rgba(25, 63, 91, .12));
+}
+
+:global(.home-page .hero-actions .button) {
+  border: 0;
+  border-radius: 999px;
+  box-shadow: 0 14px 30px rgba(14, 85, 143, .18);
+  transition: transform .26s cubic-bezier(.22, 1, .36, 1), box-shadow .26s ease;
+}
+
+:global(.home-page .hero-actions .button:hover) {
+  transform: translateY(-4px);
+  box-shadow: 0 20px 38px rgba(14, 85, 143, .24);
+}
+
+:global(.home-page .hero-actions .button.secondary) {
+  background: rgba(255, 255, 255, .18);
+  box-shadow: 0 12px 28px rgba(25, 63, 91, .09);
+}
+
 @keyframes intro-leave { to { opacity: 0; transform: translateZ(0) scale(1.018); } }
 
 @media (max-width: 820px) {
