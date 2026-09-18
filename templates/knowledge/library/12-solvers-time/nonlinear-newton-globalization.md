@@ -2,7 +2,7 @@
 template_version: "flowlab-knowledge/1.0"
 slug: nonlinear-newton-globalization
 title: 非线性方程求解：Newton、JFNK、线搜索与信赖域
-summary: 推导非线性残量的 Newton 线性化、Jacobian-free 矩阵向量积、inexact Newton 强迫项，并比较线搜索、信赖域、Picard 与拟 Newton。
+summary: 推导非线性残量的 Newton 线性化、Jacobian-free 矩阵向量积与 inexact Newton 强迫项，比较线搜索、信赖域、Picard 与拟 Newton 的全局化策略。
 category:
   slug: algebraic-solvers
   name: 代数求解器与时间算法
@@ -14,81 +14,147 @@ published_at: "2026-08-29T00:00:00.000Z"
 tags: [Newton法, JFNK, 线搜索, 信赖域, 非线性求解]
 seo:
   title: Newton 与 JFNK 非线性求解算法推导｜CFD菜鸟
-  description: 推导 Newton、Jacobian-free Newton-Krylov、inexact Newton 与全局化策略。
-  keywords: [Newton法, JFNK, 非线性残量, 线搜索]
+  description: 推导 Newton、Jacobian-free Newton-Krylov、inexact Newton 强迫项与线搜索、信赖域全局化策略。
+  keywords: [Newton法, JFNK, 非线性残量, 线搜索, 信赖域]
 ---
 
 # 非线性方程求解：Newton、JFNK、线搜索与信赖域
 
-求 $F(x)=0$。在 $x_k$ 做 Taylor 展开：
+求非线性残量 $F(x)=0$ 是 CAE 隐式求解的核心。无论是隐式时间步、稳态 RANS 还是接触与相变，最终都要把非线性问题归约为一串线性系统。Newton 法在解附近二阶收敛，但对初值敏感、每步都需要 Jacobian 与一次线性求解；全局化策略（线搜索、信赖域、阻尼、Picard）负责把这种"局部二阶收敛"变成"从远处也能安稳到达"。
+
+## 1. 结论与适用场景
+
+一句话结论：**Newton 负责快，全局化负责稳，预条件负责省**。工程上最常见的组合是：先用 Picard 或阻尼 Newton 建立可行场，再切换到 inexact Newton–Krylov（JFNK）做快速收敛。选型建议：残量光滑、Jacobian 可解析且规模中等时用经典 Newton 加直接线性求解；Jacobian 难以形成或内存受限时用 JFNK，只用 $Jv$ 的有限差分近似；初值差、Jacobian 近奇异时信赖域比纯线搜索更稳健；强非线性、强耦合问题（接触、相变、反应）先线搜索或阻尼，再加物理约束与变量界。
+
+适合用 Newton 的前提是残量可微且 Jacobian 可靠；若残量本身非光滑（如接触状态突变、限制器开关），纯 Newton 会反复跨越不连续面，需要活动集处理或光滑化。若问题本质上是弱耦合的固定点迭代，Picard 反而更稳、更省内存，没有必要强行上 Newton。
+
+从求解链条看，非线性求解位于时间推进与线性求解之间：外层是时间步或载荷步，内层是线性系统。Newton 每迭代一次的收敛质量会直接影响时间步是否被接受，因此诊断非线性问题时应同时观察时间步的接受与拒绝情况。另一个常见误区是把非线性不收敛等同于物理模型有问题；实际上绝大多数不收敛来自三个可控环节：Jacobian 不准确或不完整、线性子问题精度与强迫项不匹配、初值远离吸引域。按这三个环节逐一排查，比反复调整物理参数有效得多。
+
+## 2. 数学基础
+
+在 $x_k$ 处做 Taylor 展开，
 
 $$
-F(x_k+s)=F_k+J_ks+O(\|s\|^2),\qquad J_k=\frac{\partial F}{\partial x}(x_k).
+F(x_k+s)=F_k+J_ks+O(\|s\|^2),\qquad J_k=\frac{\partial F}{\partial x}(x_k),
 $$
 
-忽略高阶项得到 Newton 修正
+忽略高阶项得到 Newton 修正方程
 
 $$
 J_ks_k=-F_k,\qquad x_{k+1}=x_k+s_k.
 $$
 
-若 $J(x^*)$ 非奇异、初值足够近且 Jacobian 连续，局部误差满足 $\|e_{k+1}\|=O(\|e_k\|^2)$。
-
-## 1. Inexact Newton
-
-大规模 CAE 不必把线性子问题解到机器精度，只需
+若 $J(x^*)$ 非奇异、初值足够近且 Jacobian 连续，误差满足
 
 $$
-\|J_ks_k+F_k\|\le\eta_k\|F_k\|,
+\|e_{k+1}\|=O(\|e_k\|^2),
 $$
 
-其中强迫项 $0\le\eta_k<1$。离解较远时使用宽松容差，接近解时减小 $\eta_k$，可避免过度求解并保持超线性收敛。
+即二次收敛。二次收敛只在解的邻域内成立，因此从坏初值出发必须借助全局化才能稳定到达，这也是所有非线性求解器都内置阻尼、线搜索或信赖域的原因。
 
-## 2. Jacobian-free Newton–Krylov
+Newton 法的几何含义是用当前点的切线（或切超平面）代替曲线，随后在切线上找零点。正因如此，当局部曲率大、Jacobian 变化快时，切线与真实曲线的偏离会迅速累积，一步就可能越过吸引域。全局化的本质是限制步长或方向，使实际下降与模型预测的下降保持可比，从而把迭代拉回安全区域。
 
-Krylov 法只需要 $Jv$：
+另一条重要认识是：Newton 的二次收敛只在精确求解线性子问题时才成立。一旦线性子问题只解到相对精度 $\eta_k$，收敛阶会降为接近 $1+\eta_k$ 的超线性；这解释了为什么把线性容差放松到过大时，外层迭代会明显变慢。
 
-$$
-J(x)v\approx\frac{F(x+\epsilon v)-F(x)}{\epsilon}.
-$$
+## 3. 核心公式与算法
 
-$\epsilon$ 过大产生截断误差，过小产生消去误差；常取与机器精度、$\|x\|$ 和 $\|v\|$ 相关的尺度。JFNK 省去显式 Jacobian，但仍需要物理有效的预条件器；“无矩阵”不等于“无预条件”。
-
-## 3. 线搜索
-
-全 Newton 步可能使残量增大。以功函数 $\phi(x)=\tfrac12\|F(x)\|^2$，更新
+**Inexact Newton。** 大规模问题不必把线性子问题解到机器精度，只要
 
 $$
-x_{k+1}=x_k+\alpha_ks_k,qquad 0<\alpha_k\le1.
+\|J_ks_k+F_k\|\leq\eta_k\|F_k\|,\qquad 0\leq\eta_k<1,
 $$
 
-回溯线搜索寻找满足充分下降的 $\alpha_k$。若残量含尺度差异，应先无量纲化，否则大单位分量会主导 $\phi$。
+其中 $\eta_k$ 为强迫项。离解较远时取宽松 $\eta_k$（如 0.9），接近解时减小（如 $10^{-4}$），可保住超线性收敛并避免过度求解。
 
-## 4. 信赖域
-
-在 $\|s\|\le\Delta_k$ 内最小化局部模型
+**Jacobian-free Newton–Krylov。** Krylov 法只需要矩阵—向量积，用有限差分近似
 
 $$
-m_k(s)=\frac12\|F_k+J_ks\|^2.
+Jv\approx\frac{F(x+\epsilon v)-F(x)}{\epsilon},
 $$
 
-比较实际下降与预测下降比值，决定接受步长并调整 $\Delta_k$。信赖域对差初值和近奇异 Jacobian 往往比纯线搜索稳健。
+其中 $\epsilon$ 依据机器精度与向量尺度选取，过大产生截断误差、过小产生消去误差。JFNK 省去显式 Jacobian，但仍必须有物理有效的预条件器，"无矩阵"绝不等于"无预条件"。
 
-## 5. Picard 与拟 Newton
+有限差分近似 $Jv$ 的精度对 JFNK 至关重要。工程上 $\epsilon$ 常取与机器精度平方根成正比的量，并按 $x$ 与 $v$ 的相对尺度缩放；若残量本身含大常数项（如守恒方程的基准流量），差分会把有效信息淹没在噪声里，此时应先对残量做无量纲化或减去基准再差分。
 
-Picard 把一部分非线性冻结，如 $A(x_k)x_{k+1}=b$，通常线性收敛但单步稳定。Broyden 等拟 Newton 用低秩更新近似 Jacobian，适合 Jacobian 昂贵且残量较平滑的问题。工程上常先 Picard 建立可行场，再切换 Newton。
+**线搜索。** 以功函数 $\phi(x)=\frac12\|F(x)\|^2$，令
 
-## 6. 失败诊断
+$$
+x_{k+1}=x_k+\alpha_ks_k,\qquad 0<\alpha_k\leq1,
+$$
 
-- 线性求解失败：检查预条件、零空间和尺度；
-- 残量下降但状态非法：加入变量界限、阻尼或变量变换；
-- 锯齿振荡：检查非光滑接触/相变活动集；
-- 时间步反复失败：回滚状态并减小步长，不能提交未收敛历史；
-- 停止需同时满足残量、增量和物理约束。
+用回溯（Armijo）条件 $\phi(x_k+\alpha s_k)\leq\phi(x_k)+c_1\alpha\nabla\phi^Ts_k$ 选取步长。若残量含量纲差异，应先无量纲化，否则大单位分量会主导 $\phi$。
 
-## 7. 参考资料
+**信赖域。** 在 $\|s\|\leq\Delta_k$ 内最小化局部二次模型
 
-1. PETSc, *SNES: Nonlinear Solvers*, https://petsc.org/main/manual/snes/ 。
-2. Knoll & Keyes, “Jacobian-free Newton–Krylov Methods”, 2004.
-3. Kelley, *Iterative Methods for Linear and Nonlinear Equations*.
+$$
+m_k(s)=\frac12\|F_k+J_ks\|^2,
+$$
 
+用实际下降与预测下降之比
+
+$$
+\rho_k=\frac{\|F_k\|^2-\|F(x_k+s_k)\|^2}{\|F_k\|^2-\|F_k+J_ks_k\|^2}
+$$
+
+决定是否接受步长并调整 $\Delta_k$。信赖域对坏初值与近奇异 Jacobian 通常比纯线搜索稳健。
+
+信赖域半径的更新由 $\rho_k$ 驱动：$\rho_k$ 接近 1 表示模型预测可靠，可扩大 $\Delta_k$；$\rho_k$ 明显偏小甚至为负，表示模型失真，应缩小 $\Delta_k$ 并拒绝该步。这种先信任模型、再按证据调整信任范围的机制，是它比固定步长更稳健的原因。在阻尼最小二乘意义下，信赖域与 Levenberg–Marquardt 方法是等价的。
+
+**Picard 与拟 Newton。** Picard 把一部分非线性冻结，如 $A(x_k)x_{k+1}=b$，通常线性收敛但单步稳定。Broyden 等拟 Newton 用低秩更新近似 Jacobian，适合 Jacobian 昂贵且残量较平滑的问题。工程上常先 Picard 建立可行场，再切 Newton。Picard 的收敛速率大致与问题耦合强度成正比：耦合越弱收敛越快，耦合强时可能几乎不收敛。因此实践上常用 Picard 打底、Newton 收尾的组合，并用残量下降速率作为切换判据——当 Picard 的残量下降明显变缓时切入 Newton。
+
+## 4. 工程实现与参数
+
+**线性求解与预条件。** 每步 Newton 都要解 $J s=-F$，因此线性求解器与预条件质量决定总成本。JFNK 常用基于物理的预条件（冻结 Jacobian 的 ILU、AMG、近似 Schur 补），更新间隔越大越省但收敛越慢，需要在稳定与效率之间取舍。
+
+**收敛与停机。** 同时检查三项：残量范数 $\|F_k\|\leq\max(\text{atol},\text{rtol}\|F_0\|)$、增量范数 $\|s_k\|$、物理约束（正定性、守恒、界）。仅看残量下降可能把非法状态当成收敛。
+
+**阻尼与切换。** 抖动或残量回升时降低步长或用阻尼 Newton，必要时回退到 Picard；接触、相变等活动集变化会造成残量非光滑，应检查活动集是否频繁切换。
+
+**强迫项序列与安全系数。** 常用的强迫项选择是 $\eta_k=\min(0.5,\gamma\|F_k\|/\|F_{k-1}\|)$ 一类的自适应形式，用安全系数防止 $\eta_k$ 过小；线搜索步长下降因子常取 0.5，最小步长约 $10^{-4}$，小于该值则应判定方向失效而不是继续缩小。
+
+参数层面有几条经验规则。强迫项的安全系数常取 0.9 左右，避免过早把线性问题解得太准；线搜索的接受条件一般用 Armijo 加曲率条件（Wolfe 条件）以保证方向有效；信赖域初始半径应与典型步长同量级，最大半径设上限以防在大残量区一次性跳出物理范围。预条件的更新频率通常与 Jacobian 重算频率一致，或每隔若干 Newton 步重算一次。
+
+## 5. 可复现示例
+
+```python
+import numpy as np
+
+def newton_ls(F, J, x0, tol=1e-10, maxit=50):
+    x = np.array(x0, float)
+    for k in range(maxit):
+        f = F(x)
+        if np.linalg.norm(f) <= tol:
+            break
+        s = np.linalg.solve(J(x), -f)      # Newton 方向
+        alpha = 1.0
+        phi0 = 0.5 * f @ f
+        while alpha > 1e-6:                # 回溯线搜索
+            xn = x + alpha * s
+            if 0.5 * F(xn) @ F(xn) < phi0:
+                break
+            alpha *= 0.5
+        x = x + alpha * s
+    return x, k + 1
+```
+
+小算例：解 $\sin x-x/2=0$，Newton 从 $x_0=2.0$ 出发 4 到 5 步收敛到 $x\approx1.895$；从远离解的 $x_0=8$ 出发，无全局化时会跳到另一支或发散，加入回溯线搜索后能稳定落到最近的根。也可以对同一问题记录每次迭代的 $\|F_k\|$，观察接近解后残量呈平方级下降，这正是二次收敛的直接证据。还可做 JFNK 的对照实验：对同一非线性问题，分别用解析 Jacobian 的 Newton 与有限差分 $Jv$ 的 JFNK，比较每步线性迭代数与总残量评价次数。JFNK 通常每步线性迭代更多，但省去了 Jacobian 组装，总体反而更快，这解释了它在大规模问题中的流行。
+
+## 6. 常见坑与排查
+
+- **线性求解失败**：先查预条件、零空间与尺度，而非直接减小 Newton 步；
+- **残量下降但状态非法**：加变量界、阻尼或变量变换；
+- **锯齿振荡**：多由非光滑接触或相变的活动集切换引起；
+- **时间步反复失败**：应回滚状态并减小步长，不能提交未收敛历史；
+- **强迫项过紧**：远解时把线性问题解到机器精度，浪费大量迭代，收敛反而更慢；
+- **有限差分步长不当**：$\epsilon$ 太大精度差、太小噪声大，需按尺度自适应；
+- **只看残量不看增量**：残量小但增量大，说明仍在剧烈调整，不能算收敛；
+- **线搜索始终缩到下限**：说明 Newton 方向不是下降方向，多半是 Jacobian 或符号错误；
+- **残量评价失败或返回非数**：通常是物理模型进入了非法区间（负密度、负温度），需加变量界或对数变换。
+
+排查顺序是：先确认 Jacobian 正确（用有限差分核验），再检查线性求解是否达标，然后看线搜索或信赖域是否频繁缩小步长，最后核对物理约束与活动集。还应留意残量评价次数是否异常增长，这通常意味着预条件退化或步长被反复拒绝，此时应优先检查 Jacobian 与预条件的更新策略。此外还要强调可重现性：Newton 的行为对初值、强迫项序列和预条件高度敏感，调试记录中应写明初值、每步残量与强迫项的实际取值，只报告收敛而不记录这些信息，会让问题在换人或换机后无法复现。
+
+## 7. 检查清单与参考
+
+提交前自检：Jacobian 是否正确（用有限差分核验）→ 强迫项序列是否合理 → 是否同时检查残量、增量与物理约束 → 线搜索或信赖域是否触发过并有效 → 预条件是否更新及时 → 失败步是否正确回滚。另外，建议在一次求解中记录每步的残量、强迫项与步长缩减次数，这些曲线是判断收敛质量最直接的依据。
+
+参考：Kelley, *Iterative Methods for Linear and Nonlinear Equations*；Knoll & Keyes, "Jacobian-free Newton–Krylov Methods", 2004；PETSc SNES 文档。

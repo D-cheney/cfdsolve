@@ -2,7 +2,7 @@
 template_version: "flowlab-knowledge/1.0"
 slug: maxwell-electromagnetic-fem-fdtd
 title: 计算电磁学：Maxwell 方程、H(curl) 有限元与 FDTD
-summary: 从 Maxwell 一阶方程推导电场旋度旋度方程、H(curl) 弱式和 Yee-FDTD 更新，解释边元、散度约束、PML、色散与稳定步长。
+summary: 从 Maxwell 一阶方程推导旋度旋度方程与 H(curl) 弱式，讲清边元离散、Yee 交错网格 FDTD 更新与 CFL 稳定条件，并说明 PML 吸收边界、数值色散与功率守恒的验证方法。
 category:
   slug: physics-discretization
   name: 跨物理场离散算法
@@ -11,7 +11,7 @@ reading_minutes: 37
 status: PUBLISHED
 author_username: lin-cfd
 published_at: "2026-08-29T00:00:00.000Z"
-tags: [电磁场, Maxwell方程, Hcurl有限元, FDTD, PML]
+tags: [电磁场, Maxwell方程, Hcurl有限元, FDTD, Yee网格, PML]
 seo:
   title: Maxwell、H(curl) 有限元与 FDTD 推导｜CFD菜鸟
   description: 推导计算电磁学旋度弱式、边元和 Yee-FDTD 的稳定性与边界处理。
@@ -20,89 +20,159 @@ seo:
 
 # 计算电磁学：Maxwell 方程、H(curl) 有限元与 FDTD
 
-线性介质中的 Maxwell 方程为
+计算电磁学在时域或频域求解 Maxwell 方程组，覆盖静电、磁静、涡流、波导与天线辐射等问题，是电机、天线、微波器件与电磁兼容设计的核心工具。本文从一阶 Maxwell 方程出发推导旋度旋度方程与 $H(\mathrm{curl})$ 弱式，给出边元（Nédélec）离散、Yee 交错网格 FDTD 更新与 CFL 稳定条件，并说明 PML 吸收边界、数值色散与功率守恒的验证方法。
+
+## 1. 结论与适用场景
+
+选型先看三个维度：频率范围、几何尺度与材料非线性。
+
+- 低频准静态、紧凑结构：磁标势/磁矢势有限元，或 $H(\mathrm{curl})$ 边元；
+- 宽频瞬态、规则网格、关注时域波形：FDTD；
+- 开放辐射、天线与散射、需要精确远场：边界元/矩量法（MoM），或有限元加 PML；
+- 强非线性材料、饱和与磁滞：时域有限元或电路耦合模型。
+
+一句话原则：**准静态降维简化，全波问题按带宽与几何选 FDTD 或 FEM**。判断能否降维的标准是特征尺度与波长的比值：当结构尺寸远小于波长时，位移电流可忽略，问题退化为涡流或静场；当尺寸与波长相当时，必须保留完整旋度项做全波求解。规则网格加宽频激励几乎总指向 FDTD，而复杂几何的窄带问题更适合 FEM。恰当处理开放边界，往往比选择离散方法本身更影响最终精度。
+
+从代价看，FDTD 每次迭代只做局部更新，内存随网格线性增长，适合宽频一次求解；FEM 需要组装并求解大规模稀疏系统，窄带扫频时可为每个频点复用分解，但宽带就要付出多频点代价。开放边界无论用哪种方法都要显式吸收，否则截断边界会把波反射回计算域，制造虚假驻波。此外还要区分端口驱动与散射问题：前者需要精确的波导模激励与端口归一化，后者则关注目标的雷达散射截面与远场方向图，两者的边界与后处理要求并不相同。
+
+## 2. 控制方程
+
+线性介质中的 Maxwell 方程组为
 
 $$
-\nabla\times H=J+\sigma E+\frac{\partial D}{\partial t},\qquad
+\nabla\times H=J+\sigma E+\frac{\partial D}{\partial t},
+\qquad
 \nabla\times E=-\frac{\partial B}{\partial t},
 $$
 
 $$
-\nabla\cdot D=\rho,qquad \nabla\cdot B=0,qquad D=\epsilon E,quad B=\mu H.
+\nabla\cdot D=\rho,\qquad \nabla\cdot B=0,
+\qquad D=\epsilon E,\quad B=\mu H.
 $$
 
-材料、源和边界决定应使用静电、磁静、涡流、频域或全波瞬态模型。
+前两式分别是 Ampère–Maxwell 定律与 Faraday 定律，后两式是电场与磁场的散度约束。材料参数 $\epsilon$、$\mu$、$\sigma$ 与源项、边界条件共同决定应采用静电、磁静、涡流、频域还是全波瞬态模型。对电场消去磁场后可得到旋度旋度方程，它是有限元离散的基础；对磁场消去电场则得到对偶形式。注意散度约束并非独立方程，而是旋度方程的推论，但在离散层面必须显式或隐式地维持，否则会产生伪电荷。
 
-## 1. 频域旋度旋度方程
+本构关系在实际器件中往往非线性或各向异性：铁磁材料的 $\mu$ 随场强饱和，等离子体与铁电材料的 $\epsilon$ 依赖频率，这类情形需要时域非线性迭代或频域色散模型。忽略这些效应，会让高频响应与实测显著偏离。
 
-采用 $e^{i\omega t}$ 约定。由 Faraday 定律 $H=-(i\omega\mu)^{-1}\nabla\times E$，代入 Ampère 定律：
+在无耗介质中，波以相速 $v=1/\sqrt{\mu\epsilon}$ 传播，特性阻抗为 $\eta=\sqrt{\mu/\epsilon}$，这两个量决定反射与匹配。导体中的趋肤深度 $\delta=\sqrt{2/(\omega\mu\sigma)}$ 则决定网格是否需要解析表层，是判断能否用表面阻抗边界的关键参数。
+
+## 3. 离散格式与公式
+
+### 3.1 频域旋度旋度方程
+
+采用 $e^{i\omega t}$ 约定，由 Faraday 定律得 $H=-(i\omega\mu)^{-1}\nabla\times E$，代入 Ampère 定律得到
 
 $$
 \nabla\times(\mu^{-1}\nabla\times E)-\omega^2\epsilon E+i\omega\sigma E=-i\omega J.
 $$
 
-不同时间谐波符号约定会改变虚部符号，报告必须注明。PEC 边界满足 $n\times E=0$，开放域常用吸收边界或 PML。
+不同时间谐波符号约定会翻转虚部符号，报告必须注明采用的是哪一种，否则损耗与增益会被混淆。左端第三项 $i\omega\sigma E$ 对应导体中的欧姆损耗，在良导体中它远大于位移电流项，方程退化为涡流形式，位移电流可忽略，节点元反而不受伪模态困扰。
 
-## 2. H(curl) 弱式
+### 3.2 H(curl) 弱式与边元
 
-取测试函数 $F\in H(\mathrm{curl})$，内积并用旋度 Green 公式：
+取测试函数 $F\in H(\mathrm{curl})$，做内积并用旋度 Green 公式：
 
 $$
-(\mu^{-1}\nabla\times E,\nabla\times F)
--\omega^2(\epsilon E,F)+i\omega(\sigma E,F)
-=( -i\omega J,F)+\text{边界项}.
+(\mu^{-1}\nabla\times E,\nabla\times F)-\omega^2(\epsilon E,F)+i\omega(\sigma E,F)
+=(-i\omega J,F)+\text{边界项}.
 $$
 
-电场的自然函数空间要求切向分量跨单元连续。Nédélec 边元自由度是边上的切向积分，能保持离散 de Rham 序列并抑制标量节点元产生的伪模态。磁通 $B$ 更自然地位于 $H(\mathrm{div})$ 空间。
-
-离散后
+电场的自然空间要求切向分量跨单元连续；Nédélec 边元的自由度是边上的切向线积分，能保持离散 de Rham 序列并抑制标量节点元产生的伪模态。边元自由度定义在棱边而非节点，单元间只需共享切向分量，天然匹配 $H(\mathrm{curl})$ 的连续要求；高阶边元还会引入面上的切向通量与体内部自由度，显著提高每个波长可解析的精度。离散后得到
 
 $$
 (K-\omega^2M_\epsilon+i\omega M_\sigma)e=f,
+\qquad K_{ij}=(\mu^{-1}\nabla\times N_j,\nabla\times N_i).
 $$
 
-其中 $K_{ij}=(\mu^{-1}\nabla\times N_j,\nabla\times N_i)$。
+磁通 $B$ 更自然地属于 $H(\mathrm{div})$ 空间。在实际软件中，边元与节点元常混合使用：用边元离散电场，用节点元或 $H(\mathrm{div})$ 元离散标势与磁通，以兼顾精度与约束。
 
-## 3. Yee-FDTD 更新
+### 3.3 Yee-FDTD 更新与 CFL 条件
 
-无源均匀介质中，以时间和空间交错的 $E,H$：
-
-$$
-H^{n+1/2}=H^{n-1/2}-\Delta t\,\mu^{-1}(\nabla_h\times E^n),
-$$
+无源均匀介质中，电场与磁场在时间与空间上交错采样：
 
 $$
-E^{n+1}=E^n+\Delta t\,\epsilon^{-1}(\nabla_h\times H^{n+1/2}-J^{n+1/2}).
+H^{n+1/2}=H^{n-1/2}-\Delta t\,\mu^{-1}(\nabla_h\times E^{n}),
 $$
 
-三维直角网格 CFL 条件
-
 $$
-\Delta t\le\frac1{c\sqrt{\Delta x^{-2}+\Delta y^{-2}+\Delta z^{-2}}}.
+E^{n+1}=E^{n}+\Delta t\,\epsilon^{-1}(\nabla_h\times H^{n+1/2}-J^{n+1/2}).
 $$
 
-Yee 交错布局自然满足离散旋度和散度结构，但阶梯几何与数值色散会降低精度；每波长单元数必须通过相速误差研究确定。
-
-## 4. 开放边界与损耗
-
-PML 通过复坐标拉伸使出射波无反射进入吸收层；离散、层厚或材料突变仍会产生反射。导体损耗功率密度
+这种蛙跳式的交错布局使离散旋度算子自动满足 $\nabla_h\cdot(\nabla_h\times\cdot)=0$，从而天然维持散度约束。把平面波代入差分方程可得数值色散关系，由此能推出相速误差随传播方向与每波长单元数的变化；工程经验是每波长取 10～20 个单元，但折射率高的介质中波长更短，必须按局部波长而非真空波长取网格。除 CFL 之外还要关注数值各向异性：沿轴向与对角线传播的相速不同，长距离传播后脉冲会被展宽并出现尾部振荡。三维直角网格的稳定性条件为
 
 $$
-q_J=\frac12\mathrm{Re}(J\cdot E^*)=\frac12\sigma|E|^2
+\Delta t \leq \frac{1}{c\sqrt{\Delta x^{-2}+\Delta y^{-2}+\Delta z^{-2}}},
+\qquad c=\frac{1}{\sqrt{\mu\epsilon}}.
 $$
 
-可作为热方程源项，但场量到热网格的映射必须守恒总功率。
+数值实验中，可先取上限的一半做基准，再逐步逼近上限并观察何时出现不稳定，以此确认实现是否正确。
 
-## 5. 验证
+## 4. 工程实现与参数（CFL、色散、吸收边界）
 
-- 静电电容、同轴线 TEM 和矩形波导截止频率解析解；
-- 检查 Gauss 定律、能量/Poynting 通量与端口功率平衡；
-- 频域检查复数符号、端口归一化和网格色散；
-- 瞬态检查 CFL、PML 反射与长时间能量漂移。
+**CFL 与稳定步长**。均匀网格下上式简化为 $\Delta t\leq \Delta x/(c\sqrt{3})$；非均匀网格中分母由最细单元决定。取上限的 $0.9$～$0.99$ 倍可保留裕量，超限会指数发散。若引入集总元件或细结构，局部步长需求可能远严于全局估计，需要亚网格或混合方法。其原因是集总元件的等效电容电感引入了更快的局部时间尺度，必须单独限制。
 
-## 6. 参考资料
+**数值色散**。Yee 格式存在各向异性的相速误差，波沿轴向与对角传播速度不同，通常要求每波长至少 10～20 个单元；阶梯逼近曲面会引入几何误差，需用共形或亚胞技术缓解。
 
-1. MFEM, *Maxwell Theory Notes*, https://mfem.org/maxwell-notes/ 。
-2. MFEM, *Definite Maxwell Problem*, https://mfem.org/annotated/ex3/ 。
-3. Taflove & Hagness, *Computational Electrodynamics: The FDTD Method*.
+**吸收边界**。PML 通过复坐标拉伸吸收入射波，实现上等价于在层内引入各向异性损耗材料；层厚一般取 8～16 个单元，并配合多项式渐变的电导率。层太薄或入射角过大时反射上升，应检查反射系数随角度的曲线。
 
+**稳定性与损耗**。当电导率很大时，迭代求解的谱分布更分散，需要更强的预条件；时域中则表现为衰减很快的解，但时间步仍须满足 CFL，不能因为衰减而放宽步长。
+
+**网格与几何**。直角网格便于 FDTD 更新但曲面出现阶梯误差，可用共形网格或亚胞平均缓解；四面体网格便于贴合复杂几何但需非结构更新，代价上升。介质界面处应保证 $\epsilon$、$\mu$ 的更新一致，避免界面电荷引起的非物理反射。
+
+**功率与热耦合**。导体损耗功率密度
+
+$$
+q_J=\frac{1}{2}\mathrm{Re}(J\cdot E^{*})=\frac{1}{2}\sigma|E|^2
+$$
+
+可作为热分析源项，但场量到热网格的映射必须守恒总功率。频域结果还要核对端口归一化与复数符号；时域结果要监控能量随时间是否漂移。
+
+## 5. 可复现示例
+
+一维 FDTD 真空传播：域 $x\in[0,L]$，初始高斯脉冲 $E(x,0)=\exp[-((x-x_0)/w)^2]$，两端设 PML 吸收层。
+
+```
+参数: c=1, dx=λ/20, dt=0.9*dx/(c*sqrt(dim))
+循环 n = 1..Nt:
+  H[i] += dt/mu * (E[i+1]-E[i])/dx
+  更新边界 (PML 或吸收)
+  E[i] += dt/eps * (H[i]-H[i-1])/dx
+验收:
+  1) 脉冲以速度 c 平移, 无形变 (色散小)
+  2) 总能量 Σ(eps*E^2 + mu*H^2)/2 近似守恒
+  3) 与解析位置 x=ct 对比
+```
+
+频域校核可用矩形波导截止频率
+
+$$
+f_{mn}=\frac{c}{2}\sqrt{(m/a)^2+(n/b)^2},
+$$
+
+准静态校核可用同轴线 TEM 相速与静电电容。逐步记录 dx 减半时相速误差的下降，可验证二阶空间收敛。
+
+三个基准由简到繁：一维传播验证色散与吸收，同轴线 TEM 验证准静态极限与阻抗，矩形波导验证频域特征值与端口归一化。每步都记录收敛阶与守恒误差，形成可复用的回归测试。对于天线类问题，还应把输入阻抗与方向图作为验收量。
+
+## 6. 常见坑与排查
+
+- **CFL 超限**：短时间内出现数值发散，先降 $\Delta t$ 或细化最小时空步；
+- **共位网格**：把 $E$、$H$ 放在同一格点会破坏散度结构、出现伪模态，务必交错采样；
+- **$H(\mathrm{curl})$ 误用节点元**：标量节点元无法满足切向连续，会产生尖峰伪解；
+- **PML 反射**：层太薄、渐变太陡或斜入射导致反射，应做角度扫描验收；
+- **符号约定不一致**：频域虚部符号翻转会把损耗算成增益；
+- **阶梯几何误差**：粗糙网格上的色散被误判为物理效应，应做网格收敛研究；
+- **能量不守恒**：长时间推进后能量缓慢漂移，通常源于边界处理或非线性材料更新次序；
+- **介质界面处理粗糙**：$\epsilon$ 突变处未做平均或共形处理，会激发出非物理反射；
+- **忽略趋肤深度**：导体表层未解析而直接施加理想导体条件，高频损耗会被严重低估；
+- **端口激励设置随意**：入射波导模不纯或端口贴近不连续，会污染 S 参数，应把端口放在远离结构处并校验模式纯度。
+
+## 7. 检查清单与参考
+
+检查清单：方程与材料参数正确 → 边元或 FDTD 布局正确 → CFL 满足 → 每波长单元数经色散验证 → PML 反射达标 → 功率与能量守恒核对 → 端口归一化与复数符号写明。
+
+参考资料：
+
+1. Taflove & Hagness, *Computational Electrodynamics: The FDTD Method*, 3rd ed., Artech House.
+2. Jin, *The Finite Element Method in Electromagnetics*, Wiley.
+3. Monk, *Finite Element Methods for Maxwell's Equations*, Oxford.
+4. MFEM, *Definite Maxwell Problem*, https://mfem.org/annotated/ex3/ 。

@@ -2,7 +2,7 @@
 template_version: "flowlab-knowledge/1.0"
 slug: eigenvalue-krylov-schur
 title: 大规模特征值算法：Rayleigh 商、Lanczos、Arnoldi 与 Krylov–Schur
-summary: 推导广义特征值的 Rayleigh 商和 Ritz 投影，解释 Lanczos、Arnoldi、shift-invert、重启与模态残差的工程选择。
+summary: 从 Rayleigh 商与 Rayleigh–Ritz 投影推导广义特征值的 Krylov 方法，给出 Lanczos 与 Arnoldi 递推、shift-invert 谱变换、Krylov–Schur 重启与模态残差判据。
 category:
   slug: algebraic-solvers
   name: 代数求解器与时间算法
@@ -14,11 +14,25 @@ published_at: "2026-08-29T00:00:00.000Z"
 tags: [特征值, Lanczos, Arnoldi, Krylov-Schur, 模态分析]
 seo:
   title: Lanczos、Arnoldi 与 Krylov-Schur 推导｜CFD菜鸟
-  description: 从 Rayleigh-Ritz 投影理解大规模广义特征值算法和模态误差。
-  keywords: [特征值算法, Lanczos, Arnoldi, Krylov-Schur]
+  description: 从 Rayleigh-Ritz 投影理解大规模广义特征值算法、Lanczos 与 Arnoldi 递推和模态误差。
+  keywords: [特征值算法, Lanczos, Arnoldi, Krylov-Schur, 模态分析]
 ---
 
 # 大规模特征值算法：Rayleigh 商、Lanczos、Arnoldi 与 Krylov–Schur
+
+结构模态、稳定性分析与频响计算最终都归结为大规模广义特征值问题。自由度可达百万到千万，直接对 $A-\lambda B$ 求特征多项式或用隐式 QR 求全部特征值并不可行，必须走 Krylov 子空间投影：只针对我们关心的少数特征值做局部求解。
+
+## 1. 结论与适用场景
+
+一句话结论：**只求少量极端或目标附近的特征对，用 Krylov 投影；要大量内部特征值，用谱变换或轮廓积分**。选型建议：对称问题、求极端少量特征对时用 Lanczos 或 Krylov–Schur，配合厚重启；一般非对称问题用 Arnoldi 或 Krylov–Schur，必要时用双边（左/右）向量；目标附近的内部特征值用 shift-invert，把目标映射为最大模；区间内全部特征值用谱切片或轮廓积分。
+
+适用边界也要说清：Krylov 法擅长"少数极端"，对"大量聚集的内部特征值"效率低；当目标特征值高度聚集或需要几百个特征对时，预处理与子空间维度需要重新权衡，否则单靠增加子空间维数收效有限。
+
+从工程视角看，模态分析关心的通常不是全部特征对，而是最低若干阶（结构固有频率）、特定频段内的特征值，或失稳临界点附近的最危险模态。这个只求少数的定位，正是 Krylov 方法能把百万自由度问题压到几十次算子作用量级的原因。反过来，如果确实需要区间内的全部特征值，就应该换用谱切片或轮廓积分，而不是用 Krylov 硬撑。
+
+就数值实现而言，选择算法前先回答三个问题：矩阵是否对称？目标是极端还是内部？需要多少个特征对？这三个问题基本决定了方法、谱变换与重启策略。把它们分清，比在求解器里反复调参数有效得多。
+
+## 2. 数学基础
 
 考虑广义问题
 
@@ -26,67 +40,132 @@ $$
 Ax=\lambda Bx,
 $$
 
-其中结构模态对应 $A=K,B=M$。若 $A$ 对称、$B$ 正定，Rayleigh 商
+结构模态对应 $A=K$（刚度）、$B=M$（质量）。当 $A$ 对称、$B$ 对称正定时，问题有实特征值，Rayleigh 商
 
 $$
 \rho(x)=\frac{x^TAx}{x^TBx}
 $$
 
-在特征向量处驻定，最小值给出最小特征值。
+在特征向量处驻定，其最小值给出最小特征值。
 
-## 1. Rayleigh–Ritz 投影
-
-取子空间基 $V$，近似 $x=Vy$，要求残差 $r=AVy-\lambda BVy$ 与子空间正交：
+Rayleigh–Ritz 投影取子空间基 $V$ 并令 $x=Vy$，要求残差与子空间正交：
 
 $$
-V^TAVy=\lambda V^TBVy.
+V^TAVy=\lambda V^TBVy,
 $$
 
-大问题转为小型投影特征问题，所得 $\lambda$ 为 Ritz 值。算法差异主要在如何构造和重启 $V$。
+大问题由此化为小型投影特征问题，所得 $\lambda$ 称为 Ritz 值，$Vy$ 为 Ritz 向量。算法差异在于如何构造与重启 $V$。
 
-## 2. Arnoldi 与 Lanczos
+Rayleigh 商的两个用途值得强调：其一，它对最小特征值给出上界、对最大特征值给出下界，为收敛判断提供参考；其二，它给出特征向量的最优标量近似，是 Ritz 加速与精化的基础。此外，广义问题在 $B$ 正定时可化为标准问题 $B^{-1}Ax=\lambda x$，但 $B^{-1}A$ 一般不再对称，因此实际算法通常直接在广义形式下做投影，以保持对称性。投影法的误差可以用残差的无穷小性刻画：当 Rayleigh 商接近某个特征值且残差足够小时，可以保证在与其成正比的邻域内存在真实特征值，这正是残差作为收敛判据的理论依据。
 
-Arnoldi 对一般矩阵产生
+## 3. 核心公式与算法
 
-$$
-AV_m=V_mH_m+h_{m+1,m}v_{m+1}e_m^T.
-$$
-
-$H_m$ 是上 Hessenberg 矩阵。对称矩阵时正交关系退化为三项递推，得到 Lanczos 三对角矩阵，存储更低；有限精度会丢失正交性并产生重复 Ritz 值，需要选择性或完全重正交。
-
-## 3. 谱变换
-
-求靠近目标 $\sigma$ 的内部特征值，可用 shift-invert：
+**Arnoldi 递推。** 对一般矩阵，Arnoldi 逐步正交化生成标准正交基：
 
 $$
-(A-\sigma B)^{-1}Bx=\mu x,qquad \mu=\frac1{\lambda-\sigma}.
+Av_j=\sum_{i=1}^{j}h_{ij}v_i+h_{j+1,j}v_{j+1},\qquad h_{ij}=v_i^TAv_j,
 $$
 
-目标附近特征值被映射为最大模特征值，但每次算子作用需解线性系统，因子分解或预条件质量决定总成本。
-
-## 4. Krylov–Schur 重启
-
-显式重启直接丢弃子空间，可能损失收敛信息。Krylov–Schur 先把 Arnoldi 分解变为 Schur 形式，保留目标 Ritz 对对应的不变子空间，再截断并扩展；对 Hermitian 问题等价于厚重启 Lanczos。它适合只求少量特征对的大规模 CAE 问题。
-
-## 5. 误差、配对与选型
-
-归一化残差
+整体写成
 
 $$
-\eta_i=\frac{\|Ax_i-\lambda_iBx_i\|}{(\|A\|+|\lambda_i|\|B\|)\|x_i\|}
+AV_m=V_mH_m+h_{m+1,m}v_{m+1}e_m^T,
 $$
 
-比仅看特征值变化可靠。重根/近重根应比较子空间而非单个向量。非对称系统左右特征向量不同，灵敏度与参与因子需要双边信息。
+其中 $H_m$ 为上 Hessenberg 矩阵，Ritz 对由 $H_my=\theta y$ 给出，$\lambda=\theta$。
 
-| 问题 | 建议方法 |
-|---|---|
-| 对称极端少量特征值 | Lanczos/Krylov–Schur/LOBPCG |
-| 一般非对称 | Arnoldi/Krylov–Schur |
-| 目标附近内部特征值 | shift-invert + Krylov–Schur |
-| 区间内全部特征值 | spectrum slicing/轮廓积分 |
+**Lanczos 递推。** 当 $A$ 对称时，$H_m$ 退化为三对角 $T_m$，正交化系数只剩两个，得到三项递推
 
-## 6. 参考资料
+$$
+\beta_{j+1}v_{j+1}=Av_j-\alpha_jv_j-\beta_jv_{j-1},\qquad \alpha_j=v_j^TAv_j.
+$$
 
-1. SLEPc, *EPS Eigenvalue Problem Solver*, https://slepc.upv.es/release/documentation/manual/eps.html 。
-2. SLEPc, *Krylov–Schur Methods*, https://slepc.upv.es/release/_downloads/5229480744b7c2533563dee75c16dfde/str7.pdf 。
-3. Saad, *Numerical Methods for Large Eigenvalue Problems*.
+存储从 $O(mn)$ 降到 $O(n)$，但有限精度下正交性会丢失，出现重复 Ritz 值，需要选择性或完全重正交。
+
+**谱变换。** 求靠近 $\sigma$ 的内部特征值，用 shift-invert：
+
+$$
+(A-\sigma B)^{-1}Bx=\mu x,\qquad \mu=\frac{1}{\lambda-\sigma}.
+$$
+
+目标附近的特征值被映射为最大模，便于 Krylov 快速捕获，但每次算子作用都要解一次线性系统，因子分解或预条件质量决定总成本。
+
+Arnoldi 与 Lanczos 的共同点是都用 Galerkin 条件把残差投影到子空间上，区别只在矩阵是否对称决定了正交化代价。对称时短递推足够，非对称时需要保存全部基向量并做完全正交化，这一差别直接决定了两种方法的内存与并行成本，是选型的第一分界。随着子空间扩展，极端 Ritz 值通常先快速逼近再逐步收敛；对称问题中极端 Ritz 值的收敛速率与谱间隔成反比，谱间隔越小收敛越慢，这解释了为何聚集特征值更难求。谱变换与直接求解的权衡还体现在内存上：shift-invert 需要对 $A-\sigma B$ 做一次分解，或每次迭代用预条件 Krylov 求解，前者内存高、后者每次迭代更贵，实际工程中常按性能预算二选一。
+
+## 4. 工程实现与参数
+
+**重启策略。** 显式重启直接丢弃子空间，可能损失收敛信息；Krylov–Schur 先把 Arnoldi 分解化为 Schur 形式，保留目标 Ritz 对张成的不变子空间，再截断并扩展。对 Hermitian 问题，它等价于厚重启 Lanczos，是求少量特征对的首选。
+
+**收敛判据。** 归一化残差
+
+$$
+\eta_i=\frac{\|Ax_i-\lambda_iBx_i\|}{(\|A\|+|\lambda_i|\,\|B\|)\,\|x_i\|}
+$$
+
+比只看特征值变化可靠得多。重根或近重根应比较不变子空间而非单个向量；非对称系统左右特征向量不同，灵敏度与参与因子需要双边信息。
+
+**子空间维度与正交化。** 子空间越大收敛越快但内存越高，工程上常取 20 到 100；多个特征值聚集时用块 Krylov 提高鲁棒性。有限精度下用选择性正交化，在丢失正交时触发重正交，兼顾成本与精度。
+
+**shift 选择与线性求解。** shift 应落在目标谱区附近，太远则目标映射不突出；shift-invert 每次算子作用都要解线性系统，线性容差过松会污染特征向量精度，因此内部特征值问题对线性求解器的要求通常比常规求解更严。
+
+**并行与代价。** 每次 Arnoldi 迭代的主要成本是一次矩阵—向量积与一次完全正交化，后者随子空间维数线性增长，可用块正交化或通信规避策略降低开销。当需要较多特征对时，块方法一次扩展多个向量，能利用矩阵—向量积的批处理并改善收敛。
+
+**精化与验证。** 对非对称问题，Ritz 向量可以用精化方法重新求解，使残差更小；得到候选特征对后，应回到残差定义做一次独立核验，并向矩阵施加小扰动，检查特征值的条件数是否可接受。
+
+**厚重启与锁定的取舍。** 已收敛的特征对应锁定在子空间中，避免重启时丢失；未收敛的 Ritz 对则保留最优部分继续扩展。锁定阈值、保留数量与扩展块大小共同决定收敛效率，工程上常以归一化残差小于某个阈值（如 $10^{-8}$）作为锁定条件。锁定过多会限制子空间扩展，过少则在重启中丢失已收敛信息，需要按目标数量与内存预算折中。
+
+## 5. 可复现示例
+
+```python
+import numpy as np
+
+def lanczos_tridiag(A, m, tol=1e-12):
+    n = A.shape[0]
+    v = np.random.randn(n); v /= np.linalg.norm(v)
+    V = np.zeros((n, m)); alpha = np.zeros(m); beta = np.zeros(m)
+    V[:, 0] = v
+    for j in range(m):
+        w = A @ V[:, j]
+        alpha[j] = V[:, j] @ w
+        w = w - alpha[j] * V[:, j]
+        if j > 0:
+            w = w - beta[j - 1] * V[:, j - 1]
+        if j == m - 1:
+            break
+        beta[j] = np.linalg.norm(w)
+        if beta[j] <= tol:
+            break
+        V[:, j + 1] = w / beta[j]
+    T = np.diag(alpha) + np.diag(beta[:m - 1], 1) + np.diag(beta[:m - 1], -1)
+    return T, V
+```
+
+小算例：取一维 Laplacian $A=\mathrm{tridiag}(-1,2,-1)$，其第 $k$ 个特征值解析为
+
+$$
+\lambda_k=4\sin^2\!\left(\frac{k\pi}{2(n+1)}\right).
+$$
+
+用 Lanczos 取 $m=30$ 步得到的极端 Ritz 值应在较小误差内匹配解析解；再对比不同 $m$，观察极端 Ritz 值单调收敛，并注意未重正交时可能出现伪重根。
+
+再做一个收敛实验：固定 $m=10,20,40$，比较最小 Ritz 值与解析解的相对误差，应看到随 $m$ 增大误差单调下降；对聚集谱再加上重正交开关，观察不重正交时误差曲线出现的平台现象。还可以用对称矩阵验证三点递推的代价优势：统计一次矩阵—向量积与正交化的次数，Lanczos 只需两项正交化系数，而 Arnoldi 随 $j$ 增长，这在大规模问题中直接体现为可观的性能差异。若把矩阵换成谱间隔较大的对称正定例子，极端 Ritz 值的收敛会明显加快，可用它体会谱分布对迭代次数的影响。
+
+## 6. 常见坑与排查
+
+- **正交性丢失导致伪重根**：Lanczos 未重正交时出现重复 Ritz 值，加选择性正交化验证；
+- **shift-invert 线性求解不达标**：内部特征值精度受线性求解精度限制，需收紧线性容差；
+- **只看特征值不看残差**：特征值稳定但残差大，说明特征向量不准；
+- **目标设错**：求高频模态却设了小 shift，结果只收敛低频；
+- **重启过度**：重启太频繁会丢失收敛信息，残差曲线停滞；
+- **忽视 $B$ 的奇异性**：质量矩阵奇异会带来无穷特征值，需先做约束或剔除；
+- **忽略子空间与向量归一化**：不同归一化会让残差比较失真；
+- **子空间维数过小**：出现收敛停滞或丢根，应先增大维数再做其他调整；
+- **未评估谱的聚集度**：聚集特征值收敛慢，需要重正交或块方法，而不是简单增加迭代次数；
+- **忽略特征值条件数**：近重根处特征值对扰动敏感，应报告子空间残差而非单个特征值；
+- **不验证丢根**：只求少数特征值时可能漏掉目标模态，应用不同维数复算确认。
+
+## 7. 检查清单与参考
+
+提交前自检：问题对称性是否判断正确 → shift 是否落在目标谱区 → 线性求解容差是否足够紧 → 归一化残差是否达标 → 是否用子空间比较近重根 → 并行正交化成本是否可接受。此外，建议用两种不同的子空间维数各求一次，确认目标特征值一致，避免因丢根而漏掉关键模态。最后，把特征对数量、目标频段与残差阈值写进算例说明，以便他人复现与验证。
+
+参考：Saad, *Numerical Methods for Large Eigenvalue Problems*；SLEPc EPS 与 Krylov–Schur 文档；Stewart, *Matrix Algorithms*。
