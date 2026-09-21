@@ -114,7 +114,7 @@ async function copyFormula(text: string, name: string) { await navigator.clipboa
         <div class="capability-grid">
           <NuxtLink to="/knowledge" class="capability-card"><div class="cap-icon"><BookOpen /></div><span>01</span><h3>知识库</h3><p>按学科和软件分类查找基础概念、工程方法与检查清单。</p><div class="micro-tree"><i></i><b></b><b></b><b></b></div><strong class="card-link">浏览内容 <ArrowRight :size="16" /></strong></NuxtLink>
           <NuxtLink to="/algorithms" class="capability-card"><div class="cap-icon"><Calculator /></div><span>02</span><h3>算法与公式</h3><p>对比数值算法，查询公式、适用条件与符号定义。</p><div class="micro-curve"><i></i></div><strong class="card-link">打开速查 <ArrowRight :size="16" /></strong></NuxtLink>
-          <NuxtLink to="/simulation" class="capability-card"><div class="cap-icon"><FlaskConical /></div><span>03</span><h3>CFD 工具</h3><p>配置参数、观察收敛，并下载计算结果。</p><div class="micro-curve"><i></i></div><strong class="card-link">运行仿真 <ArrowRight :size="16" /></strong></NuxtLink>
+          <NuxtLink to="/simulation" class="capability-card"><div class="cap-icon"><FlaskConical /></div><span>03</span><h3>CFD 仿真</h3><p>完成建模、网格、边界、求解与后处理全套流程。</p><div class="micro-curve"><i></i></div><strong class="card-link">打开工作台 <ArrowRight :size="16" /></strong></NuxtLink>
           <NuxtLink to="/modelica" class="capability-card"><div class="cap-icon"><Boxes /></div><span>04</span><h3>Modelica</h3><p>编写模型、检查方程并分析系统动态响应。</p><div class="micro-nodes"><b></b><i></i><b></b><i></i><b></b></div><strong class="card-link">打开工作台 <ArrowRight :size="16" /></strong></NuxtLink>
         </div>
       </div>
@@ -133,7 +133,7 @@ async function copyFormula(text: string, name: string) { await navigator.clipboa
 
     <section class="section simulation-showcase">
       <div class="container">
-        <div class="section-heading"><div><span class="kicker">在线仿真</span><h2>浏览器计算工具</h2></div><p>设置参数、查看收敛并导出结果。</p></div>
+        <div class="section-heading"><div><span class="kicker">在线仿真</span><h2>完整 CFD 工作流</h2></div><p>从物理模型一直计算到可导出的速度场。</p></div>
         <div class="tool-showcase">
           <div class="tool-tabs"><button v-for="(tool,i) in tools" :key="tool.slug" :class="{ active: activeTool===i }" @click="activeTool=i"><span>{{ `0${i+1}` }}</span><div><strong>{{ tool.name }}</strong><small>{{ tool.type }} · {{ tool.time }}</small></div><ArrowRight :size="17" /></button></div>
           <div class="tool-preview">

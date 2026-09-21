@@ -15,6 +15,7 @@
     "test:formula": "node --experimental-strip-types tests/formula-converter.test.mjs",
     "test:modelica": "tsx tests/modelica-workbench.test.mjs",
     "test:solvers": "tsx tests/solvers.test.mjs",
+    "test:cfd-workbench": "tsx tests/cfd-workbench.test.mjs",
     "test:lab": "tsx tests/simulation-lab.test.mjs",
     "test:database": "tsx tests/database-workspace.test.mjs",
     "test:knowledge": "tsx tests/knowledge-importer.test.mjs",

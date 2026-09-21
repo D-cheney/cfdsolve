@@ -24,10 +24,7 @@ export const formulas = [
 ]
 
 export const tools = [
-  { slug: 'convection-diffusion', name: '一维对流—扩散', type: '稳态 · 1D', level: '入门', time: '< 1 秒', status: '稳定', description: '比较迎风与中心差分，观察 Péclet 数对数值解的影响。' },
-  { slug: 'lid-driven-cavity', name: '方腔顶盖驱动流', type: '稳态 · 2D', level: '进阶', time: '约 3 秒', status: '稳定', description: '浏览器涡量—流函数教学求解器，展示二维流场迭代与残差收敛。' },
-  { slug: 'pipe-flow', name: '圆管充分发展层流', type: '解析 · 1D', level: '入门', time: '< 1 秒', status: '稳定', description: '计算速度剖面、流量、压降、壁面剪切与摩擦因子。' },
-  { slug: 'turbulence-compare', name: '湍流与近壁参数对比', type: '工程估算', level: '工程', time: '< 1 秒', status: '稳定', description: '估算 k、ε、ω、首层高度并对比常见 RANS 模型。' }
+  { slug: 'workbench', name: '二维流场全流程仿真', type: '建模 · 网格 · 求解', level: '进阶', time: '约 1–3 秒', status: '稳定', description: '依次完成物理建模、结构化网格、边界设置、迭代求解和流场后处理。' }
 ]
 
 export const forumTopics = [

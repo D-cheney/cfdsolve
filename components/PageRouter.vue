@@ -12,10 +12,8 @@ const component = computed(() => {
     path.value === "/search"
   )
     return resolveComponent("PagesLibraryPage");
-  if (path.value === "/simulation/lab")
-    return resolveComponent("PagesSimulationLabPage");
   if (path.value === "/simulation" || path.value.startsWith("/simulation/"))
-    return resolveComponent("PagesSimulationPage");
+    return resolveComponent("PagesSimulationWorkbenchPage");
   if (path.value === "/modelica" || path.value.startsWith("/modelica/"))
     return resolveComponent("PagesModelicaPage");
   if (path.value === "/forum" || path.value.startsWith("/forum/"))

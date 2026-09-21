@@ -55,6 +55,7 @@ if (-not $SkipTests) {
   Invoke-NpmCommand @('run', 'test:meshfree') 'Check meshfree knowledge and media integration'
   Invoke-NpmCommand @('run', 'test:modelica') 'Test Modelica workbench'
   Invoke-NpmCommand @('run', 'test:solvers') 'Test CFD solvers'
+  Invoke-NpmCommand @('run', 'test:cfd-workbench') 'Test the complete CFD workbench flow'
   Invoke-NpmCommand @('run', 'test:lab') 'Test parameter sweep and credibility checks'
   Invoke-NpmCommand @('run', 'test:database') 'Test workspace database semantics'
 }
