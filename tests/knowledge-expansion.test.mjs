@@ -23,18 +23,24 @@ const files = contentRoots.flatMap(directory => collect(resolve(root, directory)
 )
 
 const articles = files.map(path => ({ path, article: parseKnowledgeTemplate(readFileSync(path, 'utf8'), path) }))
-assert.equal(articles.length, 500, `深度知识文章应精确为 500 篇，实际 ${articles.length}`)
-assert.equal(new Set(articles.map(item => item.article.slug)).size, 500, '500 篇文章的 slug 必须全局唯一')
-assert.equal(new Set(articles.map(item => item.article.title)).size, 500, '500 篇文章的标题必须全局唯一')
+assert.equal(articles.length, 340, `同主题合并后，深度知识文章应精确为 340 篇，实际 ${articles.length}`)
+assert.equal(new Set(articles.map(item => item.article.slug)).size, articles.length, '文章 slug 必须全局唯一')
+assert.equal(new Set(articles.map(item => item.article.title)).size, articles.length, '文章标题必须全局唯一')
 
 const collectionCounts = { cfd: 0, openfoam: 0, modelica: 0, cae: 0, meshfree: 0 }
 for (const { article } of articles) collectionCounts[knowledgeCollectionFor(article.category.slug)] += 1
-assert.deepEqual(collectionCounts, { cfd: 160, openfoam: 110, modelica: 75, cae: 100, meshfree: 55 })
+assert.deepEqual(collectionCounts, { cfd: 99, openfoam: 82, modelica: 60, cae: 64, meshfree: 35 })
 
 const expanded = articles.filter(item => item.path.includes(`${resolve(root, 'expanded')}`))
-assert.equal(expanded.length, 382, `扩展文章应为 382 篇，实际 ${expanded.length}`)
+assert.equal(expanded.length, 222, `同主题合并后，扩展文章应为 222 篇，实际 ${expanded.length}`)
 assert.equal(new Set(expanded.map(item => item.article.summary)).size, expanded.length, '扩展文章摘要不得重复')
 assert.equal(new Set(expanded.map(item => item.article.markdown)).size, expanded.length, '扩展文章正文不得重复')
+
+const topicKeys = expanded.map(item => {
+  const topic = item.article.title.split('：')[0].trim()
+  return `${item.article.category.slug}\u0000${topic}`
+})
+assert.equal(new Set(topicKeys).size, topicKeys.length, '同一分类中的相同主题前缀必须合并为单篇文章')
 
 // 套话黑名单：这些句子是脚本套模板生成的产物，出现即说明内容仍是空壳。
 const boilerplate = [
@@ -133,7 +139,7 @@ for (const { path, article } of expanded) {
 
   const topic = article.title.split('：')[0]
   headingSignatures.add(article.headings
-    .filter(heading => heading.level === 2)
+    .filter(heading => heading.level >= 2)
     .map(heading => heading.text.replace(/^\d+\.?\s*/u, '').replaceAll(topic, '{主题}'))
     .join(' > '))
 
@@ -152,7 +158,7 @@ for (const { path, article } of expanded) {
 }
 
 // —— 全库层面：结构、公式、段落、句子都不允许被批量复用 ——
-assert.ok(headingSignatures.size >= 300, `文章结构变化不足：只有 ${headingSignatures.size} 种去主题化结构`)
+assert.ok(headingSignatures.size >= 200, `文章结构变化不足：只有 ${headingSignatures.size} 种去主题化结构`)
 
 const reusedFormulaBlocks = [...formulaBlockCounts.values()].filter(count => count > 3)
 assert.equal(reusedFormulaBlocks.length, 0, `存在被 4 篇以上文章共用的公式块：${reusedFormulaBlocks.length} 组`)

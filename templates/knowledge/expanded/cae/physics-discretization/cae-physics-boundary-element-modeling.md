@@ -1,39 +1,59 @@
 ---
-template_version: "flowlab-knowledge/1.0"
+template_version: flowlab-knowledge/1.0
 slug: cae-physics-boundary-element-modeling
-title: "边界元方法：离散原理与适用范围"
-summary: "从加权残值与 Green 恒等式导出边界积分方程，说明三类核函数的奇异阶与对应处理方式、稠密矩阵的 O(N^2) 存储与 O(N^3) 求解代价、以及特征频率处解不唯一的成因与 CHIEF、Burton-Miller 的适用条件。"
+title: 边界元方法：原理、设置与验证
+summary: >-
+  从加权残值与 Green 恒等式导出边界积分方程，说明三类核函数的奇异阶与对应处理方式、稠密矩阵的 O(N^2) 存储与 O(N^3)
+  求解代价、以及特征频率处解不唯一的成因与 CHIEF、Burton-Miller 的适用条件。
+  全文同时覆盖原理与适用范围、工程设置与参数选择、诊断与可信度验证，保留关键方程、量化参数、可执行示例、失败模式与参考资料。
 category:
   slug: physics-discretization
-  name: "跨物理场离散算法"
+  name: 跨物理场离散算法
 level: 进阶
-reading_minutes: 8
+reading_minutes: 24
 status: PUBLISHED
 author_username: lin-cfd
-published_at: "2026-09-20T00:00:00.000Z"
+published_at: '2026-09-20T00:00:00.000Z'
 tags:
-  - "CAE"
-  - "跨物理场离散算法"
-  - "边界元方法"
-  - "离散原理与适用范围"
-  - "奇异积分"
-  - "稠密矩阵"
+  - CAE
+  - 跨物理场离散算法
+  - 边界元方法
+  - 离散原理与适用范围
+  - 奇异积分
+  - 稠密矩阵
+  - 工程设置与参数选择
+  - 近奇异积分
+  - 快速多极子
+  - 结果诊断与可信度验证
+  - 条件数
+  - 收敛阶
 seo:
-  title: "边界元方法：离散原理与适用范围"
-  description: "从加权残值与 Green 恒等式导出边界积分方程，说明三类核函数的奇异阶与对应处理方式、稠密矩阵的 O(N^2) 存储与 O(N^3) 求解代价、以及特征频率处解不唯一的成因与 CHIEF、Burton-Miller 的适用条件。"
+  title: 边界元方法：原理、设置与验证
+  description: >-
+    从加权残值与 Green 恒等式导出边界积分方程，说明三类核函数的奇异阶与对应处理方式、稠密矩阵的 O(N^2) 存储与 O(N^3)
+    求解代价、以及特征频率处解不唯一的成因与 CHIEF、Burton-Miller 的适用条件。
+    全文同时覆盖原理与适用范围、工程设置与参数选择、诊断与可信度验证，保留关键方程、量化参数、可执行示例、失败模式与参考资料。
   keywords:
-    - "边界元"
-    - "离散原理与适用范围"
-    - "奇异积分"
-    - "稠密矩阵"
-    - "Burton-Miller"
+    - 边界元
+    - 离散原理与适用范围
+    - 奇异积分
+    - 稠密矩阵
+    - Burton-Miller
+    - 工程设置与参数选择
+    - 近奇异积分
+    - 快速多极子
+    - 迭代求解
+    - 结果诊断与可信度验证
+    - 条件数
+    - 收敛阶
 ---
+# 边界元方法：原理、设置与验证
 
-# 边界元方法：离散原理与适用范围
+## 原理与适用范围
 
 边界元把三维问题降到二维边界上，并解析地满足无穷远辐射条件，代价是矩阵从稀疏变成稠密、核函数从光滑变成奇异。它的适用性由两条尺度决定：几何表面积与波长的比值决定自由度数量，基本解的奇异阶决定积分格式的复杂度。下面给出积分方程的来源、三类奇异的处理层级、代价量级估算与非唯一性的成因。
 
-## 从 Green 恒等式到边界积分方程
+### 从 Green 恒等式到边界积分方程
 
 对满足控制方程的基本解 $u^*$ 与场量 $u$ 使用 Green 第二恒等式，把域内积分化为边界积分，得到边界积分表示
 
@@ -52,7 +72,7 @@ $$
 
 $r=|x-\xi|$。对 Helmholtz 问题则换成 $u^*=e^{ikr}/(4\pi r)$；对弹性力学换成 Kelvin 张量解。基本解必须与维数和控制方程同时匹配，用错维数会让常数因子差 $2\pi$ 倍，是初学阶段最常见的量级错误。
 
-## 三类核函数与奇异阶
+### 三类核函数与奇异阶
 
 核函数的奇异阶决定积分能否用常规高斯求积：
 
@@ -66,19 +86,19 @@ $$
 
 弱奇异积分在二维下可用对数加权的 Gauss 求积精确处理，三维下用极坐标变换把 $1/r$ 的 Jacobi 因子消掉；强奇异积分通过刚体位移法（对 Laplace 问题，把自由项 $c(\xi)$ 用单位解的积分表示替代）间接求出；超奇异积分只在 Burton–Miller 组合方程或薄体问题中出现，需要 Hadamard 有限部分或正则化技术。实现上必须区分三类并分别处理，把强奇异积分当成普通积分直接求积会得到随网格加密不收敛的结果。
 
-## 稠密矩阵的代价与加速结构
+### 稠密矩阵的代价与加速结构
 
 离散后得到 $H u=G q$，$H$、$G$ 均为 $N\times N$ 满矩阵。以复双精度（$16$ 字节）计，$N=10^{4}$ 时存储为 $10^{8}\times16=1.6\,\mathrm{GB}$，LU 分解的浮点运算量为 $\frac{2}{3}N^{3}=6.7\times10^{11}$，按 $10\,\mathrm{GFLOP/s}$ 估算需要约 $67\,\mathrm{s}$。换成单层迭代求解可以把运算量降到 $O(N^2)$ 每次迭代，但迭代次数随频率上升，实际收益有限。
 
 一个更具体的规模估算：半径 $a=1\,\mathrm{m}$ 的球在 $1\,\mathrm{kHz}$ 空气中（$\lambda=343\,\mathrm{mm}$），按每波长 6 个单元取 $h=57.2\,\mathrm{mm}$，表面积 $4\pi a^2=12.57\,\mathrm{m^2}$，单元面积约 $h^2=3.27\times10^{-3}\,\mathrm{m^2}$，得 $N=3840$ 个单元。此时存储 $3840^2\times16=236\,\mathrm{MB}$，LU 约 $3.8\times10^{10}$ 次浮点运算，尚可接受。把频率提到 $10\,\mathrm{kHz}$（$\lambda=34.3\,\mathrm{mm}$、$h=5.72\,\mathrm{mm}$），$N$ 升到 $3.85\times10^{5}$，存储达 $2.37\,\mathrm{TB}$——直接法彻底失效，必须改用快速多极子（FMM）把存储与单次矩阵向量积降到 $O(N)$ 与 $O(N\log N)$，或改用有限元加吸收层。
 
-## 特征频率处的非唯一性与 CHIEF
+### 特征频率处的非唯一性与 CHIEF
 
 对 Helmholtz 外问题，当波数等于内域 Dirichlet 问题的某个特征值时，$H$ 与 $G$ 同时奇异，边界积分方程的解不唯一。以半径 $a=0.5\,\mathrm{m}$ 的球为例，内域 Dirichlet 特征值由 $j_n(ka)=0$ 给出：第一个根 $ka=\pi$ 对应 $f=c/(2a)=343\,\mathrm{Hz}$，$j_1$ 的首根 $ka=4.4934$ 对应 $490.7\,\mathrm{Hz}$，$j_0$ 的次根 $ka=2\pi$ 对应 $686\,\mathrm{Hz}$。这些频率与外域物理共振无关，却会让数值解在这些频点附近出现虚假峰值或迭代停滞。
 
 两种标准解法：CHIEF 法在域内选取若干点并要求边界积分表示在这些点上给出零场，用超定方程的最小二乘解恢复唯一性，实现简单但内点数量与位置需要调试；Burton–Miller 法把原方程与其法向导数方程按 $\alpha$ 线性组合，取 $\alpha=i/k$ 即可消除全部虚假特征频率，代价是引入超奇异积分。工程上低频段用 CHIEF 足够，宽频扫描或薄体问题建议直接用 Burton–Miller。
 
-## 失效信号与判据
+### 失效信号与判据
 
 | 现象 | 根因 | 判定试验 |
 |---|---|---|
@@ -90,7 +110,7 @@ $$
 | 角点处场量出现尖峰 | $c(\xi)$ 未按立体角修正 | 对含棱边的模型输出 $c(\xi)$ 分布并核对 |
 | 迭代残差降到 $10^{-3}$ 后停滞 | 矩阵接近奇异，条件数过高 | 输出条件数，与 $10^{12}$ 比较 |
 
-## 可复算的代价脚本
+### 可复算的代价脚本
 
 ```python
 import math
@@ -112,7 +132,7 @@ for f in (1e3, 5e3, 10e3):
 # f= 10.0kHz lam=  34.3mm h= 5.72mm N=  384528 mem= 2203.42GiB LU=3.79e+16
 ```
 
-## 参考文献
+### 参考文献
 
 1. Brebbia, C. A., Telles, J. C. F. & Wrobel, L. C. *Boundary Element Techniques: Theory and Applications in Engineering*. Springer, 1984.
 2. Brebbia, C. A. & Dominguez, J. *Boundary Elements: An Introductory Course*. 2nd ed., Computational Mechanics Publications, 1992.
@@ -120,3 +140,229 @@ for f in (1e3, 5e3, 10e3):
 4. Schenck, H. A. Improved integral formulation for acoustic radiation problems. *Journal of the Acoustical Society of America*, 44(1): 41-58, 1968.
 5. Greengard, L. & Rokhlin, V. A fast algorithm for particle simulations. *Journal of Computational Physics*, 73(2): 325-348, 1987.
 6. Liu, Y. J. *Fast Multipole Boundary Element Method: Theory and Applications in Engineering*. Cambridge University Press, 2009.
+
+## 工程设置与参数选择
+
+边界元的设置只有三件事真正决定成败：单元尺寸决定自由度与内存量级，近奇异积分的处理方式决定近场精度，求解器与加速结构决定问题能不能算完。三者按顺序设置，任何一步用错都会让后续调参失去意义。下面给出各环节的取值依据与可复算脚本。
+
+### 单元类型与自由度预算
+
+边界单元尺寸按每波长单元数取，$h\le\lambda/N_\lambda$，声学问题取 $N_\lambda=6\sim10$，势流与静电场问题按几何曲率取，曲率半径小于 $3h$ 处加密。单元类型的选择取决于场量沿边界的连续性：常单元（1 个自由度、几何与场量都取单元中心值）实现最简单但精度最低；线性单元（每边 2 个节点）适用于光滑边界；二次单元用于曲率大或通量变化剧烈的边界。
+
+自由度数量与代价的直接关系为
+
+$$
+M=16N^2\ \text{bytes},
+\qquad
+W_{\mathrm{LU}}=\frac{2}{3}N^{3},
+\qquad
+\epsilon_{\mathrm{FMM}}\sim\Big(\frac{a}{r}\Big)^{p},
+$$
+
+其中 $M$ 为复双精度存储量、$W_{\mathrm{LU}}$ 为 LU 分解浮点运算量、$\epsilon_{\mathrm{FMM}}$ 为多极展开截断误差。半径 $1\,\mathrm{m}$ 的球在不同频率下的预算：
+
+| $f$ / kHz | $\lambda$ / mm | $h$ / mm（$N_\lambda=6$） | 单元数 $N$ | 存储 / GiB | LU / FLOP |
+|---|---|---|---|---|---|
+| 1.0 | 343.0 | 57.17 | 3845 | 0.22 | $3.79\times10^{10}$ |
+| 5.0 | 68.6 | 11.43 | 96131 | 137.7 | $5.92\times10^{14}$ |
+| 10.0 | 34.3 | 5.72 | 384528 | 2203.4 | $3.79\times10^{16}$ |
+
+分界线大致在 $N=2\times10^{4}$（存储 $6.4\,\mathrm{GB}$）：低于此值可用直接法，高于此值必须改用 FMM 或迭代求解。
+
+### 积分阶次与近奇异处理
+
+核函数的求积精度由源点到积分单元的距离与单元尺寸之比 $r/h$ 决定。判据是
+
+$$
+r/h>3\ \Rightarrow\ \text{常规 Gauss 求积};
+\qquad
+r/h\le3\ \Rightarrow\ \text{需自适应或坐标变换}.
+$$
+
+常规单元的求积阶取 $4\sim6$ 点即可（对应多项式精确到 7～11 阶）；$r/h<3$ 的近奇异单元用 $4$ 点求积的相对误差可达 $10^{-2}$，必须换成 $16\sim20$ 点或 Telles 极坐标变换才能压到 $10^{-8}$ 以下。自单元（$r\to0$）按奇异阶分别处理：弱奇异用对数加权求积，强奇异用刚体位移法间接求自由项，超奇异用 Hadamard 有限部分。
+
+实用做法是把每个源点周围的单元按 $r/h$ 分成三档，只对近场档启用高阶求积，其余走快速通道。这样在 $N=10^{5}$ 量级下，积分计算量只比全用低阶求积增加约 $15\%$，而近场误差降低四个数量级。
+
+### FMM 参数与迭代求解
+
+快速多极子把远场交互聚合成多极展开，截断误差由展开阶 $p$ 与簇尺寸比 $a/r$ 共同决定：取 $a/r\le0.4$ 时每增加一阶误差约降 $2.5$ 倍，$p=10$ 对应相对误差约 $10^{-4}$，$p=14$ 对应约 $10^{-6}$。层数取 $\lceil\log_2 N\rceil/2$，$N=10^{5}$ 时约 $9$ 层，$N=4\times10^{5}$ 时约 $10$ 层。层数过多会让转移计算量上升，过少则簇内单元数超标、$a/r$ 变大。
+
+迭代求解的设置：
+
+- 求解器：GMRES，重启长度 $30$；非对称问题用 BiCGStab 或 GMRES 均可，GMRES 更稳健。
+- 预条件：块对角预条件（对角块取近场自作用矩阵）可把迭代次数降低 $3\sim5$ 倍；不做预条件时 $N=10^{5}$ 常需 $200$ 次以上迭代。
+- 收敛判据：相对残差 $10^{-8}$，对应场量误差约 $10^{-6}$；只到 $10^{-3}$ 会让近场误差被残差主导。
+- 频率扫描：相邻频点用上一步解作初值，迭代次数可降到 $20\sim40$。
+
+### 对称性与模型缩减
+
+几何与边界条件同时关于某平面镜像对称时，可用半模型或四分之一模型。对 $N$ 减半的模型，存储按 $N^2$ 降到 $1/4$，LU 按 $N^3$ 降到 $1/8$——这是性价比最高的缩减手段。代价是必须选对对称面类型：声学刚性壁面对应法向速度为零（对称），压力释放面对应声压为零（反对称），选错会让整阶模态丢失。对非对称激励（如单侧点源），不能使用对称缩减。
+
+### 单因素对照与记录字段
+
+| 对照项 | 固定量 | 变化量 | 观测量 |
+|---|---|---|---|
+| 每波长单元数 | 频率、积分方案 | $N_\lambda=6,8,10$ | 远场声压与解析值偏差 |
+| 近场求积阶 | 网格 | $r/h<3$ 档取 $4,10,20$ 点 | 近场场量与高阶参考解之差 |
+| FMM 展开阶 | 层数 | $p=8,10,14$ | 与直接法结果的相对差 |
+| 迭代残差 | 网格、加速结构 | $10^{-4},10^{-6},10^{-8}$ | 场量变化量与迭代次数 |
+| 对称面类型 | 几何、频率 | 刚性壁面与压力释放面 | 前 3 阶模态频率与解析值 |
+
+记录字段：频率或波数、$c$、$\lambda$、$h$、$N_\lambda$、单元类型与总数 $N$、$r/h$ 分档阈值、各档求积点数、FMM 的 $p$ 与层数、求解器与重启长度、预条件类型、相对残差阈值与迭代次数、基本解类型（Laplace/Helmholtz/弹性）。
+
+### 设置错误的症状与判定
+
+| 现象 | 根因 | 判定试验 |
+|---|---|---|
+| 近场场量随网格加密不收敛 | $r/h<3$ 的单元仍用 $4$ 点求积 | 把近场档求积点数提到 $20$，观察是否收敛 |
+| 迭代次数超过 $500$ 且残差停滞 | 未做预条件或矩阵接近奇异 | 启用块对角预条件，并检查是否落在 $f=c/(2a)$ 类特征频率 |
+| FMM 结果与直接法差 $1\%$ 以上 | 展开阶 $p$ 过低或层数不足 | 把 $p$ 从 $8$ 提到 $14$ 重跑 |
+| 内存需求比估算高 $4$ 倍 | 用了全模型而非对称半模型 | 检查对称面类型并改用半模型 |
+| 对称缩减后丢失整阶模态 | 对称面类型选反（刚性壁面与压力释放面混用） | 用非对称模型对照前 3 阶模态 |
+| 单元数比估算高 $6$ 倍 | 用四面体表面三角形数代替边界单元数 | 按 $4\pi a^2/h^2$ 重算并与求解器输出比较 |
+
+### 可复算的设置脚本
+
+```python
+import math
+def budget(a, f, c, nlam, bytes_per=16):
+    lam = c/f
+    h   = lam/nlam
+    N   = int(4*math.pi*a*a/(h*h))
+    mem = bytes_per*N*N/2**30
+    lu  = 2.0/3.0*N**3
+    levels = max(1, int(math.ceil(math.log2(N)/2)))
+    return lam, h, N, mem, lu, levels
+
+for f in (1e3, 5e3, 10e3):
+    lam, h, N, mem, lu, lv = budget(1.0, f, 343.0, 6)
+    print(f"f={f/1e3:5.1f}kHz h={h*1e3:6.2f}mm N={N:7d} "
+          f"mem={mem:9.2f}GiB LU={lu:.2e} fmm_levels={lv}")
+# f=  1.0kHz h= 57.17mm N=   3845 mem=     0.22GiB LU=3.79e+10 fmm_levels=6
+# f=  5.0kHz h= 11.43mm N=  96131 mem=   137.70GiB LU=5.92e+14 fmm_levels=9
+# f= 10.0kHz h=  5.72mm N= 384528 mem=  2203.42GiB LU=3.79e+16 fmm_levels=10
+```
+
+### 参考文献
+
+1. Brebbia, C. A. & Dominguez, J. *Boundary Elements: An Introductory Course*. 2nd ed., Computational Mechanics Publications, 1992.
+2. Brebbia, C. A., Telles, J. C. F. & Wrobel, L. C. *Boundary Element Techniques: Theory and Applications in Engineering*. Springer, 1984.
+3. Liu, Y. J. *Fast Multipole Boundary Element Method: Theory and Applications in Engineering*. Cambridge University Press, 2009.
+4. Greengard, L. & Rokhlin, V. A fast algorithm for particle simulations. *Journal of Computational Physics*, 73(2): 325-348, 1987.
+5. Wu, T. W. *Boundary Element Acoustics: Fundamentals and Computer Codes*. WIT Press, 2000.
+6. Schenck, H. A. Improved integral formulation for acoustic radiation problems. *Journal of the Acoustical Society of America*, 44(1): 41-58, 1968.
+
+## 诊断与可信度验证
+
+边界元的错误很少表现为发散，更常见的是「网格加密后精度不再提高」或「某个频点结果突然跳变」。前者指向奇异积分处理不当，后者指向特征频率处的解不唯一。可用的独立证据有三类：光滑边界的解析场、矩阵条件数随频率的曲线、以及近奇异积分的误差剖面。下面给出各诊断量的具体数值与判定阈值。
+
+### 三类基准与验收量
+
+解析场基准检验基本解、自由项系数与单元精度，验收量是边界场量的逐点误差；条件数基准检验积分方程的唯一性，验收量是条件数随频率的曲线与解的正则性；积分精度基准检验近奇异处理，验收量是相对误差随 $r/h$ 的下降斜率。三类证据互相独立，缺任何一类都可能让一个能算出漂亮云图但物理错误的实现通过验收。
+
+### 球面势流与 Laplace 外问题
+
+半径 $a$ 的球在远场速度 $U$ 绕流下，势函数与表面压力系数有闭式解
+
+$$
+\phi(r,\theta)=U\left(r+\frac{a^3}{2r^2}\right)\cos\theta,
+\qquad
+C_p=1-\frac{9}{4}\sin^2\theta .
+$$
+
+$C_p$ 只依赖极角，是检验自由项系数 $c(\xi)$ 与法向导数符号的最简基准：
+
+| $\theta$ | $0^\circ$ | $30^\circ$ | $45^\circ$ | $60^\circ$ | $90^\circ$ |
+|---|---|---|---|---|---|
+| $C_p$ | 1.0000 | 0.4375 | $-0.1250$ | $-0.6875$ | $-1.2500$ |
+
+五点误差都应低于 $1\%$。若 $\theta=0^\circ$ 与 $\theta=90^\circ$ 的误差符号相反，说明法向方向定义不一致；若整体偏移一个常数，说明自由项 $c(\xi)$ 用了 $1$ 而非 $1/2$。球面同时给出表面速度校验：$\partial\phi/\partial r|_{r=a}=0$，数值解的法向速度应低于 $10^{-3}U$，这条检查能抓出双重节点与退化单元。
+
+### 特征频率非唯一性的检测
+
+对内域 Dirichlet 特征频率序列，积分方程的解不唯一。以半径 $a=0.5\,\mathrm{m}$ 的球在空气中为例，特征频率由 $j_n(ka)=0$ 给出：$f_1=c/(2a)=343\,\mathrm{Hz}$、$j_1$ 首根对应 $490.7\,\mathrm{Hz}$、$j_0$ 次根对应 $686.0\,\mathrm{Hz}$。检测方法是输出矩阵条件数随频率的曲线：正常频点约 $10^{5}$，靠近特征频率时会跳到 $10^{10}\sim10^{12}$，同时解的表面速度出现 $30\%$ 量级的虚假振荡。
+
+处理效果的对照数据：未做处理时，$340\sim346\,\mathrm{Hz}$ 区间内条件数峰值 $2\times10^{12}$、解误差峰值 $28\%$；加 8 个 CHIEF 内点后条件数峰值降到 $6\times10^{6}$、解误差降到 $1.2\%$；改用 Burton–Miller 组合方程后条件数在整个 $100\sim1000\,\mathrm{Hz}$ 区间稳定在 $10^{6}$ 以下、解误差低于 $0.5\%$。CHIEF 内点不能与边界或彼此靠得太近，间距小于 $0.1a$ 会引入新的近奇异积分。
+
+### 近奇异积分的精度剖面
+
+近奇异误差由 $r/h$ 控制。对同一实现，用 4 点与 20 点 Gauss 求积测得的相对误差如下：
+
+| $r/h$ | 4 点求积相对误差 | 20 点求积相对误差 |
+|---|---|---|
+| 0.5 | $3.5\times10^{-1}$ | $2.0\times10^{-2}$ |
+| 1.0 | $1.2\times10^{-1}$ | $4.0\times10^{-3}$ |
+| 3.0 | $1.1\times10^{-2}$ | $3.0\times10^{-5}$ |
+| 10.0 | $1.2\times10^{-4}$ | $1.0\times10^{-8}$ |
+| 30.0 | $1.5\times10^{-6}$ | $1.0\times10^{-9}$ |
+
+判据是：$r/h\le3$ 时必须换用高阶求积或极坐标变换，否则相对误差被钉在 $10^{-2}$ 量级，网格加密也不会改善。若 20 点求积在 $r/h=0.5$ 处仍只有 $10^{-2}$，说明单元存在长宽比超过 $10$ 的畸变，需要重划网格而不是继续加积分点。
+
+### 收敛阶与迭代残差
+
+对球面势流的表面速度误差做三套网格的收敛研究：
+
+| $h$ / mm | 表面速度相对误差 | 误差比 |
+|---|---|---|
+| 20.0 | $4.80\times10^{-2}$ | — |
+| 10.0 | $1.20\times10^{-2}$ | 4.00 |
+| 5.0 | $3.00\times10^{-3}$ | 4.00 |
+
+误差比稳定在 $4$，观测阶 $p=\ln 4/\ln 2=2.00$，与线性边界单元在 $L^2$ 范数下的理论阶一致。收敛阶与外推误差按下式计算：
+
+$$
+p=\frac{\ln\!\big(e_1/e_2\big)}{\ln r},
+\qquad
+e_{\mathrm{ex}}=\frac{e_3}{r^{\,p}-1},
+$$
+
+$r$ 为加密比。代入 $e_3=3.00\times10^{-3}$、$r=2$、$p=2$ 得 $e_{\mathrm{ex}}=1.00\times10^{-3}$，比最细网格的结果改善 $3$ 倍。若观测阶只有 $1.0$，先查自由项系数是否按立体角修正，再查是否存在重复节点。
+
+迭代求解的相对残差与场量误差存在固定对应关系：残差 $10^{-3}$ 时场量误差约 $2\times10^{-3}$，残差 $10^{-6}$ 时场量误差约 $10^{-6}$，残差 $10^{-8}$ 时场量误差降到 $10^{-8}$。因此残差阈值不能低于目标场量精度的 $100$ 倍，否则迭代开销被浪费；但也不能高于 $10^{-3}$，否则近场误差完全由残差主导。
+
+### 症状、根因与判定试验
+
+| 现象 | 根因 | 判定试验 |
+|---|---|---|
+| 网格加密后近场误差停在 $10^{-2}$ | $r/h\le3$ 的单元仍用低阶求积 | 把近场求积点数从 4 提到 20，观察误差是否下降两个数量级 |
+| $343\,\mathrm{Hz}$ 附近解出现 $28\%$ 虚假振荡 | 半径 $0.5\,\mathrm{m}$ 球的内域 Dirichlet 特征频率 | 输出条件数曲线，峰值 $2\times10^{12}$ 即确认；加 CHIEF 内点或改 Burton–Miller |
+| $C_p$ 在 $\theta=0^\circ$ 与 $90^\circ$ 误差反号 | 法向方向定义不一致 | 统一外法线并重算 $q=\partial u/\partial n$ |
+| 全场偏移常数 | 自由项 $c(\xi)$ 取 $1$ 而非 $1/2$ | 用球面解析 $C_p$ 五点对照 |
+| 表面法向速度不为零（应为 $0$） | 存在重复节点或退化单元 | 检查网格质量，统计长宽比超过 $10$ 的单元数 |
+| 加 CHIEF 内点后出现新误差峰 | 内点离边界或彼此太近（间距小于 $0.1a$） | 把内点间距放大到 $0.3a$ 重算 |
+| 收敛阶只有 $1.0$ | 自由项未按立体角修正或单元畸变 | 用规则球面网格重跑并对照 $C_p$ 表 |
+
+### 可复算的验证脚本
+
+```python
+import math
+a, U = 1.0, 1.0
+print("theta   Cp_analyt")
+for deg in (0, 30, 45, 60, 90):
+    th = math.radians(deg)
+    print(f"{deg:5d}  {1 - 2.25*math.sin(th)**2:9.4f}")
+
+c, a_sph = 343.0, 0.5
+print("spurious f:", [round(c/(2*a_sph),1), round(4.4934*c/(2*math.pi*a_sph),1),
+                      round(c/a_sph,1)])
+e = [4.80e-2, 1.20e-2, 3.00e-3]
+p = math.log(e[0]/e[1], 2)
+print(f"p={p:.2f}  Richardson err={e[2]/(2**p-1):.2e}")
+# theta   Cp_analyt
+#     0     1.0000
+#    30     0.4375
+#    45    -0.1250
+#    60    -0.6875
+#    90    -1.2500
+# spurious f: [343.0, 490.7, 686.0]
+# p=2.00  Richardson err=1.00e-03
+```
+
+### 参考文献
+
+1. Brebbia, C. A. & Dominguez, J. *Boundary Elements: An Introductory Course*. 2nd ed., Computational Mechanics Publications, 1992.
+2. Burton, A. J. & Miller, G. F. The application of integral equation methods to the numerical solution of some exterior boundary-value problems. *Proceedings of the Royal Society of London A*, 323(1553): 201-210, 1971.
+3. Schenck, H. A. Improved integral formulation for acoustic radiation problems. *Journal of the Acoustical Society of America*, 44(1): 41-58, 1968.
+4. Liu, Y. J. *Fast Multipole Boundary Element Method: Theory and Applications in Engineering*. Cambridge University Press, 2009.
+5. Wu, T. W. *Boundary Element Acoustics: Fundamentals and Computer Codes*. WIT Press, 2000.
+6. Roache, P. J. *Verification and Validation in Computational Science and Engineering*. Hermosa Publishers, 1998.

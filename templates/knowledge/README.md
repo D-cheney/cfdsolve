@@ -10,11 +10,12 @@
 | OpenFOAM 工程库 | [`openfoam/`](openfoam/README.md) | 19 | 安装、案例、网格、物理模型、数值设置、运行与排错 |
 | Modelica 专题库 | [`modelica/`](modelica/README.md) | 16 | 语言、组件、DAE、事件、物理域、求解与联合仿真 |
 | OpenFOAM 14 架构库 | [`openfoam-source-v14/`](openfoam-source-v14/README.md) | 14 | 源码架构、离散、求解流程、模型基础设施与二次开发 |
+| 扩展深度知识 | [`expanded/`](expanded/) | 222 | 按主题合并的原理、工程设置与诊断验证文章 |
 | OpenFOAM 14 逐文件库 | [`openfoam-source-files-v14/`](openfoam-source-files-v14/README.md) | 10,907 | 固定源码基线的逐文件中文解析与 17 类导航 |
 | 导入示例 | [`examples/`](examples/) | 1 | 模板与导入链路回归样例 |
 | 无网格法知识 | [`meshfree/`](meshfree/README.md) | 6 | 方法选型、SPH 离散、核函数、边界、邻域搜索与验证 |
 
-合计 11,025 篇可导入 Markdown 文章。逐文件库属于“源码参考”层级，静态分析结论应结合编译、调试和算例验证；其路径、行数和显式依赖为确定性提取，宏展开、模板实例及运行时选择关系可能不完整。
+合计 11,247 篇可导入 Markdown 文章，其中网站主知识库同步 340 篇深度文章。逐文件库属于“源码参考”层级，静态分析结论应结合编译、调试和算例验证；其路径、行数和显式依赖为确定性提取，宏展开、模板实例及运行时选择关系可能不完整。
 
 ## 全量同步
 

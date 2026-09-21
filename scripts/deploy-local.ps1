@@ -42,7 +42,7 @@ if (Test-Path -LiteralPath (Join-Path $projectRoot 'data\cfdsolve.sqlite')) {
 
 Invoke-NpmCommand @('run', 'db:init') 'Initialize or migrate the database'
 Invoke-NpmCommand @('run', 'knowledge:validate', '--', 'templates\knowledge') 'Validate the complete knowledge catalog'
-Invoke-NpmCommand @('run', 'knowledge:sync:articles') 'Synchronize the 500 deep articles into the main knowledge base'
+Invoke-NpmCommand @('run', 'knowledge:sync:articles') 'Synchronize the 340 topic-merged deep articles into the main knowledge base'
 Invoke-NpmCommand @('run', 'db:check') 'Check database integrity'
 
 if (-not $SkipTests) {
