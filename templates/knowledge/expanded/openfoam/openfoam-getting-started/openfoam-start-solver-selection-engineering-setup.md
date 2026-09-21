@@ -45,9 +45,7 @@ seo:
 
 从 v10 起 OpenFOAM 把求解器拆成"一个可执行文件 `foamRun` + 若干物理模块"，模块名由 `-solver` 指定。选型不再靠背求解器清单，而是回答三个问题：流体是否可压、是否存在相界面或固体区域、时间推进是稳态还是瞬态。模块选错很少以"报错"的形式出现，它更常见的表现是：算得下去，收敛曲线也好看，但结果违反一条本应自动成立的守恒关系。因此选型验证的重点不是检查命令，而是检查三类不依赖模型假设的量——连续性误差、能量不平衡率、以及被求解变量是否越出物理界。
 
-## 基础概念与控制关系
-
-### 用马赫数决定是否求解能量方程
+## 用马赫数决定是否求解能量方程
 
 可压缩性是否需要建模，由马赫数决定：
 
@@ -65,9 +63,7 @@ $$
 
 取 $20\ ^\circ\mathrm{C}$ 水 $\rho = 998.2\ \mathrm{kg/m^3}$、$\mu = 1.0022\times 10^{-3}\ \mathrm{Pa\cdot s}$、$U = 1.5\ \mathrm{m/s}$、$L = 0.05\ \mathrm{m}$，得 $Re = 7.47\times 10^{4}$。这个数只用来决定 `momentumTransport` 里选层流还是 RAS 模型，模块仍是 `incompressibleFluid`。
 
-## 工程设置与实施
-
-### 从旧求解器名迁移
+## 从旧求解器名迁移
 
 多区域算例不再由单一求解器承担，而是用 `foamMultiRun` 驱动多个模块，每个区域有自己的 `system/<region>/` 目录与模块名。迁移时最容易漏掉的是区域目录层级——把所有字典平铺在算例根下会导致区域初始化失败。
 
@@ -81,7 +77,7 @@ $$
 | reactingFoam | combustion | 需反应机理 |
 | chtMultiRegionFoam | foamMultiRun | 多区域耦合，模块按区域分别指定 |
 
-### 模块名与调用方式
+## 模块名与调用方式
 
 ```bash
 foamRun -solver incompressibleFluid          # 不可压，稳态或瞬态由 ddtSchemes 决定
@@ -98,7 +94,7 @@ foamRun -solver incompressibleFluid -help    # 查看该模块的可用选项
 
 不可压与可压共用同一模块名下的两套行为：`incompressibleFluid` 既跑稳态也跑瞬态，切换方式是 `system/fvSchemes` 里的 `ddtSchemes { default steadyState; }` 与 `steadyState` 求解控制；瞬态则写 `Euler` 或 `backward`。这意味着同一个算例目录可以在两种模式间切换，只需改 ddt 方案与 `fvSolution` 中的松弛设置。
 
-### 模块需要的 constant 字典
+## 模块需要的 constant 字典
 
 不可压用 `physicalProperties`，可压用 `thermophysicalProperties`，这个区别是最常见的启动失败来源。`constant/g` 在所有涉及重力的模块中都要提供，2D 竖直流道写 `(0 -9.81 0)`，若写反方向，浮力项会把流动推向相反侧。
 
@@ -111,9 +107,7 @@ foamRun -solver incompressibleFluid -help    # 查看该模块的可用选项
 | incompressibleVoF | physicalProperties, momentumTransport | 两相 nu、rho、sigma |
 | solidDisplacement | physicalProperties | mechanicalProperties |
 
-## 异常诊断与失效模式
-
-### 故障模式与判定试验
+## 故障模式与判定试验
 
 ```bash
 # 先确认问题类型
@@ -140,13 +134,11 @@ foamRun -solver incompressibleFluid -dry-run
 | 时间步被压到 $10^{-8}\ \mathrm{s}$ 且库朗数仍高 | 可压模块用于近似不可压介质 | 改不可压模块后，同 `maxCo` 下步长应回升数个量级 |
 | 压降比同 $Re$ 基准大一个数量级以上 | 物性单位或模块选择错误 | 用 $\rho U L/\mu$ 重算 $Re$，并与基准算例的无量纲压降对比 |
 
-## 验证、验收与复现
-
-### 与基准算例的对照
+## 与基准算例的对照
 
 OpenFOAM 自带教程是选型的基准来源。做法是复制同物理类型的官方教程，只替换几何与物性，先跑通再改。对照量建议选"与模型无关"的积分量：入口流量、出口压力降、总焓流、以及封闭域内的质量守恒。以 $Re = 7.47\times 10^{4}$ 的管流为例，若在教程算例上得到的压降为 $820\ \mathrm{Pa}$，而自己的几何在相同 $Re$ 与相同无量纲长度下得到 $790\ \mathrm{Pa}$，相对差 $3.7\%$，属于网格与入口发展长度带来的正常差异；若得到 $2.4\times 10^{4}\ \mathrm{Pa}$，差 29 倍，则先怀疑模块选错或物性单位错，而不是网格。
 
-### 连续性误差是最直接的选型信号
+## 连续性误差是最直接的选型信号
 
 不可压模块在每步末尾打印连续性误差，其全局值定义为
 
@@ -158,7 +150,7 @@ $$
 
 判据：稳态段的 global 值应稳定在 $10^{-3}$ 以下且不随时间上升；cumulative 值应趋于常数而不是线性增长。若 global 值长期停留在 $10^{-2}$ 以上，且日志同时出现 `Continuity error cannot be removed by adjusting the outflow.`，说明出口边界类型与所选模块的假设冲突——例如把不可压算例的出口设成 `fixedValue` 压力而入口又给了速度，流量无处可调。
 
-### 能量不平衡率判定可压模块是否真的在解能量
+## 能量不平衡率判定可压模块是否真的在解能量
 
 对含能量方程的模块，用进出口焓流核对：
 
@@ -176,7 +168,7 @@ postProcess -func 'volFieldValue(T)' -time 0.5
 foamDictionary -entry thermoType/energy -value constant/thermophysicalProperties
 ```
 
-### 越界信号揭示模块与物性不匹配
+## 越界信号揭示模块与物性不匹配
 
 不可压模块把密度当作常数，若被错误地用于低马赫数但强加热的算例，温度升高后密度不变，浮力被系统性低估；反之把可压模块用于水这类近似不可压介质，密度方程会因声速极高而把时间步压到无法承受。两类错误的可观测信号不同：前者表现为温度远高于能量平衡预测值，后者表现为库朗数限制下的时间步异常小。
 

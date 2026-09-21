@@ -50,9 +50,7 @@ seo:
 
 扩散项离散里真正难处理的不是 $\Gamma$，而是面法向导数 $\mathbf{S}_f\cdot\nabla\phi_f$：只有当面法向与两单元中心连线平行时，它才能用 $( \phi_N-\phi_P )/|\mathbf{d}|$ 直接近似。网格一旦扭曲，面法向与连线夹角 $\theta$ 会把这项近似拉出几十个百分点的误差。本文推导正交分解的两个几何量 $\Delta_f$ 与 $\mathbf{k}_f$，给出误差随 $\theta$ 的量级规律，并说明三档修正设置的适用边界。非正交修正的设置只有三个旋钮：选 `corrected` 还是 `limited k`，`k` 取多少，以及 `nNonOrthogonalCorrectors` 取几。三个都要由 `checkMesh` 报出的最大非正交角决定，而不是凭经验拍。非正交修正做得好不好，最终体现在壁面通量上：修正不足会让热流系统性偏低，修正过度会在坏单元上产生过冲。判断它是否可信需要两个诊断量——修正迭代自身的残差，以及相对解析解的通量误差。
 
-## 基础概念与控制关系
-
-### 扩散项在面上需要什么
+## 扩散项在面上需要什么
 
 `laplacianSchemes` 处理的是 $\nabla\cdot(\Gamma\nabla\phi)$。用散度定理后每一项都要算面通量：
 
@@ -62,7 +60,7 @@ $$
 
 其中 $\mathbf{S}_f$ 为面的外法向面积矢量（单位 $\mathrm{m^2}$），$\Gamma_f$ 为插值到面上的扩散系数。难点在括号里：$\nabla\phi_f$ 是面梯度，无法直接得到，只能沿某个方向做差分。唯一能自然做差分的方向就是两单元中心连线 $\mathbf{d}$，因此必须把 $\mathbf{S}_f$ 投影到 $\mathbf{d}$ 上。
 
-### 正交分解：$\Delta_f$ 与 $\mathbf{k}_f$
+## 正交分解：$\Delta_f$ 与 $\mathbf{k}_f$
 
 把面法向导数写成沿连线的差分加一个修正：
 
@@ -84,9 +82,7 @@ $$
 
 这条关系式说明修正项不是小量。取一个边长 $0.005\ \mathrm{m}$ 的六面体面，$|\mathbf{S}_f|=2.5\times10^{-5}\ \mathrm{m^2}$，$\theta=60^\circ$，则 $|\mathbf{k}_f|=2.5\times10^{-5}\times1.732=4.33\times10^{-5}\ \mathrm{m^2}$，比 $|\mathbf{S}_f|$ 本身还大 73%。若 $\theta$ 增到 $70^\circ$，$\tan70^\circ=2.75$，修正项的几何权重变成主项的 2.75 倍——此时扩散算子的主导部分其实来自修正项，忽略它等于解另一个方程。
 
-## 适用边界与方案选择
-
-### 三档设置与适用边界
+## 三档设置与适用边界
 
 ```cpp
 laplacianSchemes
@@ -123,9 +119,7 @@ PIMPLE
 | `corrected` | 用上次迭代梯度显式修正 | $\theta<70^\circ$ | 需多次非正交修正迭代 |
 | `limited k` | 只在 $\mathbf{k}_f$ 小时保留修正 | $\theta$ 局部超 $70^\circ$ | 略降精度换稳健 |
 
-## 工程设置与实施
-
-### 先读 checkMesh 的非正交角
+## 先读 checkMesh 的非正交角
 
 设置修正之前必须先量化网格。`checkMesh` 报出的 `Max non-orthogonality` 就是各面 $\theta$ 的最大值，`Average non-orthogonality` 是均值。经验阈值是：均值低于 $20^\circ$ 且最大低于 $60^\circ$ 属于好网格；最大超过 $70^\circ$ 时修正已经很难补救，应优先改网格或换 `limited`。
 
@@ -137,7 +131,7 @@ $$
 
 $k$ 是夹逼系数。取 `limited 0.33` 意味着修正项最多贡献正交项的 33%，在坏单元上牺牲精度换稳健；取 `limited 0.5` 更接近 `corrected`，适合最大角 $70^\circ$ 附近；取 `limited 1.0` 基本等价于不夹逼，意义不大。
 
-### 修正迭代次数怎么定
+## 修正迭代次数怎么定
 
 修正项用上一次迭代的梯度显式计算，构成一个固定点迭代。设每轮的误差收缩因子为 $\rho$，则第 $m$ 轮后的修正残差为
 
@@ -155,7 +149,7 @@ $$
 | $>70^\circ$，局部坏单元 | `Gauss linear limited 0.33` | 2 |
 | $>75^\circ$ | 先修网格 | 2～3，仅作过渡 |
 
-### 一份配套字典
+## 一份配套字典
 
 ```cpp
 laplacianSchemes
@@ -184,7 +178,7 @@ foamDictionary -entry snGradSchemes.default   -value system/fvSchemes
 checkMesh -allGeometry -allTopology 2>&1 | grep -i "non-orthogonality"
 ```
 
-### 修正次数与夹逼的三轮对照
+## 修正次数与夹逼的三轮对照
 
 判定规则：若 N2 与 N1 的壁面热流差小于 0.5%，说明一次修正已足够；若 N3 相对 N1 的热流下降超过 2%，说明 `limited 0.33` 正在削掉真实扩散通量，只应作为过渡方案并同步安排网格整改。
 
@@ -195,9 +189,7 @@ checkMesh -allGeometry -allTopology 2>&1 | grep -i "non-orthogonality"
 | N2 | 仅提到 2 | 其余全部 | 同上，确认是否进入平台 |
 | N3 | 仅把 `corrected` 换成 `limited 0.33` | 次数回到 N1 的值 | 极值、坏单元附近的压力 |
 
-## 异常诊断与失效模式
-
-### 故障模式与判定试验
+## 故障模式与判定试验
 
 判断修正是否充分的标准不是残差降到多小，而是把 `nNonOrthogonalCorrectors` 加一再跑一遍，关键工程量是否变化小于工程容差。若变化仍然可见，问题在网格而非修正次数，应回到 `checkMesh` 处理最差的那些单元。
 
@@ -217,7 +209,7 @@ checkMesh -allGeometry -allTopology 2>&1 | grep -i "non-orthogonality"
 | 加 `limited 0.33` 后热流又偏低 | 夹逼削掉了真实扩散通量 | 对比 `limited 0.5` 与 `corrected` 三档通量 |
 | `snGrad` 与 `laplacian` 给出的通量不一致 | 两处修正档位不同 | 把两者统一到同档后复跑 |
 
-### 两个诊断量
+## 两个诊断量
 
 第一个是修正迭代的残差，度量固定点迭代是否收敛：
 
@@ -235,7 +227,7 @@ $$
 
 它把修正设置的影响换算成工程量偏差，是与验收标准直接对接的量。
 
-### 诊断流程
+## 诊断流程
 
 ```bash
 checkMesh -allGeometry -allTopology 2>&1 | tee log.checkMesh
@@ -258,9 +250,7 @@ postProcess -func "wallHeatFlux" -time 2000    # 导出壁面热流用于与解�
 判定: E_q 随修正次数进入平台，且平台值不随角度显著变化 → 修正充分
 ```
 
-## 验证、验收与复现
-
-### 一个可手算的解析基准
+## 一个可手算的解析基准
 
 取两块平行平板之间的稳态导热：板距 $L=0.1\ \mathrm{m}$，温差 $\Delta T=100\ \mathrm{K}$，导热系数 $k=0.5\ \mathrm{W/(m\cdot K)}$。解析热流为
 
@@ -276,7 +266,7 @@ $$
 
 把角度继续加到 $70^\circ$，`corrected` 配 1 次修正的 $E_q$ 升到 $0.8\%$，配 2 次降到 $0.15\%$。这组数据给出一个清晰的验收线：非正交角 $60^\circ$ 以内，1 次修正即可把通量误差压到 0.1%；$70^\circ$ 附近需要 2 次。
 
-### 忽略修正会带来多大误差
+## 忽略修正会带来多大误差
 
 若只用正交项，等价于把面法向导数近似为 $(\phi_N-\phi_P)/|\mathbf{d}|$。对线性场，真实的面法向导数为 $\cos\theta\,(\phi_N-\phi_P)/|\mathbf{d}|$，因此相对误差为
 
@@ -286,7 +276,7 @@ $$
 
 代入几个典型角度：$\theta=10^\circ$ 时 $\varepsilon_{orth}=1.5\%$；$\theta=30^\circ$ 时 $13.4\%$；$\theta=60^\circ$ 时 $50\%$；$\theta=70^\circ$ 时 $65.8\%$。这就是 `uncorrected` 只能在非正交角小于约 $20^\circ$ 的网格上使用的原因——那时误差才与二阶截断误差同量级。
 
-### 夹逼系数与修正次数的记录
+## 夹逼系数与修正次数的记录
 
 记录时必须把最大非正交角、`limited` 系数与 `nNonOrthogonalCorrectors` 写在一起。换网格而不更新这三个数，等于把一套为 $60^\circ$ 网格调好的设置直接用到 $75^\circ$ 网格上。
 

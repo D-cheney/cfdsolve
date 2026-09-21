@@ -11,13 +11,8 @@ const wrapperKinds = {
   '诊断与可信度验证': 'validation'
 }
 
-const stages = [
-  { key: 'foundation', title: '基础概念与控制关系' },
-  { key: 'selection', title: '适用边界与方案选择' },
-  { key: 'setup', title: '工程设置与实施' },
-  { key: 'diagnosis', title: '异常诊断与失效模式' },
-  { key: 'verification', title: '验证、验收与复现' }
-]
+// 这些类别只用于判断内容依赖和阅读先后，不会成为文章里的统一章节标题。
+const stageOrder = ['foundation', 'selection', 'setup', 'diagnosis', 'verification']
 
 const stageTerms = {
   foundation: ['定义', '原理', '机理', '方程', '守恒', '推导', '离散', '矩阵', '算子', '通量', '理论', '物理', '数学', '尺度', '基础', '语义', '结构', '模型形式'],
@@ -139,7 +134,7 @@ function failureHeading(heading) {
 function classifySection(section) {
   if (referenceSection(section)) return 'references'
   const sample = `${section.heading} ${section.body.slice(0, 500)}`
-  const scores = Object.fromEntries(stages.map(stage => [stage.key, 0]))
+  const scores = Object.fromEntries(stageOrder.map(stage => [stage, 0]))
   scores[stageDefaults[section.source]] += 3
   for (const [stage, terms] of Object.entries(stageTerms)) {
     for (const term of terms) {
@@ -152,7 +147,7 @@ function classifySection(section) {
   if (/验收|校核|验证|可信度|收敛判据/u.test(section.heading)) scores.verification += 10
   if (/收敛/u.test(section.heading) && !/设置|控制|参数/u.test(section.heading)) scores.verification += 8
   if (/注解|字典|配置|脚本|命令/u.test(section.heading) && !/验证|校核/u.test(section.heading)) scores.setup += 8
-  return stages.reduce((best, stage) => scores[stage.key] > scores[best] ? stage.key : best, stageDefaults[section.source])
+  return stageOrder.reduce((best, stage) => scores[stage] > scores[best] ? stage : best, stageDefaults[section.source])
 }
 
 function stagePriority(stage, heading) {
@@ -199,19 +194,35 @@ function mergeBodies(sections) {
   return merged.join('\n\n')
 }
 
-function consolidateStage(sections, stage) {
+function consolidateSections(sections) {
   const groups = new Map()
-  for (const section of sections) {
-    const key = failureHeading(section.heading) && stage === 'diagnosis' ? '__failures__' : normalized(section.heading)
+  for (const [index, section] of sections.entries()) {
+    const stage = classifySection(section)
+    const key = failureHeading(section.heading) ? '__failures__' : normalized(section.heading)
     if (!groups.has(key)) groups.set(key, [])
-    groups.get(key).push(section)
+    groups.get(key).push({ ...section, stage, index })
   }
-  return [...groups.entries()].map(([key, group], index) => ({
-    heading: key === '__failures__' ? '故障模式与判定试验' : group[0].heading,
-    body: mergeBodies(group),
-    order: Math.min(...group.map(item => stagePriority(stage, item.heading))),
-    stable: index
-  })).sort((left, right) => left.order - right.order || left.stable - right.stable)
+  return [...groups.entries()].map(([key, group]) => {
+    const stage = key === '__failures__'
+      ? 'diagnosis'
+      : stageOrder.reduce((best, candidate) => {
+        const count = group.filter(item => item.stage === candidate).length
+        const bestCount = group.filter(item => item.stage === best).length
+        return count > bestCount ? candidate : best
+      }, group[0].stage)
+    return {
+      heading: key === '__failures__' ? '故障模式与判定试验' : group[0].heading,
+      body: mergeBodies(group),
+      stage,
+      stageOrder: stageOrder.indexOf(stage),
+      order: Math.min(...group.map(item => stagePriority(stage, item.heading))),
+      stable: Math.min(...group.map(item => item.index))
+    }
+  }).sort((left, right) => left.stageOrder - right.stageOrder || left.order - right.order || left.stable - right.stable)
+}
+
+function promoteNestedHeadings(body) {
+  return body.replace(/^#{4,6}(?=\s)/gmu, heading => heading.slice(1))
 }
 
 function collectReferences(sections) {
@@ -234,23 +245,13 @@ function reorganize(parsed) {
   if (!sources) return null
   const allSections = sources.flatMap(source => source.sections)
   const references = allSections.filter(section => classifySection(section) === 'references')
-  const buckets = Object.fromEntries(stages.map(stage => [stage.key, []]))
-  for (const section of allSections) {
-    const stage = classifySection(section)
-    if (stage !== 'references') buckets[stage].push(section)
-  }
+  const contentSections = consolidateSections(allSections.filter(section => classifySection(section) !== 'references'))
 
   const title = String(parsed.data.title || '').trim()
   const introduction = mergeIntroductions(sources)
   const parts = [`# ${title}`, introduction]
-  const stageCounts = {}
-  for (const stage of stages) {
-    const sections = consolidateStage(buckets[stage.key], stage.key)
-    if (!sections.length) continue
-    stageCounts[stage.key] = sections.length
-    parts.push(`## ${stage.title}`)
-    for (const section of sections) parts.push(`### ${section.heading}\n\n${section.body}`)
-  }
+  const stageCounts = Object.fromEntries(stageOrder.map(stage => [stage, contentSections.filter(section => section.stage === stage).length]))
+  for (const section of contentSections) parts.push(`## ${section.heading}\n\n${promoteNestedHeadings(section.body)}`)
   if (references.length) parts.push(`## 参考资料\n\n${collectReferences(references)}`)
 
   const data = {
@@ -279,7 +280,7 @@ for (const file of files) {
   }
 }
 
-const stageTotals = Object.fromEntries(stages.map(stage => [stage.key, report.reduce((sum, item) => sum + (item.stageCounts[stage.key] || 0), 0)]))
+const stageTotals = Object.fromEntries(stageOrder.map(stage => [stage, report.reduce((sum, item) => sum + (item.stageCounts[stage] || 0), 0)]))
 console.log(`${apply ? '已重排' : '待重排'} ${report.length} 篇合并专题，共 ${report.reduce((sum, item) => sum + item.sourceCount, 0)} 份原稿、${report.reduce((sum, item) => sum + item.sectionCount, 0)} 个内容小节。`)
-console.log(`重排后章节分布：${Object.entries(stageTotals).map(([key, value]) => `${key}=${value}`).join('，')}`)
+console.log(`内部排序信号：${Object.entries(stageTotals).map(([key, value]) => `${key}=${value}`).join('，')}`)
 for (const item of report) console.log(`- ${item.file}：${item.sourceCount} 份原稿，${item.sectionCount} 个小节`)

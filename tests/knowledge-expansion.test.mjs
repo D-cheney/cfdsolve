@@ -88,7 +88,7 @@ const formulaBlockCounts = new Map()
 let codeBlockArticles = 0
 let numericArticles = 0
 let referenceArticles = 0
-let reorganizedArticles = 0
+let adaptiveMergedArticles = 0
 
 for (const { path, article } of expanded) {
   const source = readFileSync(path, 'utf8')
@@ -96,15 +96,17 @@ for (const { path, article } of expanded) {
 
   // 合并专题必须拆到内容小节层级重排，不得保留原稿的整块包装标题。
   assert.doesNotMatch(body, /^## (?:原理与适用范围|工程设置与参数选择|诊断与可信度验证)$/mu, `${article.slug} 仍保留简单拼接的原稿包装标题`)
-  const reorganizedStages = ['基础概念与控制关系', '适用边界与方案选择', '工程设置与实施', '异常诊断与失效模式', '验证、验收与复现']
-  const positions = reorganizedStages.map(heading => body.indexOf(`## ${heading}`)).filter(position => position >= 0)
-  if (positions.length) {
-    reorganizedArticles += 1
-    assert.ok(positions.length >= 2, `${article.slug} 内容重排后仍缺少决策层次`)
-    assert.deepEqual(positions, [...positions].sort((left, right) => left - right), `${article.slug} 章节未按概念、选择、设置、诊断、验证顺序排列`)
-    assert.equal((body.match(/^## 参考资料$/gmu) || []).length, 1, `${article.slug} 参考资料应统一放在文末`)
-    const subsectionNames = [...body.matchAll(/^###\s+(.+)$/gmu)].map(match => match[1].replace(/\s+/gu, '').toLowerCase())
-    assert.equal(new Set(subsectionNames).size, subsectionNames.length, `${article.slug} 重排后仍存在重复小节`)
+  const mergedTitle = /(?:：原理、设置与验证|：原理与工程设置|：原理与诊断验证|：工程设置与诊断验证)$/u.test(article.title)
+  if (mergedTitle) {
+    adaptiveMergedArticles += 1
+    const imposedHeadings = ['基础概念与控制关系', '适用边界与方案选择', '工程设置与实施', '异常诊断与失效模式', '验证、验收与复现']
+    const headings = [...body.matchAll(/^##\s+(.+)$/gmu)].map(match => match[1].trim())
+    assert.ok(headings.length >= 5, `${article.slug} 合并后主题小节不足：${headings.length}`)
+    assert.equal(new Set(headings).size, headings.length, `${article.slug} 合并后仍存在重复主题小节`)
+    assert.equal(headings.filter(heading => heading === '参考资料').length, 1, `${article.slug} 参考资料应仅保留一章`)
+    assert.equal(headings.at(-1), '参考资料', `${article.slug} 参考资料应统一放在文末`)
+    assert.ok(!headings.some(heading => imposedHeadings.includes(heading)), `${article.slug} 仍套用统一五段式目录`)
+    assert.ok(!headings.some(heading => /^\d+(?:\.\d+)*[.、．]?\s/u.test(heading)), `${article.slug} 仍带有原稿编号`)
   }
 
   // —— 体量 ——
@@ -186,7 +188,7 @@ assert.equal(repeatedLongSentences.length, 0, `存在被 4 篇以上文章共用
 assert.equal(codeBlockArticles, expanded.length, `有 ${expanded.length - codeBlockArticles} 篇扩展文章缺少代码块`)
 assert.equal(numericArticles, expanded.length, `有 ${expanded.length - numericArticles} 篇扩展文章缺少带单位数值`)
 assert.equal(referenceArticles, expanded.length, `有 ${expanded.length - referenceArticles} 篇扩展文章缺少真实参考文献`)
-assert.equal(reorganizedArticles, 127, `应有 127 篇合并专题完成语义重排，实际 ${reorganizedArticles} 篇`)
+assert.equal(adaptiveMergedArticles, 127, `应有 127 篇合并专题采用内容自适应目录，实际 ${adaptiveMergedArticles} 篇`)
 
 console.log(
   `Knowledge expansion passed: ${articles.length} articles; collections ${JSON.stringify(collectionCounts)}; ` +
