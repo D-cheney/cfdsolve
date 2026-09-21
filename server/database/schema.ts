@@ -269,6 +269,22 @@ export const databaseMigrations: DatabaseMigration[] = [
         'meshfree-sph3d-model'
       )`
     ]
+  },
+  {
+    version: 6,
+    name: 'simulation_workbench_v1_2',
+    statements: [
+      `UPDATE simulation_tools SET description = '比较迎风与中心差分，检查 Péclet 数、离散误差与有界性' WHERE id = 'tool-convection'`,
+      `UPDATE simulation_tools SET description = '演示二维涡量—流函数求解、速度场、主涡与残差收敛' WHERE id = 'tool-cavity'`,
+      `UPDATE simulation_tools SET description = '计算速度剖面、流量、压降、壁面剪切和入口段长度' WHERE id = 'tool-pipe'`,
+      `UPDATE simulation_tools SET description = '估算湍流入口量、摩擦速度和近壁层网格' WHERE id = 'tool-turbulence'`,
+      `UPDATE simulation_tool_versions SET status = 'RETIRED' WHERE tool_id IN ('tool-convection', 'tool-cavity', 'tool-pipe', 'tool-turbulence')`,
+      `INSERT OR IGNORE INTO simulation_tool_versions
+        (id, tool_id, version, input_schema_json, result_schema_json, status)
+        SELECT id || '-v12', id, '1.2.0', '{}', '{}', 'ACTIVE'
+        FROM simulation_tools
+        WHERE id IN ('tool-convection', 'tool-cavity', 'tool-pipe', 'tool-turbulence')`
+    ]
   }
 ]
 
@@ -321,10 +337,10 @@ export const seedData = {
     ['section-materials', 'papers', '论文与资料', '公开资料与验证方法', 40]
   ],
   tools: [
-    ['tool-convection', 'convection-diffusion', '一维对流—扩散', '比较迎风与中心差分，观察 Péclet 数的影响'],
-    ['tool-cavity', 'lid-driven-cavity', '方腔顶盖驱动流', '演示 SIMPLE 压力—速度耦合和残差收敛'],
-    ['tool-pipe', 'pipe-flow', '圆管充分发展层流', '计算速度剖面、流量、压降和摩擦因子'],
-    ['tool-turbulence', 'turbulence-compare', '湍流与近壁参数对比', '估算湍流参数并比较常见 RANS 模型']
+    ['tool-convection', 'convection-diffusion', '一维对流—扩散', '比较迎风与中心差分，检查 Péclet 数、离散误差与有界性'],
+    ['tool-cavity', 'lid-driven-cavity', '方腔顶盖驱动流', '演示二维涡量—流函数求解、速度场、主涡与残差收敛'],
+    ['tool-pipe', 'pipe-flow', '圆管充分发展层流', '计算速度剖面、流量、压降、壁面剪切和入口段长度'],
+    ['tool-turbulence', 'turbulence-compare', '湍流与近壁参数对比', '估算湍流入口量、摩擦速度和近壁层网格']
   ],
   settings: [
     ['site.registration_enabled', 'true', '是否开放注册'],

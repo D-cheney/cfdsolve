@@ -8,12 +8,16 @@ const props = withDefaults(defineProps<{
   label?: string
   label2?: string
   log?: boolean
+  xLabel?: string
+  yLabel?: string
 }>(), {
   x: () => [],
   y2: () => [],
   label: '数值结果',
   label2: '参考解',
-  log: false
+  log: false,
+  xLabel: '',
+  yLabel: ''
 })
 
 const width = 720
@@ -81,7 +85,8 @@ const yDomain = computed(() => createDomain(allPoints.value.map(point => point.y
 const xTicks = computed(() => createTicks(xDomain.value))
 const yTicks = computed(() => createTicks(yDomain.value))
 const validPointCount = computed(() => allPoints.value.length)
-const xAxisLabel = computed(() => props.x.length ? 'x 坐标' : '采样位置 / 迭代步')
+const xAxisLabel = computed(() => props.xLabel || (props.x.length ? 'x 坐标' : '采样位置 / 迭代步'))
+const yAxisLabel = computed(() => props.yLabel || (props.log ? 'log₁₀(残差)' : '计算量'))
 
 function scaleX(value: number) {
   const domain = xDomain.value
@@ -146,7 +151,7 @@ function formatTick(value: number) {
 
       <text v-if="!validPointCount" class="chart-empty" x="386" y="142" text-anchor="middle">暂无有效数据</text>
       <text x="386" y="294" text-anchor="middle">{{ xAxisLabel }}</text>
-      <text x="16" y="150" transform="rotate(-90 16 150)" text-anchor="middle">{{ log ? 'log₁₀(残差)' : '计算量' }}</text>
+      <text x="16" y="150" transform="rotate(-90 16 150)" text-anchor="middle">{{ yAxisLabel }}</text>
     </svg>
     <div class="chart-legend">
       <span><i></i>{{ label }}</span>

@@ -68,9 +68,12 @@ function solveConvection(p: NumParams) {
   }
   const x = Array.from({ length: nx }, (_, i) => i * dx), exact = x.map(value => left + (right - left) * stableRatio(value / length))
   const errors = numerical.map((value, i) => Math.abs(value - exact[i])), l2 = Math.sqrt(errors.reduce((sum, value) => sum + value * value, 0) / nx), linf = Math.max(...errors)
+  const minValue = Math.min(...numerical), maxValue = Math.max(...numerical)
+  const lowerBound = Math.min(left, right), upperBound = Math.max(left, right)
+  const bounded = minValue >= lowerBound - 1e-9 && maxValue <= upperBound + 1e-9
   const warnings: string[] = []
   if (scheme === 'central' && Math.abs(cellPe) > 2) warnings.push('单元 Péclet 数大于 2，中心差分系数失去有界性，结果可能振荡。')
-  return { x, series: numerical, exact, l2, linf, peclet: pe, cellPe, summary: [{ label: '全局 Péclet 数', value: pe.toFixed(3) }, { label: '单元 Péclet 数', value: cellPe.toFixed(3) }, { label: 'L₂ 误差', value: l2.toExponential(2) }, { label: 'L∞ 误差', value: linf.toExponential(2) }], warnings }
+  return { x, series: numerical, exact, l2, linf, peclet: pe, cellPe, bounded, minValue, maxValue, summary: [{ label: '全局 Péclet 数', value: pe.toFixed(3) }, { label: '单元 Péclet 数', value: cellPe.toFixed(3) }, { label: 'L₂ 误差', value: l2.toExponential(2) }, { label: 'L∞ 误差', value: linf.toExponential(2) }, { label: '有界性', value: bounded ? '通过' : '存在超调' }], warnings }
 }
 
 function solvePipe(p: NumParams) {
@@ -81,7 +84,9 @@ function solvePipe(p: NumParams) {
   const mean = mode === 'pressure_drop' ? input * d * d / (32 * mu * length) : input
   const dp = mode === 'pressure_drop' ? input : 32 * mu * length * mean / (d * d), re = rho * mean * d / mu, radius = d / 2
   const x = Array.from({ length: samples }, (_, i) => i * radius / (samples - 1)), series = x.map(r => 2 * mean * (1 - (r / radius) ** 2)), flow = mean * Math.PI * d * d / 4
-  return { x, series, exact: [...series], reynolds: re, meanVelocity: mean, maxVelocity: 2 * mean, flowRate: flow, pressureDrop: dp, frictionFactor: 64 / re, summary: [{ label: 'Reynolds 数', value: re.toFixed(1) }, { label: '最大速度', value: `${(2 * mean).toFixed(4)} m/s` }, { label: '体积流量', value: `${flow.toExponential(3)} m³/s` }, { label: '压降', value: `${dp.toFixed(2)} Pa` }, { label: 'Darcy 摩阻系数', value: (64 / re).toFixed(5) }], warnings: re >= 2300 ? ['Re ≥ 2300，充分发展层流假设可能失效；本结果仅用于理论演示。'] : [] }
+  const wallShear = 8 * mu * mean / d
+  const entranceLength = .05 * re * d
+  return { x, series, exact: [...series], reynolds: re, meanVelocity: mean, maxVelocity: 2 * mean, flowRate: flow, pressureDrop: dp, frictionFactor: 64 / re, wallShear, entranceLength, summary: [{ label: 'Reynolds 数', value: re.toFixed(1) }, { label: '最大速度', value: `${(2 * mean).toFixed(4)} m/s` }, { label: '体积流量', value: `${flow.toExponential(3)} m³/s` }, { label: '压降', value: `${dp.toFixed(2)} Pa` }, { label: '壁面剪切', value: `${wallShear.toFixed(4)} Pa` }, { label: '入口段估算', value: `${entranceLength.toFixed(3)} m` }], warnings: re >= 2300 ? ['Re ≥ 2300，充分发展层流假设可能失效；本结果仅用于理论演示。'] : entranceLength > length ? [`估算入口段长度 ${entranceLength.toFixed(3)} m 大于管长，充分发展假设不成立。`] : [] }
 }
 
 function solveTurbulence(p: NumParams) {
@@ -98,7 +103,7 @@ function solveTurbulence(p: NumParams) {
   const x = Array.from({ length: layers }, (_, i) => i + 1), series: number[] = []
   let cumulative = 0
   for (let i = 0; i < layers; i++) { cumulative += firstLayer * growth ** i; series.push(cumulative * 1e6) }
-  return { x, series, exact: [], reynolds: re, turbulenceK: k, epsilon, omega, firstLayerHeight: firstLayer, boundaryLayerThickness: cumulative, summary: [{ label: 'Reynolds 数', value: re.toExponential(3) }, { label: '湍流强度', value: `${intensity.toFixed(2)} %` }, { label: 'k', value: `${k.toExponential(3)} m²/s²` }, { label: 'ε', value: `${epsilon.toExponential(3)} m²/s³` }, { label: 'ω', value: `${omega.toExponential(3)} 1/s` }, { label: '首层高度', value: `${(firstLayer * 1e6).toFixed(2)} μm` }, { label: '边界层总厚度', value: `${cumulative.toFixed(5)} m` }], warnings: ['结果基于光滑壁工程关联式估算，必须结合目标壁面处理和网格无关性分析复核。'] }
+  return { x, series, exact: [], reynolds: re, turbulenceK: k, epsilon, omega, frictionCoefficient: cf, frictionVelocity: utau, firstLayerHeight: firstLayer, boundaryLayerThickness: cumulative, summary: [{ label: 'Reynolds 数', value: re.toExponential(3) }, { label: '摩擦速度', value: `${utau.toFixed(4)} m/s` }, { label: 'k', value: `${k.toExponential(3)} m²/s²` }, { label: 'ε', value: `${epsilon.toExponential(3)} m²/s³` }, { label: 'ω', value: `${omega.toExponential(3)} 1/s` }, { label: '首层高度', value: `${(firstLayer * 1e6).toFixed(2)} μm` }, { label: '边界层总厚度', value: `${cumulative.toFixed(5)} m` }], warnings: ['结果基于光滑壁工程关联式估算，必须结合目标壁面处理和网格无关性分析复核。'] }
 }
 
 function solveCavity(p: NumParams) {
@@ -139,9 +144,18 @@ function solveCavity(p: NumParams) {
   if (iterationsAxis.at(-1) !== iterations) { iterationsAxis.push(iterations); residuals.push(lastResidual) }
   let minPsi = Infinity, vortexI = 0, vortexJ = 0
   for (let j = 1; j < actualNy - 1; j++) for (let i = 1; i < actualNx - 1; i++) if (psi[at(i, j)] < minPsi) { minPsi = psi[at(i, j)]; vortexI = i; vortexJ = j }
+  const fieldNx = Math.min(25, actualNx), fieldNy = Math.min(25, actualNy)
+  const fieldU: number[] = [], fieldV: number[] = [], fieldSpeed: number[] = []
+  for (let sy = 0; sy < fieldNy; sy++) for (let sx = 0; sx < fieldNx; sx++) {
+    const i = Math.min(actualNx - 2, Math.max(1, Math.round(sx * (actualNx - 1) / (fieldNx - 1))))
+    const j = Math.min(actualNy - 2, Math.max(1, Math.round(sy * (actualNy - 1) / (fieldNy - 1))))
+    const u = (psi[at(i, j + 1)] - psi[at(i, j - 1)]) / (2 * hy)
+    const v = -(psi[at(i + 1, j)] - psi[at(i - 1, j)]) / (2 * hx)
+    fieldU.push(u / lid); fieldV.push(v / lid); fieldSpeed.push(Math.hypot(u, v) / lid)
+  }
   const warnings: string[] = []
   if (actualNx !== nx || actualNy !== ny) warnings.push(`浏览器求解器将 ${nx}×${ny} 网格降采样为 ${actualNx}×${actualNy}；高分辨率计算应使用后端求解器。`)
   if (maxIterations > 5000) warnings.push('浏览器计算最多执行 5000 次迭代，以避免页面长时间无响应。')
   if (!converged) warnings.push('迭代未达到目标容差；请降低 Reynolds 数、调整松弛因子或增加后端计算能力。')
-  return { x: iterationsAxis, series: residuals, exact: [], reynolds: re, iterations, converged, finalResidual: residuals.at(-1)!, vortexX: vortexI * hx, vortexY: vortexJ * hy, actualNx, actualNy, summary: [{ label: '收敛状态', value: converged ? '已收敛' : '未收敛' }, { label: '实际网格', value: `${actualNx} × ${actualNy}` }, { label: '迭代次数', value: String(iterations) }, { label: '最终残差', value: residuals.at(-1)!.toExponential(2) }, { label: '主涡中心', value: `(${(vortexI * hx).toFixed(3)}, ${(vortexJ * hy).toFixed(3)})` }], warnings }
+  return { x: iterationsAxis, series: residuals, exact: [], reynolds: re, iterations, converged, finalResidual: residuals.at(-1)!, vortexX: vortexI * hx, vortexY: vortexJ * hy, actualNx, actualNy, field: { nx: fieldNx, ny: fieldNy, u: fieldU, v: fieldV, speed: fieldSpeed }, summary: [{ label: '收敛状态', value: converged ? '已收敛' : '未收敛' }, { label: '实际网格', value: `${actualNx} × ${actualNy}` }, { label: '迭代次数', value: String(iterations) }, { label: '最终残差', value: residuals.at(-1)!.toExponential(2) }, { label: '主涡中心', value: `(${(vortexI * hx).toFixed(3)}, ${(vortexJ * hy).toFixed(3)})` }], warnings }
 }

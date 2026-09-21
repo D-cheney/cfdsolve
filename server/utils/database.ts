@@ -85,10 +85,10 @@ function seedDatabase(db: DatabaseSync) {
       (id, slug, name, description, status) VALUES (?, ?, ?, ?, 'ACTIVE')`)
     const versionStatement = db.prepare(`INSERT OR IGNORE INTO simulation_tool_versions
       (id, tool_id, version, input_schema_json, result_schema_json, status)
-      VALUES (?, ?, '1.0.0', '{}', '{}', 'ACTIVE')`)
+      VALUES (?, ?, '1.2.0', '{}', '{}', 'ACTIVE')`)
     for (const [id, slug, name, description] of seedData.tools) {
       toolStatement.run(id, slug, name, description)
-      versionStatement.run(`${id}-v1`, id)
+      versionStatement.run(`${id}-v12`, id)
     }
 
     const settingStatement = db.prepare(`INSERT OR IGNORE INTO system_settings
