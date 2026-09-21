@@ -1,0 +1,136 @@
+---
+template_version: "flowlab-knowledge/1.0"
+slug: cfd-physics-non-newtonian-flow-modeling
+title: "非牛顿流变：物理建模与适用边界"
+summary: "幂律、Cross、Carreau-Yasuda 与 Herschel-Bulkley 各有自己的有效剪切率区间，外推会给出荒谬的黏度。本文用血液与钻井液两组实测参数说明本构选择依据、参数来源与越界后的失效信号。"
+category:
+  slug: physics
+  name: "流体力学基础"
+level: 进阶
+reading_minutes: 9
+status: PUBLISHED
+author_username: lin-cfd
+published_at: "2026-09-20T00:00:00.000Z"
+tags:
+  - "CFD"
+  - "流体力学基础"
+  - "非牛顿流变"
+  - "物理建模与适用边界"
+  - "Carreau-Yasuda"
+  - "本构模型"
+seo:
+  title: "非牛顿流变：物理建模与适用边界"
+  description: "幂律、Cross、Carreau-Yasuda 与 Herschel-Bulkley 各有自己的有效剪切率区间，外推会给出荒谬的黏度。本文用血液与钻井液两组实测参数说明本构选择依据、参数来源与越界后的失效信号。"
+  keywords:
+    - "非牛顿流变"
+    - "物理建模与适用边界"
+    - "Carreau-Yasuda"
+    - "本构模型"
+---
+
+# 非牛顿流变：物理建模与适用边界
+
+本构模型的选择错误会以"黏度不合理"的形式暴露：要么在低剪切率区发散到几十 Pa·s，要么在高剪切率区失去剪切变稀的饱和行为。本文用血液与钻井液两组已发表参数说明四个常用本构的适用范围、参数来源与越界信号，并指出一个高频错误——把 Carreau 模型的拟合时间常数当作黏弹性松弛时间使用。
+
+## 1 幂律：只在中等剪切率区间可用
+
+幂律模型只有两个参数，是最常用的起点：
+
+$$
+\tau = K\dot\gamma^{\,n}, \qquad \mu_{\text{app}} = K\dot\gamma^{\,n-1}
+$$
+
+$n < 1$ 为剪切变稀。问题是当 $\dot\gamma \to 0$ 且 $n < 1$ 时，$\mu_{\text{app}}$ 按幂律发散。取 $K = 5\,\mathrm{Pa\cdot s^{n}}$、$n = 0.6$：$\dot\gamma = 0.1\,\mathrm{s^{-1}}$ 时 $\mu_{\text{app}} = 12.6\,\mathrm{Pa\cdot s}$，$\dot\gamma = 0.01\,\mathrm{s^{-1}}$ 时升到 $31.5\,\mathrm{Pa\cdot s}$，$\dot\gamma = 0.001\,\mathrm{s^{-1}}$ 时达到 $79.4\,\mathrm{Pa\cdot s}$。而真实流体在低剪切率下会趋于零剪切黏度 $\mu_0$ 并出现平台。因此幂律只应在流变仪实测覆盖的剪切率区间内使用，并且求解器里必须给黏度上下限，否则回流区与滞止区会生成大片假胶体。
+
+## 2 Carreau-Yasuda：带零剪切与无穷剪切平台的四参数模型
+
+要同时描述低剪切率平台与高剪切率饱和，用 Carreau-Yasuda 模型：
+
+$$
+\mu = \mu_\infty + \left(\mu_0-\mu_\infty\right)\left[1+\left(\lambda\dot\gamma\right)^{a}\right]^{\frac{n-1}{a}}
+$$
+
+$a = 2$ 时退化为经典 Carreau 模型。血液的经典参数为 $\mu_0 = 0.056\,\mathrm{Pa\cdot s}$、$\mu_\infty = 0.00345\,\mathrm{Pa\cdot s}$、$\lambda = 3.313\,\mathrm{s}$、$n = 0.3568$（$\rho \approx 1060\,\mathrm{kg/m^3}$）。核算两个剪切率：
+
+- $\dot\gamma = 1\,\mathrm{s^{-1}}$：$\left[1+3.313^{2}\right]^{-0.3216} = 0.450$，$\mu = 0.00345+0.05255\times0.450 = 0.0271\,\mathrm{Pa\cdot s}$
+- $\dot\gamma = 100\,\mathrm{s^{-1}}$：$\left[1+331.3^{2}\right]^{-0.3216} = 0.0239$，$\mu = 0.00345+0.05255\times0.0239 = 0.0047\,\mathrm{Pa\cdot s}$
+
+表观黏度从 27 mPa·s 降到 4.7 mPa·s，跨越 5.8 倍，正是血液剪切变稀的典型幅度。用于动脉流动时，壁面剪切率 $\dot\gamma_w = 8U/D$，取 $D = 4\,\mathrm{mm}$、$U = 0.3\,\mathrm{m/s}$ 得 $600\,\mathrm{s^{-1}}$，代入得 $\mu = 0.0038\,\mathrm{Pa\cdot s}$，$Re = \rho UD/\mu = 331$，仍为层流。若按零剪切黏度 $\mu_0 = 0.056\,\mathrm{Pa\cdot s}$ 估算，$Re$ 只有 22.7，虽然区制判断相同，但压降会被高估一个数量级。
+
+## 3 Herschel-Bulkley：含屈服应力的钻井液与水泥浆
+
+存在屈服应力时用 Herschel-Bulkley 模型：
+
+$$
+\tau = \tau_y + K\dot\gamma^{\,n}, \qquad \mu_{\text{app}} = \frac{\tau_y}{\dot\gamma} + K\dot\gamma^{\,n-1}
+$$
+
+取钻井液 $\tau_y = 15\,\mathrm{Pa}$、$K = 8\,\mathrm{Pa\cdot s^{n}}$、$n = 0.7$：$\dot\gamma = 50\,\mathrm{s^{-1}}$ 时 $\mu_{\text{app}} = 15/50+8\times50^{-0.3} = 0.3+2.47 = 2.77\,\mathrm{Pa\cdot s}$；$\dot\gamma = 5\,\mathrm{s^{-1}}$ 时 $\mu_{\text{app}} = 3+4.94 = 7.94\,\mathrm{Pa\cdot s}$。$\tau_y/\dot\gamma$ 项主导低剪切率行为，这正是塞流核的物理来源。用幂律拟合这组数据在 $5\sim50\,\mathrm{s^{-1}}$ 区间内误差可以压到 10% 以内，但在 $\dot\gamma < 1\,\mathrm{s^{-1}}$ 区会完全失真，且无法预测启动压降阈值 $2\tau_y/R$。
+
+## 4 弹性效应：松弛时间与拟合常数的区别
+
+判断是否需要黏弹性本构，用魏森贝格数：
+
+$$
+Wi = \lambda_{\text{relax}}\,\dot\gamma
+$$
+
+$Wi < 1$ 时广义牛顿模型足够，$Wi > 1$ 时法向应力差与弹性不稳定不可忽略。聚合物溶液的松弛时间通常在 $10^{-2}\sim10^{-1}\,\mathrm{s}$ 量级，取 $\lambda_{\text{relax}} = 0.05\,\mathrm{s}$、$\dot\gamma = 93\,\mathrm{s^{-1}}$，$Wi = 4.7$，需要 Oldroyd-B 或 Giesekus 类模型。
+
+这里有一个必须澄清的点：Carreau-Yasuda 中的 $\lambda$ 是曲线拟合的时间常数，与分子松弛时间没有对应关系。血液的 $\lambda = 3.313\,\mathrm{s}$ 若被当成松弛时间代入 $Wi$，会得到 $Wi = 3.313\times600 = 1988$ 这样荒谬的数值，进而误判为强弹性流动。松弛时间必须来自独立的振荡剪切或应力松弛实验。
+
+## 5 求解器配置示例
+
+OpenFOAM 的广义牛顿求解器通过 `transportProperties` 切换本构：
+
+```cpp
+// constant/transportProperties  (nonNewtonianIcoFoam / icoFoam + generalisedNewtonian)
+transportModel  BirdCarreau;
+
+BirdCarreauCoeffs
+{
+    nu0             5.28e-05;   // 0.056 / 1060, m^2/s
+    nuInf           3.26e-06;   // 0.00345 / 1060, m^2/s
+    k               3.313;      // 拟合时间常数, s
+    n               0.3568;
+}
+
+// 含屈服应力时改为:
+// transportModel  HerschelBulkley;
+// HerschelBulkleyCoeffs
+// {
+//     nu0         1e-03;      // 正则化黏度, 用于限制 tau0/gammaDot 的发散
+//     tau0        15;         // Pa
+//     k           8;          // Pa.s^n
+//     n           0.7;
+// }
+```
+
+注意 `nu0` 在 Herschel-Bulkley 条目中的含义是正则化黏度而不是零剪切黏度，取值过大会把塞流核抹平；一般取 $\tau_y/\dot\gamma_{\max}$ 的十分之一量级并做敏感性检查。
+
+## 6 适用边界与失效信号
+
+| 现象 | 根因 | 判定试验 |
+|---|---|---|
+| 回流区黏度升到几十 Pa·s 并形成假固体 | 幂律在低剪切率外推发散 | 换 Carreau-Yasuda 或加黏度上限，比较压降变化 |
+| 计算 $Wi$ 高达上千，被判为强弹性 | 把 Carreau 的 $\lambda$ 当松弛时间 | 用振荡剪切实验的松弛时间重算 $Wi$ |
+| 高剪切率区黏度不再下降、偏离实验 | 幂律缺少高剪切饱和平台 | 换 Cross 或 Carreau 模型，核对 $\mu_\infty$ |
+| 无屈服应力的模型算不出启动压降阈值 | 本构缺少 $\tau_y$ 项 | 用 Herschel-Bulkley 复算，核对 $2\tau_y/R$ |
+| 塞流核被抹平为抛物线剖面 | 正则化黏度 `nu0` 取值过大 | 把 `nu0` 减小一个量级，观察核区是否变平坦 |
+| 温度变化 20 K 后压降偏差 30% | $K$、$n$ 未随温度更新 | 用两个温度下的流变数据重新拟合并做敏感性分析 |
+
+## 7 本构选择顺序
+
+1. 用流变仪确定实测覆盖的剪切率区间与是否出现零剪切平台。
+2. 有零剪切平台且无屈服应力：用 Carreau-Yasuda，参数由曲线拟合给出。
+3. 有明确屈服应力：用 Herschel-Bulkley，并用启动压降实验核对 $\tau_y$。
+4. 只有中等剪切率数据且精度要求不高：可用幂律，但必须限定适用范围并设置黏度限幅。
+5. 由独立实验得到松弛时间后计算 $Wi$，超过 1 才切换到黏弹性本构。
+6. 记录所有流变参数的温度、浓度与测量方法，避免跨工况复制。
+
+## 8 参考文献
+
+1. Carreau P.J., "Rheological Equations from Molecular Network Theories," *Transactions of the Society of Rheology*, 1972.
+2. Yasuda K., Armstrong R.C., Cohen R.E., "Shear Flow Properties of Concentrated Solutions of Linear and Star Branched Polystyrenes," *Rheologica Acta*, 1981.
+3. Cho Y.I., Kensey K.R., "Effects of the Non-Newtonian Viscosity of Blood on Flows in a Diseased Arterial Vessel," *Biorheology*, 1991.
+4. Herschel W.H., Bulkley R., "Konsistenzmessungen von Gummi-Benzollösungen," *Kolloid-Zeitschrift*, 1926.

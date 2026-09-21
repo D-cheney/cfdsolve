@@ -204,7 +204,12 @@ function safeHtml(source: string) {
 
 function validateMath(source: string) {
   const expressions: string[] = []
-  let withoutBlocks = source.replace(/\$\$([\s\S]*?)\$\$/g, (_match, expression: string) => {
+  // 围栏代码块与行内代码里的 `$` 是 shell/awk 变量（如 awk '{print $3}'），不是公式；
+  // 先剥离代码再扫描，否则会把它当成未闭合的行内公式并误报。
+  const prose = source
+    .replace(/^```[\s\S]*?^```/gm, '')
+    .replace(/`[^`\n]*`/g, '')
+  let withoutBlocks = prose.replace(/\$\$([\s\S]*?)\$\$/g, (_match, expression: string) => {
     expressions.push(expression)
     return ''
   })
@@ -290,10 +295,13 @@ export function parseKnowledgeTemplate(source: string, sourceFile = 'inline.md')
   if (!/^#\s+.+/m.test(body)) issues.push('正文必须包含一个一级标题')
   if (/\uFFFD|锟斤拷|鈥[\u0080-\uFFFF]?|â(?:€™|€œ|€)|Ã[\u0080-\uFFFF]/u.test(visibleText)) issues.push('正文或元数据包含疑似编码乱码')
   if (/[\u0000-\u0008\u000B\u000C\u000E-\u001F]/u.test(visibleText)) issues.push('正文或元数据包含不可见控制字符')
+  // LaTeX 换行命令 `\\[6pt]`（常见于 cases/array 环境）里的 `\[` 不是公式定界符，
+  // 计数前先把成对的转义反斜杠剥离，否则会把合法的行距参数误判为未闭合的 `\[`。
+  const delimiterSource = body.replace(/\\\\/g, '')
   const delimiterPairs = [['\\(', '\\)'], ['\\[', '\\]']] as const
   for (const [opening, closing] of delimiterPairs) {
-    const openings = body.split(opening).length - 1
-    const closings = body.split(closing).length - 1
+    const openings = delimiterSource.split(opening).length - 1
+    const closings = delimiterSource.split(closing).length - 1
     if (openings !== closings) issues.push(`公式定界符 ${opening} 与 ${closing} 数量不一致`)
   }
   issues.push(...validateMath(body))

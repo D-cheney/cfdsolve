@@ -101,7 +101,6 @@ function seedDatabase(db: DatabaseSync) {
     const content = [
       ['content-navier-stokes', 'cat-equations', DEMO_USER_ID, 'article', 'navier-stokes', '从连续方程到 Navier–Stokes 方程', '从质量与动量守恒出发建立不可压缩流动控制方程。'],
       ['content-finite-volume', 'cat-numerics', DEMO_USER_ID, 'article', 'finite-volume', '有限体积法：守恒离散的核心思路', '理解控制体积分、面通量和离散系数。'],
-      ['content-simple', 'cat-numerics', DEMO_USER_ID, 'algorithm', 'simple-method', 'SIMPLE 压力—速度耦合算法', '推导压力修正方程并理解收敛判据。'],
       ['content-wall-y-plus', 'cat-physics', DEMO_USER_ID, 'article', 'wall-y-plus', 'y+、首层网格与近壁面处理', '估算首层高度并核对近壁面模型要求。']
     ] as const
     for (const item of content) contentStatement.run(...item)

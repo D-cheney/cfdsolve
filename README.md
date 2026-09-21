@@ -70,12 +70,19 @@ npm run knowledge:import -- templates/knowledge/my-article.md
 
 格式说明见 `templates/knowledge/FORMAT.md`。导入程序会校验元数据、清理生成的 HTML、自动关联分类和标签，并按 `slug` 创建或更新数据库记录。
 
-统一知识库包含 CFD/CAE 专题、无网格法、OpenFOAM 工程实践、Modelica、OpenFOAM 14 架构和 10,907 份逐文件源码卡，共 11,025 篇可导入文章。总索引见 `templates/knowledge/README.md`。全量同步：
+统一知识库包含 CFD/CAE 专题、无网格法、OpenFOAM 工程实践、Modelica、OpenFOAM 14 架构和 10,907 份逐文件源码卡，共 11,025 篇可导入文章。总索引见 `templates/knowledge/README.md`。
 
-```powershell
-npm run knowledge:validate -- templates\knowledge
-npm run knowledge:sync
+主知识库只包含其中 **500 篇深度文章**（逐文件源码卡仅作离线源码索引，不导入主知识库）：
+
+```bash
+# 同步 500 篇深度文章到主知识库（推荐）
+npm run knowledge:sync:articles
+
+# 全量校验（含源码卡）
+npm run knowledge:validate -- templates/knowledge
 ```
+
+> `npm run knowledge:sync` 会把整个目录树（含 10,907 份源码卡）导入，会把主知识库撑到 11,407 条，仅适用于离线源码索引的单独构建。
 
 ## 本地降级功能
 

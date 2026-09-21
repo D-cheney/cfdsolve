@@ -1,0 +1,137 @@
+---
+template_version: "flowlab-knowledge/1.0"
+slug: openfoam-run-restart-recovery-engineering-setup
+title: "续算、重启与故障恢复：工程设置与参数选择"
+summary: "用 Daly 公式从写出耗时与平均无故障时间反推检查点间隔，给出并行续算的文件处理器一致性要求、SIGTERM 信号策略、续算配置模板与七类故障的判定试验。"
+category:
+  slug: openfoam-running-automation
+  name: "OpenFOAM 运行与自动化"
+level: 工程
+reading_minutes: 8
+status: PUBLISHED
+author_username: lin-cfd
+published_at: "2026-09-20T00:00:00.000Z"
+tags:
+  - "OpenFOAM"
+  - "OpenFOAM 运行与自动化"
+  - "续算、重启与故障恢复"
+  - "工程设置与参数选择"
+  - "startFrom"
+  - "检查点间隔"
+seo:
+  title: "续算、重启与故障恢复：工程设置与参数选择"
+  description: "用 Daly 公式从写出耗时与平均无故障时间反推检查点间隔，给出并行续算的文件处理器一致性要求、SIGTERM 信号策略、续算配置模板与七类故障的判定试验。"
+  keywords:
+    - "续算、重启与故障恢复"
+    - "工程设置与参数选择"
+    - "startFrom"
+    - "fileHandler collated"
+    - "检查点"
+---
+# 续算、重启与故障恢复：工程设置与参数选择
+
+长算例几乎不可能一次跑完：队列有墙钟上限，节点会掉，文件系统会卡。续算是否可靠，取决于三件事有没有提前定好——写出间隔是否按故障率算过、并行文件处理器在两次运行之间是否一致、以及中断信号到达时有没有来得及落盘。这三件事都在启动前配置，事后补救成本很高。
+
+## 续算需要哪些一致条件
+
+`startFrom latestTime` 让求解器自动选最新的时间目录。前提是该目录里的场是完整的一套：只写了 $p$ 和 $U$ 而漏掉湍流量，重启后 $k$、$\varepsilon$ 会从初始场重新演化，时间序列在接缝处出现台阶。所以 `writeInterval` 与场清单必须在第一次运行时就把整个续算链考虑进去。
+
+时间起点用 `startTime` 而不是文件里的值来核对。日志首行会打印实际起点：
+
+```bash
+foamDictionary -entry startFrom -set latestTime system/controlDict
+foamDictionary -entry endTime   -set 120        system/controlDict
+grep "Starting time" log.restart
+```
+
+若 `Starting time` 与预期的检查点不一致，说明 `latestTime` 选到了别的目录——常见原因是并行运行时留下了 `processor*` 目录，串行重启时把 `0/` 之外的残片当成了时间目录。
+
+## 检查点间隔的定量选择
+
+检查点间隔不是越短越好：写得太密，I/O 时间占比上升；写得太疏，故障后损失的计算量变大。Daly 给出使总开销最小的间隔：
+
+$$
+\Delta t_{\mathrm{chk}} = \sqrt{2\, t_{\mathrm{chk}}\, M_{\mathrm{TTF}}}
+$$
+
+$t_{\mathrm{chk}}$ 为单次写出耗时，$M_{\mathrm{TTF}}$ 为平均无故障时间。取 $t_{\mathrm{chk}} = 120\ \mathrm{s}$（$4.0\times10^6$ 单元写 8 GB 到共享文件系统的实测值），$M_{\mathrm{TTF}} = 40\ \mathrm{h} = 1.44\times10^5\ \mathrm{s}$：
+
+$$
+\Delta t_{\mathrm{chk}} = \sqrt{2 \times 120 \times 1.44\times10^5} = \sqrt{3.456\times10^7} = 5.88\times10^3\ \mathrm{s} \approx 1.63\ \mathrm{h}
+$$
+
+按物理时间折算，若算例的物理时间与墙钟时间比为 $1:12$，则每 $5.88\times10^3/12 = 490\ \mathrm{s}$ 物理时间写一次，取整为 500 s。检查点开销占比：
+
+$$
+f_{\mathrm{chk}} = \frac{t_{\mathrm{chk}}}{\Delta t_{\mathrm{chk}}} = \frac{120}{5.88\times10^3} = 2.0\%
+$$
+
+平均损失的计算量为 $\Delta t_{\mathrm{chk}}/2 \approx 2.9\times10^3\ \mathrm{s}$，约 49 分钟。把间隔减半到 0.82 h 后开销升到 4.1%，而平均损失降到 25 分钟；如果机时便宜而墙钟紧张，这个交换是划算的，反之保持 1.63 h。
+
+## 并行续算的文件处理器一致性
+
+`-fileHandler collated` 把各进程数据合并到 `processors<N>/` 下，元数据压力小，但续算必须用同一个处理器，否则求解器找不到时间目录。检查方式很直接：
+
+```bash
+ls -d processors* 2>/dev/null
+mpirun -np 16 foamRun -parallel -fileHandler collated -noFunctionObjects \
+    > log.restart2 2>&1
+```
+
+`-noFunctionObjects` 在重启的第一段运行里很有用：时间积分型 functionObject（如 `fieldAverage`）默认从运行起点重新累加，先关掉它跑一段，确认场已经接上再打开。
+
+分解方式也必须与上次一致。换 `numberOfSubdomains` 或换分解方法会改变 halo 布局，浮点归约顺序随之改变，重启后残差会从比停止前高一个量级的位置重新开始。续算前把分解参数与上次的记录对齐：
+
+```bash
+diff <(foamDictionary -entry numberOfSubdomains -value system/decomposeParDict) \
+     <(echo 16)
+```
+
+## 中断信号与最后一刻数据
+
+OpenFOAM 在 `$WM_PROJECT_DIR/etc/controlDict` 中为 `sigInt`、`sigTerm` 等信号配置了处理策略，取值有 `sigWriteNow`（写出当前场后退出）、`sigStopNow`（立即退出）、`sigIgnore`。默认策略会在收到 `SIGTERM` 时先写出再退出，因此调度器发出的软终止通常不会丢失最后一段计算。
+
+但硬杀（`SIGKILL`）无法被捕获，调度器在墙钟到期后往往直接硬杀。稳妥做法是让作业自己提前收尾：在 controlDict 里把 `endTime` 设为按墙钟余量估算的安全值，或者用运行中改参机制把 `stopAt` 改成 `writeNow`：
+
+```bash
+sed -i 's/^stopAt .*/stopAt writeNow;/' system/controlDict
+```
+
+`stopAt writeNow` 会让求解器在下一个写出点正常落盘后停止，比等待外部信号可靠。
+
+## 续算配置模板
+
+```text
+startFrom       latestTime;
+startTime       0;
+stopAt          endTime;
+endTime         120;
+deltaT          5e-4;
+writeControl    adjustableRunTime;
+writeInterval   500;          // 物理时间 s，按 Daly 公式取整
+purgeWrite      0;            // 续算链需要保留全部检查点
+runTimeModifiable true;
+writeFormat     binary;
+writeCompression off;         // 检查点优先写入速度
+```
+
+## 失败模式与判定
+
+| 现象 | 根因 | 判定试验 |
+|---|---|---|
+| 续算后场值突变 | 最新时间目录里的场不完整，或起点不是预期时刻 | `grep "Starting time" log.restart` 与预期检查点对比 |
+| 提示找不到时间目录 | 上次用 collated，这次用默认处理器 | `ls -d processors*`，核对两次命令行 |
+| 最近检查点消失 | purgeWrite 非 0，旧时间被清掉 | `ls -d [0-9]* \| sort -g \| tail -3` |
+| 残差从 1e-1 重新起跳 | 分解方式或子域数与上次不同 | 比较两次的 numberOfSubdomains 与 method |
+| SIGTERM 后无输出 | 信号策略被改成 sigStopNow | 查 `$WM_PROJECT_DIR/etc/controlDict` 中 sigTerm 取值 |
+| 重启后 fieldAverage 曲线出现断点 | 时间积分型 FO 从运行起点重新累加 | 看 `postProcessing/fieldAverage` 时间列是否跳回初值 |
+| 写检查点时整个节点卡住 | writeCompression on 且共享文件系统元数据拥塞 | 关闭压缩重测单次写出耗时，与 120 s 对比 |
+
+## 参考文献
+
+1. Daly J. T. A higher order estimate of the optimum checkpoint interval for restart dumps. Future Generation Computer Systems, 22(3):303–312, 2006.
+2. Young J. W. A first order approximation to the optimum checkpoint interval. Communications of the ACM, 17(9):530–531, 1974.
+3. Plank J. S., Thomason M. G. Processor allocation and checkpoint interval selection in cluster computing systems. Journal of Parallel and Distributed Computing, 61(11):1570–1590, 2001.
+4. Elnozahy E. N., Alvisi L., Wang Y.-M., Johnson D. B. A survey of rollback-recovery protocols in message-passing systems. ACM Computing Surveys, 34(3):375–408, 2002.
+5. Greenshields C. J. OpenFOAM User Guide, version 11. OpenCFD Ltd., 2024.
+6. Weller H. G., Tabor G., Jasak H., Fureby C. A tensorial approach to computational continuum mechanics. Computers in Physics 12(6), 1998, 620–631.

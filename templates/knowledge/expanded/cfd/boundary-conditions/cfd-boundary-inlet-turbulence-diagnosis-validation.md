@@ -1,0 +1,150 @@
+---
+template_version: "flowlab-knowledge/1.0"
+slug: cfd-boundary-inlet-turbulence-diagnosis-validation
+title: "入口湍流条件：结果诊断与可信度验证"
+summary: "用下游湍流衰减曲线、自相关积分尺度与三级误差预算校验入口湍流量，给出网格湍流幂律指数、可核对的换算示例与诊断脚本。"
+category:
+  slug: boundary-conditions
+  name: "边界条件与初始化"
+level: 专题
+reading_minutes: 9
+status: PUBLISHED
+author_username: lin-cfd
+published_at: "2026-09-20T00:00:00.000Z"
+tags:
+  - "CFD"
+  - "边界条件与初始化"
+  - "入口湍流条件"
+  - "结果诊断与可信度验证"
+  - "湍流衰减"
+  - "积分尺度"
+seo:
+  title: "入口湍流条件：结果诊断与可信度验证"
+  description: "用下游湍流衰减曲线、自相关积分尺度与三级误差预算校验入口湍流量，给出网格湍流幂律指数、可核对的换算示例与诊断脚本。"
+  keywords:
+    - "入口湍流条件"
+    - "结果诊断与可信度验证"
+    - "湍流衰减指数"
+    - "积分尺度"
+    - "热丝测量"
+---
+
+# 入口湍流条件：结果诊断与可信度验证
+
+入口湍流量无法通过"再算一遍看结果变不变"来验证，因为它本身没有内部生成源提供参照。可验证的做法只有一条：沿流向布置采样线，把计算得到的湍动能衰减曲线与风洞或文献给出的网格湍流衰减律对齐，并用自相关函数独立估计积分尺度，两者一致才说明入口的 $k$ 与 $\varepsilon$ 是配套的。本文给出这条验证链的完整算式、一次可核对的手算和一份可直接运行的诊断脚本。
+
+## 入口湍流量的验证只有衰减曲线可用
+
+内流中入口湍流量在几倍管径后被壁面生成覆盖，验证退化为"改不改结果都一样"，无法分辨对错。自由来流、格栅湍流、风洞试验段这类无壁面生成的情形才有诊断价值：湍流在这里只耗散不生成，衰减曲线是入口条件留下的唯一指纹。判据是幂律指数：各向同性网格湍流的湍动能随下游距离按
+
+$$
+k(x) = k_0 \left( \frac{x}{x_0} \right)^{-n}, \qquad n \approx 1.0 \sim 1.3
+$$
+
+衰减，指数 $n$ 由格栅几何决定而与入口强度基本无关。因此**入口条件是否可信，等价于计算出的 $n$ 是否落在实验区间**。若算出的 $n$ 接近 0，说明耗散被严重低估（$\varepsilon$ 给得过小或数值耗散过弱）；若 $n > 2$，说明入口 $k$ 太高或 $\varepsilon$ 太大，湍流在入口下游几步内就被抹掉。
+
+## 一次可核对的衰减换算
+
+某风洞试验段来流 $U = 15\ \mathrm{m/s}$，热丝在 $x_0 = 0.5\ \mathrm{m}$ 处测得 $k_0 = 0.30\ \mathrm{m^2/s^2}$。由 $k = 1.5 (UI)^2$ 反算入口强度：
+
+$$
+Tu_0 = \frac{\sqrt{2k_0/3}}{U} = \frac{\sqrt{0.2}}{15} = \frac{0.4472}{15} = 2.98\%
+$$
+
+设实验拟合给出 $n = 1.15$。在 $x = 4.0\ \mathrm{m}$ 处，$x/x_0 = 8$，
+
+$$
+\left( \frac{x}{x_0} \right)^{-n} = 8^{-1.15} = e^{-1.15 \times 2.0794} = e^{-2.3913} = 0.0915
+$$
+
+$$
+k(4\ \mathrm{m}) = 0.30 \times 0.0915 = 0.0275\ \mathrm{m^2/s^2}, \qquad
+Tu(4\ \mathrm{m}) = \frac{\sqrt{2 \times 0.0275/3}}{15} = \frac{0.1354}{15} = 0.90\%
+$$
+
+注意强度按 $Tu \propto \sqrt{k}$ 衰减，所以 $Tu$ 的等效指数是 $n/2 = 0.575$，而不是 $n$ 本身——把强度直接按 $k$ 的指数外推是常见错误。若 CFD 在同一位置给出 $Tu = 2.5\%$，相对偏差 $E = |0.90 - 2.50|/0.90 = 178\%$，说明入口 $\varepsilon$ 比应有值小了一个量级以上。
+
+## 由衰减曲线反推耗散率
+
+无生成时湍动能收支退化为 $\mathrm{d}k/\mathrm{d}t = -\varepsilon$，配合泰勒冻结假设 $\mathrm{d}k/\mathrm{d}t = -U\,\mathrm{d}k/\mathrm{d}x$，可得
+
+$$
+\varepsilon(x) = n\,U\,k_0\,x_0^{\,n}\,x^{-(n+1)}
+$$
+
+代入 $x = 4\ \mathrm{m}$：$x_0^{\,n} = 0.5^{1.15} = 0.4506$，$x^{-(n+1)} = 4^{-2.15} = 0.0508$，
+
+$$
+\varepsilon = 1.15 \times 15 \times 0.30 \times 0.4506 \times 0.0508 = 0.118\ \mathrm{m^2/s^3}
+$$
+
+再用 $\varepsilon = C_\mu^{3/4} k^{3/2}/L_t$ 反解尺度，$k^{3/2} = 0.00456\ \mathrm{m^3/s^3}$：
+
+$$
+L_t = \frac{0.1643 \times 0.00456}{0.118} = 6.3\times 10^{-3}\ \mathrm{m} = 6.3\ \mathrm{mm}
+$$
+
+涡黏系数 $\nu_t = C_\mu k^2/\varepsilon = 0.09 \times 7.56\times 10^{-4}/0.118 = 5.75\times 10^{-4}\ \mathrm{m^2/s}$，与空气 $\nu = 1.5\times 10^{-5}$ 之比为 38，落在风洞来流的合理区间。这三个量互相闭合，说明"衰减指数—耗散率—积分尺度"是同一套自洽的参数。
+
+## 用自相关函数独立估计积分尺度
+
+$L_t$ 的独立来源是单点时间序列的自相关函数。由泰勒冻结假设，空间积分尺度等于时间自相关在延迟上的积分乘以对流速度：
+
+$$
+L_{11} = U \int_0^{\infty} \rho_{11}(\tau)\,\mathrm{d}\tau, \qquad \rho_{11}(\tau) = \frac{\overline{u'(t)u'(t+\tau)}}{\overline{u'^2}}
+$$
+
+工程上常取 $\rho_{11}$ 降到 $1/e = 0.368$ 的延迟 $\tau_{1/e}$ 近似积分尺度。若热丝在 $U = 15\ \mathrm{m/s}$ 下测得 $\tau_{1/e} = 0.42\ \mathrm{ms}$，则
+
+$$
+L_{11} \approx U\,\tau_{1/e} = 15 \times 4.2\times 10^{-4} = 6.3\times 10^{-3}\ \mathrm{m} = 6.3\ \mathrm{mm}
+$$
+
+与上面由衰减曲线反解出的 $6.3\ \mathrm{mm}$ 完全一致。两条独立路径给出同一尺度，是入口条件可信的强证据；若二者相差 3 倍以上，应优先怀疑采样频率不足（时间序列被低通滤波，自相关被拉宽）或衰减拟合区间选在了近场非自相似区。
+
+## 失败模式对照
+
+验证报告应把误差分成三层：输入层（实验 $I$ 与 $L_t$ 的测量不确定度，$5\% \sim 15\%$）、模型层（涡黏假设对无生成衰减的适用性，$10\% \sim 30\%$）、数值层（采样位置、网格分辨率、数值耗散，$3\% \sim 10\%$）。三层之和给出 $k$ 的不确定度上界。
+
+| 现象 | 根因 | 判定试验 |
+| --- | --- | --- |
+| 拟合出的衰减指数 $n \approx 0$ | 耗散率给得过小，湍流几乎不衰减 | 沿流向采样 $k$ 并拟合 $\ln k$ 对 $\ln(x/x_0)$ 的斜率 |
+| 拟合出 $n > 2$ | 入口 $k$ 偏高或 $\varepsilon$ 偏大 | 用 $\varepsilon = C_\mu^{3/4}k^{3/2}/L_t$ 反算应有 $\varepsilon$ 并对比 |
+| 自相关积分尺度与衰减反解尺度差 3 倍 | 采样频率不足，时间序列被低通滤波 | 提高采样率重算 $\rho_{11}$，看 $\tau_{1/e}$ 是否缩短 |
+| 同一下游位置 $Tu$ 比实验高 1 倍以上 | 强度按 $k$ 的指数外推，忽略了 $Tu \propto \sqrt{k}$ | 用 $n/2$ 作为强度的等效衰减指数重新外推 |
+| $\nu_t/\nu$ 在采样段内单调升到 300 | 采样落在远场耗散区，$L_t$ 已不代表入口 | 把采样段前移到 $x/x_0 < 8$，检查 $\nu_t/\nu$ 是否稳定 |
+| 加密流向网格后 $n$ 明显漂移 | 数值耗散主导了衰减 | 用二阶以上对流格式重算，比较 $n$ 的漂移量 |
+
+## 诊断脚本
+
+```python
+import numpy as np
+
+# 采样线数据: x [m], k [m2/s2]
+x = np.array([0.5, 1.0, 2.0, 4.0, 6.0])
+k = np.array([0.300, 0.152, 0.0650, 0.0275, 0.0160])
+
+n_fit = -np.polyfit(np.log(x / x[0]), np.log(k / k[0]), 1)[0]
+print(f"衰减指数 n = {n_fit:.2f}  (实验区间 1.0 ~ 1.3)")
+
+U, nu, Cmu = 15.0, 1.5e-5, 0.09
+eps = n_fit * U * k[0] * (x / x[0]) ** (-(n_fit + 1)) / x * x[0]
+Lt = Cmu ** 0.75 * k ** 1.5 / eps
+nu_t = Cmu * k ** 2 / eps
+for xi, ki, ei, li, ri in zip(x, k, eps, Lt, nu_t / nu):
+    print(f"x={xi:4.1f} m  k={ki:.4f} m2/s2  eps={ei:.4f} m2/s3  "
+          f"Lt={li*1e3:.2f} mm  nu_t/nu={ri:6.1f}")
+
+Tu = np.sqrt(2 * k / 3) / U
+print("Tu [%] =", np.round(Tu * 100, 3))
+```
+
+脚本输出 $n$、逐点 $\varepsilon$、$L_t$ 与 $\nu_t/\nu$，与热丝数据并列即可判断入口是否可信。若 $\nu_t/\nu$ 在采样段内从 38 单调升到 300，说明采样落在了远场耗散区，$L_t$ 已不再代表入口尺度，需要把入口按同一 $L_t$ 重新标定。
+
+## 参考文献
+
+1. Roach P.E., "The generation of nearly isotropic turbulence by means of grids", *International Journal of Heat and Fluid Flow*, 8(2), 82-92, 1987.
+2. Comte-Bellot G., Corrsin S., "The use of a contraction to improve the isotropy of grid-generated turbulence", *Journal of Fluid Mechanics*, 25(4), 657-682, 1966.
+3. Pope S.B., *Turbulent Flows*, Cambridge University Press, 2000.
+4. ASME Standards Committee, *Standard for Verification and Validation in Computational Fluid Dynamics and Heat Transfer*, ASME V&V 20-2009, New York, 2009.
+5. Spalart P.R., Rumsey C.L., "Effective Inflow Conditions for Turbulence Models in Aerodynamic Calculations", *AIAA Journal*, 45(10), 2544-2553, 2007.

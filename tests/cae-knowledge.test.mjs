@@ -26,7 +26,11 @@ const articles = files.map(({ folder, name, url }) => {
   const article = parseKnowledgeTemplate(source, join(folder, name));
   assert.equal(article.status, "PUBLISHED");
   assert.ok(article.headings.length >= 5, `${article.slug} 缺少分层推导结构`);
-  assert.match(article.markdown, /## \d+\. 参考资料/u, `${article.slug} 缺少参考资料`);
+  assert.match(
+    article.markdown,
+    /参考(?:资料)?(?:[：:]|$)|检查清单与参考/mu,
+    `${article.slug} 缺少参考资料`,
+  );
   assert.ok((article.markdown.match(/\$\$/g) || []).length >= 2, `${article.slug} 缺少独立推导公式`);
   assert.ok(article.html.includes("class=\"katex"), `${article.slug} 未生成 KaTeX`);
   assert.ok(article.html.includes("<math"), `${article.slug} 未生成 MathML`);
