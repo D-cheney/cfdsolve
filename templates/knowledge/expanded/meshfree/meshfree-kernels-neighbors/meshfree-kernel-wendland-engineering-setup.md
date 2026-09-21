@@ -4,7 +4,7 @@ slug: meshfree-kernel-wendland-engineering-setup
 title: Wendland 核：工程设置与诊断验证
 summary: >-
   梳理 Wendland C2 核两套等价写法的常数配对关系，给出 1D/2D/3D 归一化常数、导数形式与邻居数预算，并用一个把 η 误当两倍导致邻居数从
-  58 掉到 7.2 的算例说明配置陷阱。 全文同时覆盖工程设置与参数选择、诊断与可信度验证，保留关键方程、量化参数、可执行示例、失败模式与参考资料。
+  58 掉到 7.2 的算例说明配置陷阱。
 category:
   slug: meshfree-kernels-neighbors
   name: 无网格法核函数与邻域搜索
@@ -28,7 +28,6 @@ seo:
   description: >-
     梳理 Wendland C2 核两套等价写法的常数配对关系，给出 1D/2D/3D 归一化常数、导数形式与邻居数预算，并用一个把 η
     误当两倍导致邻居数从 58 掉到 7.2 的算例说明配置陷阱。
-    全文同时覆盖工程设置与参数选择、诊断与可信度验证，保留关键方程、量化参数、可执行示例、失败模式与参考资料。
   keywords:
     - Wendland 核
     - 工程设置与参数选择
@@ -44,9 +43,74 @@ seo:
 ---
 # Wendland 核：工程设置与诊断验证
 
-## 工程设置与参数选择
+Wendland C2 核是当前 SPH 工程模拟的默认选择，原因是它的傅里叶变换在整个支持域内非负，可以在高邻居数下保持稳定。它的配置难点不在参数本身，而在于文献里存在两套差一个因子 2 的写法：支持半径写成 $2h$ 或写成 $h$。换用 Wendland C2 之后最常见的两种"结果不对"是：密度看起来正常但压力比基准低几个百分点，以及拉伸区依然出现配对。前者几乎总是归一化常数与形状函数配对错了，后者往往是代码里实际调用的还是三次样条。
 
-Wendland C2 核是当前 SPH 工程模拟的默认选择，原因是它的傅里叶变换在整个支持域内非负，可以在高邻居数下保持稳定。它的配置难点不在参数本身，而在于文献里存在两套差一个因子 2 的写法：支持半径写成 $2h$ 或写成 $h$。本文给出两套写法的常数配对表、导数形式、邻居数预算，并说明写错配对会把密度压低 8 倍。
+## 工程设置与实施
+
+### 参数台账与配置片段
+
+```yaml
+# Wendland C2 三维设置，第一套写法（rc = 2h）
+kernel:        wendland_c2
+dimension:     3
+dp:            0.005          # m, 粒子间距
+eta:           1.2            # h = eta * dp = 0.006 m
+kappa:         2.0            # rc = kappa * h = 0.012 m
+sigma3:        3.34226        # 21/(2*pi)，注意与形状函数配对
+dw_dq:        "-5*q*(1-0.5*q)**3"
+neighbor_target: 57.9
+cell_size:     0.012          # m, 不小于 rc
+cfl:           0.25
+cs:            20.0           # m/s
+alpha:         0.10
+```
+
+```python
+import math
+SIGMA3 = 21.0/(2.0*math.pi)          # 与 (1-s)^4*(4s+1) 配对
+
+def wendland_c2_s(s):                # s = r/h, 支撑 s<=1
+    return 0.0 if s >= 1.0 else (1.0-s)**4*(4.0*s+1.0)
+
+def wendland_c2_ds(s):
+    if s >= 1.0: return 0.0
+    return -20.0*s*(1.0-s)**3
+
+h  = 1.2*0.005                       # 0.006 m
+rc = 2.0*h                           # 0.012 m
+print(round(SIGMA3, 5), round(h, 4), round(rc, 4))
+print("N3D =", round((4.0/3.0)*math.pi*(rc/0.005)**3, 1))   # 57.9
+```
+
+注意 `wendland_c2_ds` 用的是第二套变量 $s$；若代码内部统一用第一套的 $q$，导数必须换成 $-5q(1-q/2)^3$ 并把常数换成 $21/(16\pi)$。变量与常数必须成对出现，不能各取一套。
+
+### 诊断脚本
+
+```python
+import math
+
+def simpson_n4(f, a, b):
+    h = (b-a)/4.0
+    xs = [a + i*h for i in range(5)]
+    return h/3.0*(f(xs[0]) + 4*f(xs[1]) + 2*f(xs[2]) + 4*f(xs[3]) + f(xs[4]))
+
+def wendland_q(q):                    # 支撑 q<=2
+    return 0.0 if q >= 2.0 else (1.0-q/2.0)**4*(2.0*q+1.0)
+
+def check_norm():
+    I = simpson_n4(lambda q: 4*math.pi*q*q*wendland_q(q), 0.0, 2.0)
+    print("raw integral = %.6f" % I)                  # 2.395616
+    print("normalized   = %.6f" % (21.0/(16.0*math.pi)*I))   # 1.004883
+
+def second_moment():
+    M = simpson_n4(lambda q: 4*math.pi*q**4*wendland_q(q), 0.0, 2.0)
+    m2 = 21.0/(16.0*math.pi)*M
+    print("m2 = %.4f h^2, sigma = %.4f h" % (m2, math.sqrt(m2/3.0)))
+
+check_norm(); second_moment()
+```
+
+第一行输出 2.395616，解析值是 $16\pi/21=2.393573$，差 0.09%；第二行输出 1.004883，与手算一致；`m2` 输出 0.8000 h²、`sigma` 输出 0.5164 h。三个数字都应与上面的解析结果对上，对不上就说明形状函数或常数改错了。
 
 ### 两套等价写法与它们的常数配对
 
@@ -93,44 +157,9 @@ $$N_{3D}\approx\frac{4}{3}\pi(\kappa\eta)^{3}$$
 
 配置时只需在任务单里写清一条：**$r_c$ 的绝对值是多少毫米**，并把它与代码中实际生效的截断半径打印值对齐。
 
-### 参数台账与配置片段
+## 异常诊断与失效模式
 
-```yaml
-# Wendland C2 三维设置，第一套写法（rc = 2h）
-kernel:        wendland_c2
-dimension:     3
-dp:            0.005          # m, 粒子间距
-eta:           1.2            # h = eta * dp = 0.006 m
-kappa:         2.0            # rc = kappa * h = 0.012 m
-sigma3:        3.34226        # 21/(2*pi)，注意与形状函数配对
-dw_dq:        "-5*q*(1-0.5*q)**3"
-neighbor_target: 57.9
-cell_size:     0.012          # m, 不小于 rc
-cfl:           0.25
-cs:            20.0           # m/s
-alpha:         0.10
-```
-
-```python
-import math
-SIGMA3 = 21.0/(2.0*math.pi)          # 与 (1-s)^4*(4s+1) 配对
-
-def wendland_c2_s(s):                # s = r/h, 支撑 s<=1
-    return 0.0 if s >= 1.0 else (1.0-s)**4*(4.0*s+1.0)
-
-def wendland_c2_ds(s):
-    if s >= 1.0: return 0.0
-    return -20.0*s*(1.0-s)**3
-
-h  = 1.2*0.005                       # 0.006 m
-rc = 2.0*h                           # 0.012 m
-print(round(SIGMA3, 5), round(h, 4), round(rc, 4))
-print("N3D =", round((4.0/3.0)*math.pi*(rc/0.005)**3, 1))   # 57.9
-```
-
-注意 `wendland_c2_ds` 用的是第二套变量 $s$；若代码内部统一用第一套的 $q$，导数必须换成 $-5q(1-q/2)^3$ 并把常数换成 $21/(16\pi)$。变量与常数必须成对出现，不能各取一套。
-
-### 设置阶段的失败模式
+### 故障模式与判定试验
 
 | 现象 | 根因 | 判定试验 |
 |---|---|---|
@@ -140,19 +169,14 @@ print("N3D =", round((4.0/3.0)*math.pi*(rc/0.005)**3, 1))   # 57.9
 | 中心区压力异常平坦 | 误用三次样条形状函数配 Wendland 常数 | 检查 $w(0)$，Wendland C2 应等于 1.0 |
 | 两端出现力阶跃 | 导数用数值差分且截断处未归零 | 打印 $dw/dq$ 在 $q=0$ 与 $q=2$ 的值，应均为 0.0 |
 | 高邻居数下仍出现配对 | 实际用的是三次样条而非 Wendland | 打印核名与 $\hat W(k)$ 最小符号，Wendland C2 应恒非负 |
+| 归一化自检得到 0.125 | $21/(16\pi)$ 与 $(1-s)^{4}(4s+1)$ 错配 | 换回 $(1-q/2)^{4}(2q+1)$，重算应得 1.0049 |
+| 归一化自检得到 8.000 | $21/(2\pi)$ 与 $q$ 形式错配 | 同上，反向替换验证 |
+| 界面比三次样条算例薄约 6% | 二阶矩从 $0.300h^{2}$ 降到 $0.267h^{2}$ | 打印两种核的 $\sigma_W$ 并与界面厚度实测值比对 |
+| 高邻居数下仍出现粒子对 | 实际加载的是三次样条核 | 在核函数内插入类型断言并打印核名 |
+| 压力比基准低约 12% | 只对体积项重归一化，压力项未同步 | 检查压力计算使用的 $W$ 与密度使用的 $W$ 是否同一对象 |
+| 加密后阻力系数变化 4% 但 $S_i$ 正常 | 误差来自分辨率而非核 | 保持 $\eta$ 不变只减 $\Delta p$，观察变化率是否随 $\Delta p^{2}$ 下降 |
 
-### 参考文献
-
-1. Wendland H., *Piecewise polynomial, positive definite and compactly supported radial functions of minimal degree*, Advances in Computational Mathematics, 4, 389–396, 1995.
-2. Dehnen W., Aly H., *Improving convergence in smoothed particle hydrodynamics simulations without pairing instability*, Monthly Notices of the Royal Astronomical Society, 425, 1068–1082, 2012.
-3. Wendland H., *Scattered Data Approximation*, Cambridge University Press, 2005.
-4. Violeau D., *Fluid Mechanics and the SPH Method: Theory and Applications*, Oxford University Press, 2012.
-5. Liu M.B., Liu G.R., *Smoothed Particle Hydrodynamics (SPH): an Overview and Recent Developments*, Archives of Computational Methods in Engineering, 17, 25–76, 2010.
-6. Rosswog S., *Astrophysical smooth particle hydrodynamics*, New Astronomy Reviews, 53, 78–104, 2009.
-
-## 诊断与可信度验证
-
-换用 Wendland C2 之后最常见的两种"结果不对"是：密度看起来正常但压力比基准低几个百分点，以及拉伸区依然出现配对。前者几乎总是归一化常数与形状函数配对错了，后者往往是代码里实际调用的还是三次样条。本文给出三项不依赖求解器的自检，其中第一项可以用手算完成。
+## 验证、验收与复现
 
 ### 手算归一化：四点 Simpson 给 1.0049
 
@@ -170,6 +194,10 @@ $$\frac{21}{16\pi}\int_{0}^{2}4\pi q^{2}\left(1-\frac{q}{2}\right)^{4}(2q+1)\,dq
 
 常数配对的三种可能必须分清：正确的 $21/(16\pi)=0.41780$ 配 $(1-q/2)^{4}(2q+1)$ 得 1.0000；正确的 $21/(2\pi)=3.34226$ 配 $(1-s)^{4}(4s+1)$ 也得 1.0000；把 $21/(16\pi)$ 配 $(1-s)^{4}(4s+1)$ 得 $0.125$，把 $21/(2\pi)$ 配 $(1-q/2)^{4}(2q+1)$ 得 $8.000$。
 
+### 高邻居数下的收敛检查
+
+Wendland C2 的用途是让"加密粒子"与"增大 $\eta$"两个旋钮解耦。验证收敛时，固定 $\eta=1.2$、$\kappa=2$，只加密 $\Delta p$：$\Delta p$ 从 10.0 mm 减到 5.0 mm，$h$ 从 12.0 mm 减到 6.0 mm，邻居数恒为 57.9，成本涨 8 倍（三维粒子数按 2 的 3 次方增长）。若某一物理量（如圆柱绕流的阻力系数）在两次加密之间的变化小于 1%，且 $S_i$ 最小值保持在 0.95 以上，可以认为分辨率足够。反之，若阻力系数变化超过 3% 而 $S_i$ 正常，说明误差来自分辨率而非核，继续换核无效。
+
 ### 有效平滑宽度比三次样条小 5.7%
 
 二阶矩决定核把流场抹平了多少：
@@ -184,6 +212,8 @@ $$\int_{\mathbb{R}^{3}}r^{2}W\,d\mathbf{r}=4\pi\cdot\frac{21}{16\pi}h^{2}\int_{0
 
 Wendland C2 的傅里叶变换在支持域内非负，这一条性质的可测后果是：把邻居数从 30 提到 120，规则排布不会自发坍缩成对。诊断方法是同一初始粒子集、同一时间步，只改 $\eta$：
 
+如果 Wendland C2 在 $N_{3D}=91.9$ 时仍然出现 $r<0.5\Delta p$ 的粒子对，第一嫌疑是代码实际加载的是三次样条核，第二嫌疑是时间步过大导致积分器失稳，而不是核本身。区分方法：把 $\Delta t$ 缩到 1/4，若配对消失则是积分器问题；若配对数量不变，则是核的问题。
+
 | $\eta$（$\kappa=2$） | $N_{3D}$ | 三次样条预期 | Wendland C2 预期 |
 |---|---|---|---|
 | 1.0 | 33.5 | 稳定 | 稳定 |
@@ -191,56 +221,13 @@ Wendland C2 的傅里叶变换在支持域内非负，这一条性质的可测�
 | 1.4 | 91.9 | 失稳 | 稳定 |
 | 1.6 | 137.2 | 失稳 | 稳定（噪声降低） |
 
-如果 Wendland C2 在 $N_{3D}=91.9$ 时仍然出现 $r<0.5\Delta p$ 的粒子对，第一嫌疑是代码实际加载的是三次样条核，第二嫌疑是时间步过大导致积分器失稳，而不是核本身。区分方法：把 $\Delta t$ 缩到 1/4，若配对消失则是积分器问题；若配对数量不变，则是核的问题。
-
-### 高邻居数下的收敛检查
-
-Wendland C2 的用途是让"加密粒子"与"增大 $\eta$"两个旋钮解耦。验证收敛时，固定 $\eta=1.2$、$\kappa=2$，只加密 $\Delta p$：$\Delta p$ 从 10.0 mm 减到 5.0 mm，$h$ 从 12.0 mm 减到 6.0 mm，邻居数恒为 57.9，成本涨 8 倍（三维粒子数按 2 的 3 次方增长）。若某一物理量（如圆柱绕流的阻力系数）在两次加密之间的变化小于 1%，且 $S_i$ 最小值保持在 0.95 以上，可以认为分辨率足够。反之，若阻力系数变化超过 3% 而 $S_i$ 正常，说明误差来自分辨率而非核，继续换核无效。
-
-### 诊断脚本
-
-```python
-import math
-
-def simpson_n4(f, a, b):
-    h = (b-a)/4.0
-    xs = [a + i*h for i in range(5)]
-    return h/3.0*(f(xs[0]) + 4*f(xs[1]) + 2*f(xs[2]) + 4*f(xs[3]) + f(xs[4]))
-
-def wendland_q(q):                    # 支撑 q<=2
-    return 0.0 if q >= 2.0 else (1.0-q/2.0)**4*(2.0*q+1.0)
-
-def check_norm():
-    I = simpson_n4(lambda q: 4*math.pi*q*q*wendland_q(q), 0.0, 2.0)
-    print("raw integral = %.6f" % I)                  # 2.395616
-    print("normalized   = %.6f" % (21.0/(16.0*math.pi)*I))   # 1.004883
-
-def second_moment():
-    M = simpson_n4(lambda q: 4*math.pi*q**4*wendland_q(q), 0.0, 2.0)
-    m2 = 21.0/(16.0*math.pi)*M
-    print("m2 = %.4f h^2, sigma = %.4f h" % (m2, math.sqrt(m2/3.0)))
-
-check_norm(); second_moment()
-```
-
-第一行输出 2.395616，解析值是 $16\pi/21=2.393573$，差 0.09%；第二行输出 1.004883，与手算一致；`m2` 输出 0.8000 h²、`sigma` 输出 0.5164 h。三个数字都应与上面的解析结果对上，对不上就说明形状函数或常数改错了。
-
-### 误判清单
-
-| 现象 | 根因 | 判定试验 |
-|---|---|---|
-| 归一化自检得到 0.125 | $21/(16\pi)$ 与 $(1-s)^{4}(4s+1)$ 错配 | 换回 $(1-q/2)^{4}(2q+1)$，重算应得 1.0049 |
-| 归一化自检得到 8.000 | $21/(2\pi)$ 与 $q$ 形式错配 | 同上，反向替换验证 |
-| 界面比三次样条算例薄约 6% | 二阶矩从 $0.300h^{2}$ 降到 $0.267h^{2}$ | 打印两种核的 $\sigma_W$ 并与界面厚度实测值比对 |
-| 高邻居数下仍出现粒子对 | 实际加载的是三次样条核 | 在核函数内插入类型断言并打印核名 |
-| 压力比基准低约 12% | 只对体积项重归一化，压力项未同步 | 检查压力计算使用的 $W$ 与密度使用的 $W$ 是否同一对象 |
-| 加密后阻力系数变化 4% 但 $S_i$ 正常 | 误差来自分辨率而非核 | 保持 $\eta$ 不变只减 $\Delta p$，观察变化率是否随 $\Delta p^{2}$ 下降 |
-
-### 参考文献
+## 参考资料
 
 1. Wendland H., *Piecewise polynomial, positive definite and compactly supported radial functions of minimal degree*, Advances in Computational Mathematics, 4, 389–396, 1995.
 2. Dehnen W., Aly H., *Improving convergence in smoothed particle hydrodynamics simulations without pairing instability*, Monthly Notices of the Royal Astronomical Society, 425, 1068–1082, 2012.
 3. Wendland H., *Scattered Data Approximation*, Cambridge University Press, 2005.
-4. Liu M.B., Liu G.R., *Smoothed Particle Hydrodynamics (SPH): an Overview and Recent Developments*, Archives of Computational Methods in Engineering, 17, 25–76, 2010.
-5. Zhu Q., Hernquist L., Li Y., *Numerical convergence in smoothed particle hydrodynamics*, The Astrophysical Journal, 800, 6, 2015.
-6. Monaghan J.J., *Smoothed Particle Hydrodynamics*, Annual Review of Astronomy and Astrophysics, 30, 543–574, 1992.
+4. Violeau D., *Fluid Mechanics and the SPH Method: Theory and Applications*, Oxford University Press, 2012.
+5. Liu M.B., Liu G.R., *Smoothed Particle Hydrodynamics (SPH): an Overview and Recent Developments*, Archives of Computational Methods in Engineering, 17, 25–76, 2010.
+6. Rosswog S., *Astrophysical smooth particle hydrodynamics*, New Astronomy Reviews, 53, 78–104, 2009.
+7. Zhu Q., Hernquist L., Li Y., *Numerical convergence in smoothed particle hydrodynamics*, The Astrophysical Journal, 800, 6, 2015.
+8. Monaghan J.J., *Smoothed Particle Hydrodynamics*, Annual Review of Astronomy and Astrophysics, 30, 543–574, 1992.

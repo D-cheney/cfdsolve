@@ -5,7 +5,6 @@ title: 激波捕捉：原理与诊断验证
 summary: >-
   把激波捕捉当作守恒律的数值问题来处理：给出守恒变量与通量形式、MUSCL 重构与限制器函数的具体表达式、TVD 区域判据、熵修正阈值，以及 Ms=1.728
   时波后状态与总压损失的手算核对，并说明网格尺度与涂抹宽度的对应关系。
-  全文同时覆盖原理与适用范围、诊断与可信度验证，保留关键方程、量化参数、可执行示例、失败模式与参考资料。
 category:
   slug: heat-transfer
   name: 传热与可压缩流
@@ -29,7 +28,6 @@ seo:
   description: >-
     把激波捕捉当作守恒律的数值问题来处理：给出守恒变量与通量形式、MUSCL 重构与限制器函数的具体表达式、TVD 区域判据、熵修正阈值，以及
     Ms=1.728 时波后状态与总压损失的手算核对，并说明网格尺度与涂抹宽度的对应关系。
-    全文同时覆盖原理与适用范围、诊断与可信度验证，保留关键方程、量化参数、可执行示例、失败模式与参考资料。
   keywords:
     - 激波捕捉
     - 物理建模与适用边界
@@ -43,9 +41,9 @@ seo:
 ---
 # 激波捕捉：原理与诊断验证
 
-## 原理与适用范围
+激波是守恒律的间断解，不能靠加密网格"磨"出真实厚度，只能让离散格式在守恒、有界与间断分辨率之间取得平衡。激波捕捉的"激波厚度"永远是数值产物，把它当物理量比较没有意义；能用来验收的是位置、涂抹宽度、过冲幅值和熵增这四个量。
 
-激波是守恒律的间断解，不能靠加密网格"磨"出真实厚度，只能让离散格式在守恒、有界与间断分辨率之间取得平衡。本文给出守恒形式、限制器函数与 TVD 判据的具体表达式、熵修正的阈值，以及一次波后状态的手算核对。
+## 基础概念与控制关系
 
 ### 守恒律与间断解
 
@@ -56,6 +54,16 @@ $$
 $$
 
 守恒形式的含义是：只要通量在单元面上是单值的，跨过激波的 Rankine–Hugoniot 关系就自动成立，激波位置由守恒决定而非由网格决定。任何把方程改写成非守恒形式（例如以 $p$、$u$ 为未知量）的做法都会在间断处引入错误，这是激波捕捉类格式必须坚持守恒变量的根本原因。
+
+### 网格尺度与涂抹宽度
+
+激波捕捉得到的激波厚度完全是数值产物，通常为
+
+$$
+\delta_{smear}\approx N_c\Delta x
+$$
+
+二阶 TVD 格式 $N_c\approx3$，一阶迎风 $N_c\approx8\sim10$。对 1 m 长的管道、激波位于 $x=0.3\ \mathrm{m}$：单元尺度 2 mm（500 单元）时涂抹宽度约 6 mm；加密到 0.5 mm（2000 单元）时约 1.5 mm。因此看激波位置与总压损失比看激波厚度更有意义——位置误差应随网格按阶收敛，而厚度永远与 $\Delta x$ 同量级。
 
 ### 通量函数与重构
 
@@ -98,16 +106,6 @@ $$
 $$
 
 $\delta$ 取当地声速的 10%，是 OpenFOAM 与多数商业求解器的默认量级。$\delta$ 取得过小会让膨胀扇处出现网格尺度的振荡，取得过大则在接触间断上加额外耗散。判据很简单：把 $\delta$ 从 0.05a 增到 0.2a，若激波位置移动超过一个单元宽度，说明格式对熵修正过于敏感。
-
-### 网格尺度与涂抹宽度
-
-激波捕捉得到的激波厚度完全是数值产物，通常为
-
-$$
-\delta_{smear}\approx N_c\Delta x
-$$
-
-二阶 TVD 格式 $N_c\approx3$，一阶迎风 $N_c\approx8\sim10$。对 1 m 长的管道、激波位于 $x=0.3\ \mathrm{m}$：单元尺度 2 mm（500 单元）时涂抹宽度约 6 mm；加密到 0.5 mm（2000 单元）时约 1.5 mm。因此看激波位置与总压损失比看激波厚度更有意义——位置误差应随网格按阶收敛，而厚度永远与 $\Delta x$ 同量级。
 
 ### 算例：Ms=1.728 的波后状态与总压损失
 
@@ -159,7 +157,31 @@ rhoCentralFoam
 shockFluid
 ```
 
-### 失败模式
+## 工程设置与实施
+
+### 涂抹宽度与网格的对应
+
+涂抹宽度用跨越激波 10%～90% 压力变化的单元数度量：
+
+$$
+\delta_{smear}=N_c\,\Delta x
+$$
+
+TVD 二阶格式的 $N_c$ 约为 3，一阶迎风格式则达到 8 至 10。对 $L=1\ \mathrm{m}$ 的管道，$N_c=3$ 时：500 单元（$\Delta x=2\ \mathrm{mm}$）给出 6 mm；2000 单元（0.5 mm）给出 1.5 mm；8000 单元（0.125 mm）给出 0.375 mm。$N_c$ 本身应随网格稳定在 3 附近；若 $N_c$ 从 3 涨到 7，说明限制器在更细网格上被触发得更频繁，通常是变量在间断附近的梯度比 $r$ 变得不稳定。
+
+## 异常诊断与失效模式
+
+### 诊断表：现象、根因、判定试验
+
+| 现象 | 根因 | 判定试验 |
+|---|---|---|
+| 位置误差在网格细化后不降反升 | 初场不对称或激波与块界面相交 | 检查激波是否跨块，比较对称位置的波速 |
+| 过冲 $\eta_{over}=11.8\%$ 且波后振荡 | 格式无界，限制器在间断处未生效 | 换 minmod 重算，观察峰值是否回到 2% 内 |
+| 熵增算出来是负值 | 出现膨胀激波，熵修正缺失 | 把熵修正阈值从 0.05a 提到 0.1a 后重算 |
+| 总压损失比解析值低 4% | 激波涂抹过宽，耗散把损失摊平 | 加密激波法向网格，观察 $p_{0,2}/p_{0,1}$ 是否趋近 0.843 |
+| 强激波前出现锯齿状密度扰动 | 奇偶失稳或 carbuncle 现象 | 改用 HLLC/HLL 通量并降低 CFL 重算 |
+
+### 故障模式与判定试验
 
 | 现象 | 根因 | 判定试验 |
 |---|---|---|
@@ -169,18 +191,7 @@ shockFluid
 | 接触间断被抹成 20 个单元宽 | 用了 HLL 型通量，接触波耗散过大 | 换 HLLC 或 Roe，观察接触间断宽度是否收敛到 3～5 单元 |
 | 强激波算例出现负密度 | 重构未做保正限制 | 开启保正限制或降低 CFL 至 0.2 以下 |
 
-### 参考文献
-
-1. Godunov S.K., "A difference method for numerical calculation of discontinuous solutions of the equations of hydrodynamics", *Matematicheskii Sbornik*, 47(3), 271–306, 1959.
-2. Roe P.L., "Approximate Riemann solvers, parameter vectors, and difference schemes", *Journal of Computational Physics*, 43(2), 357–372, 1981.
-3. Harten A., "High resolution schemes for hyperbolic conservation laws", *Journal of Computational Physics*, 49(3), 357–393, 1983.
-4. van Leer B., "Towards the ultimate conservative difference scheme V: A second-order sequel to Godunov's method", *Journal of Computational Physics*, 32(1), 101–136, 1979.
-5. Kurganov A., Tadmor E., "New high-resolution central schemes for nonlinear conservation laws and convection-diffusion equations", *Journal of Computational Physics*, 160(1), 241–282, 2000.
-6. Greenshields C.J., Weller H.G., Gasparini L., Reese J.M., "Implementation of semi-discrete, non-staggered central schemes in a colocated, polyhedral, finite volume framework, for high-speed viscous flows", *International Journal for Numerical Methods in Fluids*, 63(1), 1–21, 2010.
-
-## 诊断与可信度验证
-
-激波捕捉的"激波厚度"永远是数值产物，把它当物理量比较没有意义；能用来验收的是位置、涂抹宽度、过冲幅值和熵增这四个量。本文给出每个量的定义、提取方法、随网格的期望收敛行为，以及一次完整的数值核对。
+## 验证、验收与复现
 
 ### 激波位置误差怎么量化
 
@@ -192,15 +203,9 @@ $$
 
 $x_s^{exact}$ 可由激波速度与时间得到。二阶 TVD 格式在均匀网格上位置误差应按一阶到二阶收敛（受间断限制器影响，实际常为一阶）。三套网格的 $\epsilon_{pos}$ 若在 1.2%、0.6%、0.28% 附近，比值约 2，说明格式行为一致；若从 1.2% 降到 0.15% 再反弹到 0.9%，说明网格或初场在某套分辨率上触发了别的机制，而不是格式问题。
 
-### 涂抹宽度与网格的对应
+### 验证记录该留什么
 
-涂抹宽度用跨越激波 10%～90% 压力变化的单元数度量：
-
-$$
-\delta_{smear}=N_c\,\Delta x
-$$
-
-TVD 二阶格式的 $N_c$ 约为 3，一阶迎风格式则达到 8 至 10。对 $L=1\ \mathrm{m}$ 的管道，$N_c=3$ 时：500 单元（$\Delta x=2\ \mathrm{mm}$）给出 6 mm；2000 单元（0.5 mm）给出 1.5 mm；8000 单元（0.125 mm）给出 0.375 mm。$N_c$ 本身应随网格稳定在 3 附近；若 $N_c$ 从 3 涨到 7，说明限制器在更细网格上被触发得更频繁，通常是变量在间断附近的梯度比 $r$ 变得不稳定。
+记录里应并列：三套网格的 $\epsilon_{pos}$ 与 $N_c$、过冲幅值、$\Delta s$ 的数值解与解析解、$p_{0,2}/p_{0,1}$ 的数值与 0.843 的偏差、以及质量守恒的相对误差。若 $\epsilon_{pos}$ 与 $\Delta s$ 同时收敛而 $N_c$ 保持不变，说明格式行为正常；若 $N_c$ 随网格持续增大，即使位置误差在降，也应先解决限制器问题，否则更细的网格只会让激波更"糊"。
 
 ### 过冲与欠冲的识别
 
@@ -269,25 +274,17 @@ postProcess -func "fieldMinMax(p)" -time 0.0005
 postProcess -func "volFieldValue(volFieldValue1)" -time 0.0005
 ```
 
-### 诊断表：现象、根因、判定试验
+## 参考资料
 
-| 现象 | 根因 | 判定试验 |
-|---|---|---|
-| 位置误差在网格细化后不降反升 | 初场不对称或激波与块界面相交 | 检查激波是否跨块，比较对称位置的波速 |
-| 过冲 $\eta_{over}=11.8\%$ 且波后振荡 | 格式无界，限制器在间断处未生效 | 换 minmod 重算，观察峰值是否回到 2% 内 |
-| 熵增算出来是负值 | 出现膨胀激波，熵修正缺失 | 把熵修正阈值从 0.05a 提到 0.1a 后重算 |
-| 总压损失比解析值低 4% | 激波涂抹过宽，耗散把损失摊平 | 加密激波法向网格，观察 $p_{0,2}/p_{0,1}$ 是否趋近 0.843 |
-| 强激波前出现锯齿状密度扰动 | 奇偶失稳或 carbuncle 现象 | 改用 HLLC/HLL 通量并降低 CFL 重算 |
-
-### 验证记录该留什么
-
-记录里应并列：三套网格的 $\epsilon_{pos}$ 与 $N_c$、过冲幅值、$\Delta s$ 的数值解与解析解、$p_{0,2}/p_{0,1}$ 的数值与 0.843 的偏差、以及质量守恒的相对误差。若 $\epsilon_{pos}$ 与 $\Delta s$ 同时收敛而 $N_c$ 保持不变，说明格式行为正常；若 $N_c$ 随网格持续增大，即使位置误差在降，也应先解决限制器问题，否则更细的网格只会让激波更"糊"。
-
-### 参考文献
-
-1. Sod G.A., "A survey of several finite difference methods for systems of nonlinear hyperbolic conservation laws", *Journal of Computational Physics*, 27(1), 1–31, 1978.
-2. Quirk J.J., "A contribution to the great Riemann solver debate", *International Journal for Numerical Methods in Fluids*, 18(6), 555–574, 1994.
-3. Woodward P., Colella P., "The numerical simulation of two-dimensional fluid flow with strong shocks", *Journal of Computational Physics*, 54(1), 115–173, 1984.
-4. Harten A., Lax P.D., van Leer B., "On upstream differencing and Godunov-type schemes for hyperbolic conservation laws", *SIAM Review*, 25(1), 35–61, 1983.
-5. Lax P.D., "Weak solutions of nonlinear hyperbolic equations and their numerical computation", *Communications on Pure and Applied Mathematics*, 7(1), 159–193, 1954.
-6. Richtmyer R.D., Morton K.W., *Difference Methods for Initial-Value Problems*, 2nd ed., Interscience Publishers, 1967.
+1. Godunov S.K., "A difference method for numerical calculation of discontinuous solutions of the equations of hydrodynamics", *Matematicheskii Sbornik*, 47(3), 271–306, 1959.
+2. Roe P.L., "Approximate Riemann solvers, parameter vectors, and difference schemes", *Journal of Computational Physics*, 43(2), 357–372, 1981.
+3. Harten A., "High resolution schemes for hyperbolic conservation laws", *Journal of Computational Physics*, 49(3), 357–393, 1983.
+4. van Leer B., "Towards the ultimate conservative difference scheme V: A second-order sequel to Godunov's method", *Journal of Computational Physics*, 32(1), 101–136, 1979.
+5. Kurganov A., Tadmor E., "New high-resolution central schemes for nonlinear conservation laws and convection-diffusion equations", *Journal of Computational Physics*, 160(1), 241–282, 2000.
+6. Greenshields C.J., Weller H.G., Gasparini L., Reese J.M., "Implementation of semi-discrete, non-staggered central schemes in a colocated, polyhedral, finite volume framework, for high-speed viscous flows", *International Journal for Numerical Methods in Fluids*, 63(1), 1–21, 2010.
+7. Sod G.A., "A survey of several finite difference methods for systems of nonlinear hyperbolic conservation laws", *Journal of Computational Physics*, 27(1), 1–31, 1978.
+8. Quirk J.J., "A contribution to the great Riemann solver debate", *International Journal for Numerical Methods in Fluids*, 18(6), 555–574, 1994.
+9. Woodward P., Colella P., "The numerical simulation of two-dimensional fluid flow with strong shocks", *Journal of Computational Physics*, 54(1), 115–173, 1984.
+10. Harten A., Lax P.D., van Leer B., "On upstream differencing and Godunov-type schemes for hyperbolic conservation laws", *SIAM Review*, 25(1), 35–61, 1983.
+11. Lax P.D., "Weak solutions of nonlinear hyperbolic equations and their numerical computation", *Communications on Pure and Applied Mathematics*, 7(1), 159–193, 1954.
+12. Richtmyer R.D., Morton K.W., *Difference Methods for Initial-Value Problems*, 2nd ed., Interscience Publishers, 1967.

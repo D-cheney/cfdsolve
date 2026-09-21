@@ -5,7 +5,6 @@ title: extends 继承与修改：原理与诊断验证
 summary: >-
   讲清 extends 带入方程与接口的方式、修改符优先级链、partial 与 replaceable
   的职责分工，以及多重继承的冲突消解，并用一阶环节的阶跃响应完成 1.2642 与 1.7293 的手算核对。
-  全文同时覆盖原理与适用范围、诊断与可信度验证，保留关键方程、量化参数、可执行示例、失败模式与参考资料。
 category:
   slug: modelica-language
   name: Modelica 语言基础
@@ -29,7 +28,6 @@ seo:
   description: >-
     讲清 extends 带入方程与接口的方式、修改符优先级链、partial 与 replaceable
     的职责分工，以及多重继承的冲突消解，并用一阶环节的阶跃响应完成 1.2642 与 1.7293 的手算核对。
-    全文同时覆盖原理与适用范围、诊断与可信度验证，保留关键方程、量化参数、可执行示例、失败模式与参考资料。
   keywords:
     - extends 继承与修改
     - 语言语义与适用边界
@@ -43,9 +41,9 @@ seo:
 ---
 # extends 继承与修改：原理与诊断验证
 
-## 原理与适用范围
+`extends` 不是代码复制的语法糖，它把基类的变量、方程、接口与图标一并并入派生类，并允许用修改符在派生类或实例处覆盖基类默认值。理解它的关键有两条：方程是累加的，修改符是有优先级的。继承类故障的典型症状是"参数明明改了，结果却没变"，而源码里找不到任何矛盾。原因通常是修改符被更靠外的赋值覆盖，或 `final` 在链上切断了传递。可信度验证的做法是把展平后的模型当作唯一事实来源，用生效值反推是哪一层修改符胜出。
 
-`extends` 不是代码复制的语法糖，它把基类的变量、方程、接口与图标一并并入派生类，并允许用修改符在派生类或实例处覆盖基类默认值。理解它的关键有两条：方程是累加的，修改符是有优先级的。本文给出优先级链、`partial` 与 `replaceable` 的分工、多重继承的消解规则，并用一阶环节的阶跃响应做一次可手算核对。
+## 基础概念与控制关系
 
 ### extends 把方程与接口一并带入
 
@@ -66,29 +64,6 @@ $$v_{eff} = \begin{cases} m_{inst}, & \text{实例处给出修改符} \\ m_{exte
 这条规则解释了为什么同一个库组件在不同模型里表现不同：修改符写在实例处，只影响那一个实例，不影响库定义。`final` 是在链上切断传递：基类里写成 `final parameter Real k = 1.0` 后，派生类和实例处的修改符都会被拒绝，报 `Trying to modify final element`。
 
 数组元素的修改符用 `each` 批量施加：`cap[N](each C = 100.0)` 等价于给每个元素都写一遍 `C = 100.0`。漏掉 `each` 时工具会尝试把标量分配给数组元素，报维度错误。
-
-### partial 与 replaceable 的职责区分
-
-`partial` 与 `replaceable` 解决两个不同问题，混用会让库结构变脆。
-
-`partial model` 表示"不可独立实例化"，它通常缺少端口或缺少一条构成关系，供派生类补齐。对 `partial` 类直接实例化会报 `Class ... is partial`。
-
-`replaceable` 表示"类型可在派生或实例处替换"，并可用 `constrainedby` 限定可替换范围：
-
-```modelica
-partial model BaseController
-  replaceable Modelica.Blocks.Interfaces.SISO ctrl
-    constrainedby Modelica.Blocks.Interfaces.SISO
-    annotation(choicesAllMatching = true);
-  Modelica.Blocks.Interfaces.RealInput u;
-  Modelica.Blocks.Interfaces.RealOutput y;
-equation
-  connect(u, ctrl.u);
-  connect(ctrl.y, y);
-end BaseController;
-```
-
-`constrainedby` 施加的是子类型约束：被替换的类型必须与该接口兼容，否则报 `Redeclaration does not satisfy the constrainedby clause`。`choicesAllMatching = true` 让图形工具只列出匹配的候选类，避免把信号块换成物理端口。
 
 ### 多重继承与 break
 
@@ -133,34 +108,30 @@ $$y(t) = y_\infty \left(1 - e^{-t/T}\right)$$
 
 在 $t = T = 0.5\ \mathrm{s}$ 处，$y = 2.0 \times (1 - e^{-1}) = 2.0 \times 0.63212 = 1.2642$；在 $t = 2T = 1.0\ \mathrm{s}$ 处，$y = 2.0 \times (1 - e^{-2}) = 2.0 \times 0.86466 = 1.7293$。若仿真在这两个时刻偏离超过 $10^{-3}$，说明修改符没有生效或基类方程被重复继承了一次。
 
-### 继承失效的典型信号
+## 适用边界与方案选择
 
-| 现象 | 根因 | 判定试验 |
-|---|---|---|
-| 实例参数改了但输出不变 | 基类中该参数被 `final` 锁定 | 查看基类声明，去掉 `final` 或改用派生类覆盖 |
-| 报 `Class ... is partial` | 直接实例化了 `partial` 类 | 检查是否缺少端口或构成方程，补全后再实例化 |
-| 报 `Trying to modify final element` | 修改符链上遇到 `final` | 沿 `extends` 链逐层查找 `final` 出现位置 |
-| 报 `Duplicate elements` | 多重继承中两个基类定义了同名元素 | 用 `extends A(break v)` 断开其一，再重新声明 |
-| 数组组件只有第一个元素参数生效 | 修改符漏写 `each` | 把 `(C = 100.0)` 改为 `(each C = 100.0)` 重跑 |
+### partial 与 replaceable 的职责区分
 
-### 参考文献
+`partial` 与 `replaceable` 解决两个不同问题，混用会让库结构变脆。
 
-1. Modelica Association. *Modelica Language Specification, Version 3.6*, 2023 — 第 7 章 Inheritance 规定 `extends`、修改符优先级与 `break` 的语义。
-2. Modelica Association. *Modelica Language Specification, Version 3.6*, 2023 — 第 7.3 节 Redeclaration 给出 `replaceable`、`constrainedby` 与 `choicesAllMatching` 的规则。
-3. Fritzson, P. *Principles of Object-Oriented Modeling and Simulation with Modelica 3.3*. Wiley-IEEE Press, 2015 — 第 4 章讨论继承、修改符与名字查找。
-4. Tiller, M. *Modelica by Example*, 在线版 2014 — 第 9 章用可替换组件搭建控制系统。
-5. Modelica Association. *Modelica Standard Library 4.0.0*, `Modelica.Blocks.Interfaces.SISO` 与 `Modelica.Blocks.Sources.Step`, 2020.
-6. Åkesson, J., Ekman, T., Hedin, G. "Implementation of a Modelica Compiler using JastAdd." *LDTA*, 2007.
+`partial model` 表示"不可独立实例化"，它通常缺少端口或缺少一条构成关系，供派生类补齐。对 `partial` 类直接实例化会报 `Class ... is partial`。
 
-## 诊断与可信度验证
+`replaceable` 表示"类型可在派生或实例处替换"，并可用 `constrainedby` 限定可替换范围：
 
-继承类故障的典型症状是"参数明明改了，结果却没变"，而源码里找不到任何矛盾。原因通常是修改符被更靠外的赋值覆盖，或 `final` 在链上切断了传递。可信度验证的做法是把展平后的模型当作唯一事实来源，用生效值反推是哪一层修改符胜出。本文给出溯源流程、菱形继承的合并判定、替换失败的分类，并完成一次增益链手算。
+```modelica
+partial model BaseController
+  replaceable Modelica.Blocks.Interfaces.SISO ctrl
+    constrainedby Modelica.Blocks.Interfaces.SISO
+    annotation(choicesAllMatching = true);
+  Modelica.Blocks.Interfaces.RealInput u;
+  Modelica.Blocks.Interfaces.RealOutput y;
+equation
+  connect(u, ctrl.u);
+  connect(ctrl.y, y);
+end BaseController;
+```
 
-### 用展平结果定位生效值
-
-修改符的生效值只在展平后确定。诊断第一步是把展平模型导出，而不是继续读源码。OpenModelica 用 `--dump` 或 `-d=flatten` 输出展平后的类，Dymola 用 `translateModel` 后检查 `dsmodel.mof`。在展平结果中搜索目标参数名，能看到唯一一条带最终值的声明，以及它来自哪一层。
-
-把这条值与源码中的修改符逐层对照，就能判断优先级链在哪一层被截断。若展平值等于基类默认值，说明所有修改符都失效了，第一嫌疑是 `final`；若展平值等于中间层而非实例层，说明实例处的修改符写在了错误的元素上（例如写成了 `leaf.mid.k`）。
+`constrainedby` 施加的是子类型约束：被替换的类型必须与该接口兼容，否则报 `Redeclaration does not satisfy the constrainedby clause`。`choicesAllMatching = true` 让图形工具只列出匹配的候选类，避免把信号块换成物理端口。
 
 ### 菱形继承的合并判定条件
 
@@ -201,17 +172,7 @@ end GainChain;
 
 方程计数也要在展平结果里核对。`BaseGain` 贡献 1 条方程，`MidGain` 与 `LeafGain` 各不新增，`GainChain` 的连接贡献 1 条。展平后总方程数应为 $1 + 1 = 2$，而不是 $3$——基类只展开一次，这正是合并规则的作用。若展平结果里出现两条 `y = k * u`，说明继承路径上有两个互不相同的基类定义，需要检查是否误把同名类放在了不同包中。
 
-### 替换失败的两类原因
-
-`redeclare` 失败只有两类原因，区分开就能快速定位。
-
-第一类是类型不满足约束。替换类型必须是 `constrainedby` 指定类型的子类型：
-
-$$\text{type}(T_{new}) \preceq T_{constrainedby}$$
-
-若 `constrainedby Modelica.Blocks.Interfaces.SISO` 而替换成 `Modelica.Blocks.Interfaces.MISO`，报 `Redeclaration does not satisfy the constrainedby clause`，因为后者有两个输入。第二类是名字查找失败：替换类型必须能被派生类所在作用域解析，跨包替换要写全限定名。若只写短名而该名在派生类作用域中不可见，报 `Class not found`。
-
-还有一类容易被误判为替换失败的情形：替换成功但 `connect` 语句失配。原类型与新类型的端口名不同时，`connect` 会报 `No corresponding component`，这属于接口不兼容，不是替换机制的问题。
+## 工程设置与实施
 
 ### 图标与放置注解的覆盖行为
 
@@ -223,21 +184,50 @@ $$\text{Icon}.graphics_{derived} = \begin{cases} G_{new}, & \text{派生类给�
 
 `Placement` 注解的行为不同，它描述组件在父模型画布中的位置，属于实例级信息，不参与继承合并。把 `annotation(Placement(...))` 写在 `extends` 上可以给继承来的组件预设位置。
 
-### 失效信号与判定试验
+## 异常诊断与失效模式
+
+### 故障模式与判定试验
+
+`redeclare` 失败只有两类原因，区分开就能快速定位。
+
+第一类是类型不满足约束。替换类型必须是 `constrainedby` 指定类型的子类型：
+
+$$\text{type}(T_{new}) \preceq T_{constrainedby}$$
+
+若 `constrainedby Modelica.Blocks.Interfaces.SISO` 而替换成 `Modelica.Blocks.Interfaces.MISO`，报 `Redeclaration does not satisfy the constrainedby clause`，因为后者有两个输入。第二类是名字查找失败：替换类型必须能被派生类所在作用域解析，跨包替换要写全限定名。若只写短名而该名在派生类作用域中不可见，报 `Class not found`。
+
+还有一类容易被误判为替换失败的情形：替换成功但 `connect` 语句失配。原类型与新类型的端口名不同时，`connect` 会报 `No corresponding component`，这属于接口不兼容，不是替换机制的问题。
 
 | 现象 | 根因 | 判定试验 |
 |---|---|---|
+| 实例参数改了但输出不变 | 基类中该参数被 `final` 锁定 | 查看基类声明，去掉 `final` 或改用派生类覆盖 |
+| 报 `Class ... is partial` | 直接实例化了 `partial` 类 | 检查是否缺少端口或构成方程，补全后再实例化 |
+| 报 `Trying to modify final element` | 修改符链上遇到 `final` | 沿 `extends` 链逐层查找 `final` 出现位置 |
+| 报 `Duplicate elements` | 多重继承中两个基类定义了同名元素 | 用 `extends A(break v)` 断开其一，再重新声明 |
+| 数组组件只有第一个元素参数生效 | 修改符漏写 `each` | 把 `(C = 100.0)` 改为 `(each C = 100.0)` 重跑 |
 | 展平值等于基类默认值 | 链上有 `final` 或修改符作用域写错 | 在展平结果中搜索参数名，确认唯一声明的位置 |
 | 报 `Duplicate modification of element` | 菱形继承的两条路径给出不同修改符 | 把两处修改符统一，或在一条路径上用 `break` 断开 |
 | 展平结果里同一条方程出现两次 | 同名基类位于不同包，被当成两个类 | 用全限定名核对两条 `extends` 指向的类是否同一个 |
 | 报 `Redeclaration does not satisfy the constrainedby clause` | 替换类型的端口数与约束不符 | 检查替换类型的输入输出个数是否与约束一致 |
 | 派生实例只剩一个矩形图标 | 新 `annotation(Icon(graphics = ...))` 整体替换了基类图元 | 统计图元数量，把基类图元显式复制后再追加 |
 
-### 参考文献
+### 用展平结果定位生效值
 
-1. Modelica Association. *Modelica Language Specification, Version 3.6*, 2023 — 第 7.1 节 Inheritance 规定多路径继承的元素合并规则。
-2. Modelica Association. *Modelica Language Specification, Version 3.6*, 2023 — 第 7.3 节 Redeclaration 给出 `constrainedby` 的子类型约束语义。
-3. Modelica Association. *Modelica Language Specification, Version 3.6*, 2023 — 第 18 章 Annotations 说明 `Icon`、`Diagram` 与 `Placement` 的记录结构与合并行为。
-4. Fritzson, P. *Principles of Object-Oriented Modeling and Simulation with Modelica 3.3*. Wiley-IEEE Press, 2015 — 第 4 章讨论修改符解析与名字查找顺序。
-5. Tiller, M. *Modelica by Example*, 在线版 2014 — 第 9 章用可替换组件演示 `redeclare` 的典型用法。
-6. OpenModelica User's Guide, v1.22, 2023 — 第 5 章说明 `--dump` 与 `-d=flatten` 的展平输出格式。
+修改符的生效值只在展平后确定。诊断第一步是把展平模型导出，而不是继续读源码。OpenModelica 用 `--dump` 或 `-d=flatten` 输出展平后的类，Dymola 用 `translateModel` 后检查 `dsmodel.mof`。在展平结果中搜索目标参数名，能看到唯一一条带最终值的声明，以及它来自哪一层。
+
+把这条值与源码中的修改符逐层对照，就能判断优先级链在哪一层被截断。若展平值等于基类默认值，说明所有修改符都失效了，第一嫌疑是 `final`；若展平值等于中间层而非实例层，说明实例处的修改符写在了错误的元素上（例如写成了 `leaf.mid.k`）。
+
+## 参考资料
+
+1. Modelica Association. *Modelica Language Specification, Version 3.6*, 2023 — 第 7 章 Inheritance 规定 `extends`、修改符优先级与 `break` 的语义。
+2. Modelica Association. *Modelica Language Specification, Version 3.6*, 2023 — 第 7.3 节 Redeclaration 给出 `replaceable`、`constrainedby` 与 `choicesAllMatching` 的规则。
+3. Fritzson, P. *Principles of Object-Oriented Modeling and Simulation with Modelica 3.3*. Wiley-IEEE Press, 2015 — 第 4 章讨论继承、修改符与名字查找。
+4. Tiller, M. *Modelica by Example*, 在线版 2014 — 第 9 章用可替换组件搭建控制系统。
+5. Modelica Association. *Modelica Standard Library 4.0.0*, `Modelica.Blocks.Interfaces.SISO` 与 `Modelica.Blocks.Sources.Step`, 2020.
+6. Åkesson, J., Ekman, T., Hedin, G. "Implementation of a Modelica Compiler using JastAdd." *LDTA*, 2007.
+7. Modelica Association. *Modelica Language Specification, Version 3.6*, 2023 — 第 7.1 节 Inheritance 规定多路径继承的元素合并规则。
+8. Modelica Association. *Modelica Language Specification, Version 3.6*, 2023 — 第 7.3 节 Redeclaration 给出 `constrainedby` 的子类型约束语义。
+9. Modelica Association. *Modelica Language Specification, Version 3.6*, 2023 — 第 18 章 Annotations 说明 `Icon`、`Diagram` 与 `Placement` 的记录结构与合并行为。
+10. Fritzson, P. *Principles of Object-Oriented Modeling and Simulation with Modelica 3.3*. Wiley-IEEE Press, 2015 — 第 4 章讨论修改符解析与名字查找顺序。
+11. Tiller, M. *Modelica by Example*, 在线版 2014 — 第 9 章用可替换组件演示 `redeclare` 的典型用法。
+12. OpenModelica User's Guide, v1.22, 2023 — 第 5 章说明 `--dump` 与 `-d=flatten` 的展平输出格式。

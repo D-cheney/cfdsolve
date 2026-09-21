@@ -5,7 +5,6 @@ title: 稀疏直接法：原理、设置与验证
 summary: >-
   从消去树与填充模型解释稀疏 Cholesky/LU 的复杂度标度，比较嵌套剖分、AMD 与 RCM
   的填充差异，给出主元稳定性与内存预算的定量门槛，判断百万自由度级 CAE 模型何时必须转向迭代法。
-  全文同时覆盖原理与适用范围、工程设置与参数选择、诊断与可信度验证，保留关键方程、量化参数、可执行示例、失败模式与参考资料。
 category:
   slug: algebraic-solvers
   name: 代数求解器与时间算法
@@ -32,7 +31,6 @@ seo:
   description: >-
     从消去树与填充模型解释稀疏 Cholesky/LU 的复杂度标度，比较嵌套剖分、AMD 与 RCM
     的填充差异，给出主元稳定性与内存预算的定量门槛，判断百万自由度级 CAE 模型何时必须转向迭代法。
-    全文同时覆盖原理与适用范围、工程设置与参数选择、诊断与可信度验证，保留关键方程、量化参数、可执行示例、失败模式与参考资料。
   keywords:
     - 稀疏直接法
     - 算法原理与适用范围
@@ -50,9 +48,9 @@ seo:
 ---
 # 稀疏直接法：原理、设置与验证
 
-## 原理与适用范围
+稀疏直接法对 $A$ 做一次三角分解后重复回代，精度可预测、无需调预条件，是 10 万自由度以下二维模型和 3 维中等规模模型最稳的选择。它的成本不由矩阵原有非零元个数决定，而由消去过程中**新生成**的填充元决定，所以"矩阵很稀疏"绝不等于"分解很便宜"。直接法的参数面板里真正影响成败的只有四项：排序、主元策略、内存松弛和线程数，其余大多是诊断开关。以一个 $128^3$ 六面体网格、$2.1\times10^6$ 个自由度、因子非零元约 $3.7\times10^8$（约 $4.4\ \mathrm{GB}$）的三维 Poisson 模型为例，本文给出一条可复现的配置路径，目标是在 64 GB 节点上把分解压到 200 s 以内、后向误差保持在 $10^{-12}$ 量级。直接法的危险之处在于它**从不报错**：只要矩阵非奇异，分解总会完成，回代总会给出一个向量，而求解器日志里没有任何类似"残差 1e-6 未达标"的提示。可信度验证因此必须由使用者自己完成，核心是三件事——用原始矩阵重算后向误差、估计条件数以把后向误差换算成前向误差、用制造解或独立求解器交叉验证整条装配链路。以下数据来自 $64\times64$ 结构化网格上的二维 Poisson 模型，$N=3969$ 个自由度。
 
-稀疏直接法对 $A$ 做一次三角分解后重复回代，精度可预测、无需调预条件，是 10 万自由度以下二维模型和 3 维中等规模模型最稳的选择。它的成本不由矩阵原有非零元个数决定，而由消去过程中**新生成**的填充元决定，所以"矩阵很稀疏"绝不等于"分解很便宜"。本文用消去树与嵌套剖分的标度律说明这一机制，并给出判断直接法是否还划算的定量门槛。
+## 基础概念与控制关系
 
 ### 消去过程为什么必然制造新非零元
 
@@ -80,20 +78,6 @@ $$
 
 二维情形则是 $O(N^{3/2})$ 次浮点运算与 $O(N\log N)$ 个非零元。作为对照，带状分解的代价是 $N b^2$，其中 $b$ 为带宽。取 $64^3=2.62\times10^5$ 个自由度的三维立方网格：嵌套剖分约需 $6.9\times10^{10}$ 次浮点运算；RCM 排序后带宽约 $64^2=4096$，带状分解需要 $2.62\times10^5\times4096^2\approx4.4\times10^{12}$ 次运算，慢了约 64 倍。这就是三维问题几乎只用嵌套剖分或 AMD、而带状求解器只出现在一维和细长二维结构上的原因。
 
-### 排序算法的选择逻辑
-
-工程上只有三条路线：**AMD/COLAMD**（近似最小度，快、对不规则网格稳健）、**METIS 嵌套剖分**（三维规则网格最优，天然适合并行）、**RCM**（只压带宽，内存连续但填充不优）。三维结构件在 100 万自由度时，AMD 的因子非零元通常比 METIS 多 30%～80%，而 METIS 的分隔子会带来更多零填充块、BLAS-3 效率更高。判据很直接：若分解时间中 BLAS 占比低于 50%，说明排序产生了过多不规则填充，应换 METIS。
-
-### 主元策略与前后向误差
-
-非对称或不定矩阵必须做 LU 并选主元。部分选主元把消去过程中的增长因子限制在
-
-$$
-\|b-A\hat x\| \le c(n)\,\rho_{\text{growth}}\,\epsilon_{\text{mach}}\,\|A\|\,\|\hat x\|,
-$$
-
-其中 $\epsilon_{\text{mach}}=2.22\times10^{-16}$（双精度），$\rho_{\text{growth}}$ 是增长因子。前向误差再被条件数放大：三维 Poisson 在 $h=0.01$ 时 $\kappa(A)\approx4\times10^4$，$N=10^6$ 且 $\rho_{\text{growth}}=10$ 时后向误差约 $10^6\times2.22\times10^{-16}\times10=2.2\times10^{-9}$，前向误差上界约 $4\times10^4\times2.2\times10^{-9}=8.8\times10^{-5}$。这解释了为什么"残差 1e-12"与"解准确到 1e-5"可以同时成立——两者差了一个条件数。若要求更高精度，做一轮混合精度迭代精化（残差用四倍精度算、修正用双精度）可把前向误差拉回 $O(\epsilon_{\text{mach}})$。
-
 ### 内存预算与多右端复用
 
 因子存储量为 $\mathrm{nnz}(L)$ 个非零元，每个占 8 字节数值加 4 字节行号，即约 12 字节。三维 100 万自由度 Poisson 的 $\mathrm{nnz}(L)\approx10^8$，因子占 $1.12\ \mathrm{GB}$，加上原矩阵、工作区和多线程缓冲，进程常驻内存应预留 $3\ \mathrm{GB}$ 以上。直接法真正的优势在多右端：分解完成后每个新右端只需两次三角回代，代价为 $2\,\mathrm{nnz}(L)\approx2\times10^8$ 次运算，在 10 GFLOP/s 的有效算力下约 $0.02\ \mathrm{s}$；而分解本身是 $10^{12}$ 次运算、约 $100\ \mathrm{s}$。也就是说，当同一矩阵要解 20 个以上右端（多载荷步、多频点、多组分）时，直接法的均摊成本会迅速低于迭代法。
@@ -117,6 +101,12 @@ for n in (1.0e5, 1.0e6, 4.0e6):
 
 代入 400 万自由度可以看到因子需要 $4.47\ \mathrm{GB}$，已逼近 8 GB 容器的可用上限，而分解运算量升到 $1.6\times10^{13}$ 次——这正是三条硬门槛中第一条的由来。
 
+## 适用边界与方案选择
+
+### 排序算法的选择逻辑
+
+工程上只有三条路线：**AMD/COLAMD**（近似最小度，快、对不规则网格稳健）、**METIS 嵌套剖分**（三维规则网格最优，天然适合并行）、**RCM**（只压带宽，内存连续但填充不优）。三维结构件在 100 万自由度时，AMD 的因子非零元通常比 METIS 多 30%～80%，而 METIS 的分隔子会带来更多零填充块、BLAS-3 效率更高。判据很直接：若分解时间中 BLAS 占比低于 50%，说明排序产生了过多不规则填充，应换 METIS。
+
 ### 何时必须放弃直接法
 
 三条硬门槛同时成立时应切换到 Krylov + AMG 或并行直接法：三维自由度超过 $2\times10^6$（因子预计超过 $3\ \mathrm{GB}$，单节点难容纳）；条件数超过 $10^{10}$ 且矩阵接近奇异（选主元会显著增加填充，静态主元又会损失精度）；或者同一时间步内需要求解超过 50 次、每次矩阵都变化（分解无法复用）。反过来，只要自由度低于 $5\times10^5$、矩阵结构固定且右端多，直接法几乎总是比迭代法省心。
@@ -128,22 +118,27 @@ for n in (1.0e5, 1.0e6, 4.0e6):
 | 换排序后填充减少但总时间反而变长 | 不规则填充破坏 BLAS-3 分块 | 记录分解阶段 GFLOPS 与 BLAS 占比 |
 | 非对称问题分解成功但解发散的物理量 | 静态主元跳过了必要的行交换 | 打开部分选主元阈值（如 0.1），比较增长因子 |
 
-### 参考
-
-1. Davis, T. A., *Direct Methods for Sparse Linear Systems*, SIAM, 2006.
-2. Duff, I. S., Erisman, A. M., Reid, J. K., *Direct Methods for Sparse Matrices*, 2nd ed., Oxford University Press, 2017.
-3. George, A., "Nested dissection of a regular finite element mesh", *SIAM Journal on Numerical Analysis*, 1973.
-4. Amestoy, P. R., Duff, I. S., L'Excellent, J.-Y., Koster, J., "A fully asynchronous multifrontal solver using distributed dynamic scheduling", *SIAM Journal on Matrix Analysis and Applications*, 2001.
-5. Li, X. S., "An overview of SuperLU: Algorithms, implementation, and user interface", *ACM Transactions on Mathematical Software*, 2005.
-6. Saad, Y., *Iterative Methods for Sparse Linear Systems*, 2nd ed., SIAM, 2003.
-
-## 工程设置与参数选择
-
-直接法的参数面板里真正影响成败的只有四项：排序、主元策略、内存松弛和线程数，其余大多是诊断开关。以一个 $128^3$ 六面体网格、$2.1\times10^6$ 个自由度、因子非零元约 $3.7\times10^8$（约 $4.4\ \mathrm{GB}$）的三维 Poisson 模型为例，本文给出一条可复现的配置路径，目标是在 64 GB 节点上把分解压到 200 s 以内、后向误差保持在 $10^{-12}$ 量级。
+## 工程设置与实施
 
 ### 四个主流分解器的能力边界
 
 MUMPS 支持多波前并行与分布式内存，适合 $10^7$ 级自由度；SuperLU_DIST 的静态主元对超算更友好；PARDISO 在共享内存单机上最快；CHOLMOD 只做对称正定，但对 SPD 问题的内存效率最高。选型不看名气看矩阵类型：对称正定优先 CHOLMOD 或 PARDISO 的 `mtype=2`；非对称用 MUMPS 或 SuperLU_DIST；不定问题必须保留数值主元，不能选 CHOLMOD。
+
+### 可复现的配置片段
+
+```python
+# 通过 PETSc 配置 MUMPS，等价于直接设置 dmumps_c 的 ICNTL/CNTL
+opts = {
+    "-pc_type": "cholesky",
+    "-pc_factor_mat_solver_type": "mumps",
+    "-mat_mumps_icntl_7": "5",      # METIS 嵌套剖分
+    "-mat_mumps_icntl_14": "80",    # 工作区在估计值上多留 80%
+    "-mat_mumps_icntl_23": "48000", # 上限 48000 MB
+    "-mat_mumps_cntl_1": "0.01",    # 部分选主元阈值
+    "-mat_mumps_icntl_4": "2",      # 打印各阶段耗时
+    "-ksp_type": "preonly",         # 直接法不做 Krylov 迭代
+}
+```
 
 ### 排序：AMD 与 METIS 的实测差距
 
@@ -167,91 +162,7 @@ $$
 
 多波前分解的加速来自 BLAS-3 更新，收益与矩阵块大小直接相关。同一模型 8 线程相对单线程加速 5.2 倍，16 线程只有 6.1 倍，继续加线程收益递减。要确认 BLAS 真的并行，应检查 `MKL_NUM_THREADS` 是否与求解器线程数一致——两者不一致会造成线程超额订阅，实测反而慢 20%～40%。启用外存后，每次三角回代都要读盘，单右端耗时从 $0.02\ \mathrm{s}$ 涨到 $1.5\ \mathrm{s}$ 以上，多右端复用的优势被完全抵消。
 
-### 可复现的配置片段
-
-```python
-# 通过 PETSc 配置 MUMPS，等价于直接设置 dmumps_c 的 ICNTL/CNTL
-opts = {
-    "-pc_type": "cholesky",
-    "-pc_factor_mat_solver_type": "mumps",
-    "-mat_mumps_icntl_7": "5",      # METIS 嵌套剖分
-    "-mat_mumps_icntl_14": "80",    # 工作区在估计值上多留 80%
-    "-mat_mumps_icntl_23": "48000", # 上限 48000 MB
-    "-mat_mumps_cntl_1": "0.01",    # 部分选主元阈值
-    "-mat_mumps_icntl_4": "2",      # 打印各阶段耗时
-    "-ksp_type": "preonly",         # 直接法不做 Krylov 迭代
-}
-```
-
-### 单因素对照与记录口径
-
-每次只改一个参数，其余保持字节级一致，并固定同一份符号分析结果。需要记录：排序类型与符号分析耗时、`INFOG(9)`（因子非零元数）、`INFOG(11)`（分解浮点运算量）、`INFOG(16)`（估计内存）、分解墙钟时间、回代时间，以及后向误差
-
-$$
-\eta_{\text{bwd}}=\frac{\|b-A\hat x\|_\infty}{\|A\|_\infty\|\hat x\|_\infty} .
-$$
-
-后向误差必须用原始矩阵重算，不能读求解器内部报告值。建议基线为 METIS + `CNTL(1)=0.01` + `ICNTL(14)=80`，然后分别单独测试 AMD、`CNTL(1)=0.1`、`ICNTL(14)=20` 三种偏离，观察填充、耗时与后向误差各自的响应。
-
-| 现象 | 根因 | 判定试验 |
-|---|---|---|
-| 分解中途报工作区不足并反复重分配 | `ICNTL(14)` 预留比例过低 | 把 `ICNTL(14)` 从 20 提到 80，对比 `INFOG(16)` 与重分配次数 |
-| 16 线程比 8 线程更慢 | BLAS 与求解器线程超额订阅 | 令 `MKL_NUM_THREADS` 等于求解器线程数后复测 |
-| 启用外存后总耗时上升 30 倍 | 因子回代触发随机读盘 | 统计单右端回代时间并与内存模式对比 |
-| 换 METIS 后填充减少但总时间没降 | 右端太少，符号分析开销未摊薄 | 记录符号分析与数值分解各自的耗时占比 |
-
-### 参考
-
-1. Amestoy, P. R., Duff, I. S., L'Excellent, J.-Y., Koster, J., "A fully asynchronous multifrontal solver using distributed dynamic scheduling", *SIAM Journal on Matrix Analysis and Applications*, 23(1), 2001.
-2. Amestoy, P. R., Buttari, A., L'Excellent, J.-Y., Mary, T., "Performance and scalability of the block low-rank multifrontal factorization on multicore architectures", *ACM Transactions on Mathematical Software*, 45(1), 2019.
-3. Li, X. S., "An overview of SuperLU: Algorithms, implementation, and user interface", *ACM Transactions on Mathematical Software*, 31(3), 2005.
-4. Schenk, O., Gärtner, K., "Solving unsymmetric sparse systems of linear equations with PARDISO", *Future Generation Computer Systems*, 20(3), 2004.
-5. Davis, T. A., *Direct Methods for Sparse Linear Systems*, SIAM, 2006.
-6. Balay, S., et al., *PETSc Users Manual*, Argonne National Laboratory, ANL-95/11, 2023.
-
-## 诊断与可信度验证
-
-直接法的危险之处在于它**从不报错**：只要矩阵非奇异，分解总会完成，回代总会给出一个向量，而求解器日志里没有任何类似"残差 1e-6 未达标"的提示。可信度验证因此必须由使用者自己完成，核心是三件事——用原始矩阵重算后向误差、估计条件数以把后向误差换算成前向误差、用制造解或独立求解器交叉验证整条装配链路。以下数据来自 $64\times64$ 结构化网格上的二维 Poisson 模型，$N=3969$ 个自由度。
-
-### 后向误差是唯一能自我核验的指标
-
-分解完成后用原始矩阵重算残差，并归一化为后向误差
-
-$$
-\eta=\frac{\|b-A\hat x\|_\infty}{\|A\|_\infty\|\hat x\|_\infty+\|b\|_\infty},
-$$
-
-这一量只依赖输入数据和算得的解，不依赖任何内部状态，因此是可信度检查的第一道门槛。实测该模型 $\eta=3.2\times10^{-13}$，与双精度机器精度 $\epsilon_{\text{mach}}=2.22\times10^{-16}$ 之间只差三个数量级的累积因子，属于正常范围。若 $\eta$ 超过 $10^{-10}$，应当先怀疑装配而非求解器——常见原因是约束行未正确处理（对角元被置 1 但右端未同步）或单元矩阵编号错位。
-
-### 条件数把后向误差换算成前向误差
-
-后向误差小并不代表解准确。二者由条件数联系：
-
-$$
-\frac{\|\hat x-x\|_\infty}{\|x\|_\infty}\le \kappa_\infty(A)\,\eta .
-$$
-
-该模型用 LAPACK 的 `xGECON` 一类估计器得到 $\kappa_\infty(A)=4.1\times10^4$（与理论标度 $O(h^{-2})$ 一致，$h=1/64$ 时约 $4\times10^4$）。代入实测 $\eta=3.2\times10^{-13}$ 得到前向误差上界 $1.3\times10^{-8}$。这意味着：**在位移场量级为 $1\ \mathrm{mm}$ 的结构问题里，解的绝对误差上界约 $1.3\times10^{-8}\ \mathrm{mm}$，完全可接受；但同一矩阵若来自量级为 $10^{-3}$ 的接触间隙，就必须做精化。** 判断标准是前向误差上界是否小于目标物理量允许误差的三分之一。
-
-### 混合精度迭代精化
-
-若前向误差上界不满足要求，不必换求解器，加一轮精化即可。步骤是：用高精度（或补偿求和）计算残差 $r=b-A\hat x$，解修正方程
-
-$$
-A\,d=r,\qquad \hat x\leftarrow \hat x+d,
-$$
-
-因为因子已经存在，每次精化只多花两次三角回代。该模型做两步精化后，前向误差从 $1.3\times10^{-8}$ 降到 $6.5\times10^{-14}$，代价是回代时间从 $0.02\ \mathrm{s}$ 增加到 $0.06\ \mathrm{s}$。判据是观察精化过程中 $\|d\|_\infty/\|\hat x\|_\infty$ 的下降速率：若它稳定下降约两个数量级每步，说明误差由舍入主导；若几乎不降，说明误差来自模型或装配，精化无效。
-
-### 用制造解验证装配与离散
-
-条件数只能保证代数层面正确，无法发现单元矩阵或边界条件的编码错误。制造解方法（MMS）用解析解反推源项：取 $u(x,y)=\sin(\pi x)\sin(\pi y)$，代入 $-\nabla^2u=f$ 得
-
-$$
-f(x,y)=2\pi^2\sin(\pi x)\sin(\pi y),
-$$
-
-把 $f$ 作为源项、解析解作为边界条件，直接法解出的数值解与解析解之差即离散误差。实测 $32\times32$ 网格上 $\|e\|_2=1.70\times10^{-3}$，$64\times64$ 网格上 $4.30\times10^{-4}$，加密一倍误差降为 $1/3.95$，与二阶中心差分的理论比 4.0 吻合。若实测比值落到 2.0 附近，说明边界处理退化成了一阶；若比值大于 5，通常是源项或雅可比行列式符号有误。
+## 验证、验收与复现
 
 ### 与迭代解交叉比对
 
@@ -289,11 +200,85 @@ def verify_direct(A, b, x):
 | 加密后误差比值约 2 而非 4 | 边界离散退化为低阶 | 单独加密内部网格、保持边界层厚度不变 |
 | 直接解与 CG 解差 $10^{-6}$ | CG 容差比直接法精度高不到两阶 | 把 CG 相对容差从 $10^{-10}$ 压到 $10^{-12}$ 复测 |
 
-### 参考
+### 主元策略与前后向误差
 
-1. Higham, N. J., *Accuracy and Stability of Numerical Algorithms*, 2nd ed., SIAM, 2002.
-2. Wilkinson, J. H., *The Algebraic Eigenvalue Problem*, Oxford University Press, 1965.
-3. Roache, P. J., *Verification and Validation in Computational Science and Engineering*, Hermosa Publishers, 1998.
-4. Salari, K., Knupp, P., "Code Verification by the Method of Manufactured Solutions", Sandia National Laboratories, SAND2000-1444, 2000.
-5. Davis, T. A., *Direct Methods for Sparse Linear Systems*, SIAM, 2006.
-6. Duff, I. S., Erisman, A. M., Reid, J. K., *Direct Methods for Sparse Matrices*, 2nd ed., Oxford University Press, 2017.
+非对称或不定矩阵必须做 LU 并选主元。部分选主元把消去过程中的增长因子限制在
+
+$$
+\|b-A\hat x\| \le c(n)\,\rho_{\text{growth}}\,\epsilon_{\text{mach}}\,\|A\|\,\|\hat x\|,
+$$
+
+其中 $\epsilon_{\text{mach}}=2.22\times10^{-16}$（双精度），$\rho_{\text{growth}}$ 是增长因子。前向误差再被条件数放大：三维 Poisson 在 $h=0.01$ 时 $\kappa(A)\approx4\times10^4$，$N=10^6$ 且 $\rho_{\text{growth}}=10$ 时后向误差约 $10^6\times2.22\times10^{-16}\times10=2.2\times10^{-9}$，前向误差上界约 $4\times10^4\times2.2\times10^{-9}=8.8\times10^{-5}$。这解释了为什么"残差 1e-12"与"解准确到 1e-5"可以同时成立——两者差了一个条件数。若要求更高精度，做一轮混合精度迭代精化（残差用四倍精度算、修正用双精度）可把前向误差拉回 $O(\epsilon_{\text{mach}})$。
+
+### 后向误差是唯一能自我核验的指标
+
+分解完成后用原始矩阵重算残差，并归一化为后向误差
+
+$$
+\eta=\frac{\|b-A\hat x\|_\infty}{\|A\|_\infty\|\hat x\|_\infty+\|b\|_\infty},
+$$
+
+这一量只依赖输入数据和算得的解，不依赖任何内部状态，因此是可信度检查的第一道门槛。实测该模型 $\eta=3.2\times10^{-13}$，与双精度机器精度 $\epsilon_{\text{mach}}=2.22\times10^{-16}$ 之间只差三个数量级的累积因子，属于正常范围。若 $\eta$ 超过 $10^{-10}$，应当先怀疑装配而非求解器——常见原因是约束行未正确处理（对角元被置 1 但右端未同步）或单元矩阵编号错位。
+
+### 条件数把后向误差换算成前向误差
+
+后向误差小并不代表解准确。二者由条件数联系：
+
+$$
+\frac{\|\hat x-x\|_\infty}{\|x\|_\infty}\le \kappa_\infty(A)\,\eta .
+$$
+
+该模型用 LAPACK 的 `xGECON` 一类估计器得到 $\kappa_\infty(A)=4.1\times10^4$（与理论标度 $O(h^{-2})$ 一致，$h=1/64$ 时约 $4\times10^4$）。代入实测 $\eta=3.2\times10^{-13}$ 得到前向误差上界 $1.3\times10^{-8}$。这意味着：**在位移场量级为 $1\ \mathrm{mm}$ 的结构问题里，解的绝对误差上界约 $1.3\times10^{-8}\ \mathrm{mm}$，完全可接受；但同一矩阵若来自量级为 $10^{-3}$ 的接触间隙，就必须做精化。** 判断标准是前向误差上界是否小于目标物理量允许误差的三分之一。
+
+### 用制造解验证装配与离散
+
+条件数只能保证代数层面正确，无法发现单元矩阵或边界条件的编码错误。制造解方法（MMS）用解析解反推源项：取 $u(x,y)=\sin(\pi x)\sin(\pi y)$，代入 $-\nabla^2u=f$ 得
+
+$$
+f(x,y)=2\pi^2\sin(\pi x)\sin(\pi y),
+$$
+
+把 $f$ 作为源项、解析解作为边界条件，直接法解出的数值解与解析解之差即离散误差。实测 $32\times32$ 网格上 $\|e\|_2=1.70\times10^{-3}$，$64\times64$ 网格上 $4.30\times10^{-4}$，加密一倍误差降为 $1/3.95$，与二阶中心差分的理论比 4.0 吻合。若实测比值落到 2.0 附近，说明边界处理退化成了一阶；若比值大于 5，通常是源项或雅可比行列式符号有误。
+
+### 单因素对照与记录口径
+
+每次只改一个参数，其余保持字节级一致，并固定同一份符号分析结果。需要记录：排序类型与符号分析耗时、`INFOG(9)`（因子非零元数）、`INFOG(11)`（分解浮点运算量）、`INFOG(16)`（估计内存）、分解墙钟时间、回代时间，以及后向误差
+
+$$
+\eta_{\text{bwd}}=\frac{\|b-A\hat x\|_\infty}{\|A\|_\infty\|\hat x\|_\infty} .
+$$
+
+后向误差必须用原始矩阵重算，不能读求解器内部报告值。建议基线为 METIS + `CNTL(1)=0.01` + `ICNTL(14)=80`，然后分别单独测试 AMD、`CNTL(1)=0.1`、`ICNTL(14)=20` 三种偏离，观察填充、耗时与后向误差各自的响应。
+
+| 现象 | 根因 | 判定试验 |
+|---|---|---|
+| 分解中途报工作区不足并反复重分配 | `ICNTL(14)` 预留比例过低 | 把 `ICNTL(14)` 从 20 提到 80，对比 `INFOG(16)` 与重分配次数 |
+| 16 线程比 8 线程更慢 | BLAS 与求解器线程超额订阅 | 令 `MKL_NUM_THREADS` 等于求解器线程数后复测 |
+| 启用外存后总耗时上升 30 倍 | 因子回代触发随机读盘 | 统计单右端回代时间并与内存模式对比 |
+| 换 METIS 后填充减少但总时间没降 | 右端太少，符号分析开销未摊薄 | 记录符号分析与数值分解各自的耗时占比 |
+
+### 混合精度迭代精化
+
+若前向误差上界不满足要求，不必换求解器，加一轮精化即可。步骤是：用高精度（或补偿求和）计算残差 $r=b-A\hat x$，解修正方程
+
+$$
+A\,d=r,\qquad \hat x\leftarrow \hat x+d,
+$$
+
+因为因子已经存在，每次精化只多花两次三角回代。该模型做两步精化后，前向误差从 $1.3\times10^{-8}$ 降到 $6.5\times10^{-14}$，代价是回代时间从 $0.02\ \mathrm{s}$ 增加到 $0.06\ \mathrm{s}$。判据是观察精化过程中 $\|d\|_\infty/\|\hat x\|_\infty$ 的下降速率：若它稳定下降约两个数量级每步，说明误差由舍入主导；若几乎不降，说明误差来自模型或装配，精化无效。
+
+## 参考资料
+
+1. Davis, T. A., *Direct Methods for Sparse Linear Systems*, SIAM, 2006.
+2. Duff, I. S., Erisman, A. M., Reid, J. K., *Direct Methods for Sparse Matrices*, 2nd ed., Oxford University Press, 2017.
+3. George, A., "Nested dissection of a regular finite element mesh", *SIAM Journal on Numerical Analysis*, 1973.
+4. Amestoy, P. R., Duff, I. S., L'Excellent, J.-Y., Koster, J., "A fully asynchronous multifrontal solver using distributed dynamic scheduling", *SIAM Journal on Matrix Analysis and Applications*, 2001.
+5. Li, X. S., "An overview of SuperLU: Algorithms, implementation, and user interface", *ACM Transactions on Mathematical Software*, 2005.
+6. Saad, Y., *Iterative Methods for Sparse Linear Systems*, 2nd ed., SIAM, 2003.
+7. Amestoy, P. R., Buttari, A., L'Excellent, J.-Y., Mary, T., "Performance and scalability of the block low-rank multifrontal factorization on multicore architectures", *ACM Transactions on Mathematical Software*, 45(1), 2019.
+8. Schenk, O., Gärtner, K., "Solving unsymmetric sparse systems of linear equations with PARDISO", *Future Generation Computer Systems*, 20(3), 2004.
+9. Balay, S., et al., *PETSc Users Manual*, Argonne National Laboratory, ANL-95/11, 2023.
+10. Higham, N. J., *Accuracy and Stability of Numerical Algorithms*, 2nd ed., SIAM, 2002.
+11. Wilkinson, J. H., *The Algebraic Eigenvalue Problem*, Oxford University Press, 1965.
+12. Roache, P. J., *Verification and Validation in Computational Science and Engineering*, Hermosa Publishers, 1998.
+13. Salari, K., Knupp, P., "Code Verification by the Method of Manufactured Solutions", Sandia National Laboratories, SAND2000-1444, 2000.

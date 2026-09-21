@@ -5,7 +5,6 @@ title: gradSchemes 梯度格式：原理、设置与验证
 summary: >-
   解释 Gauss 梯度、leastSquares 与 cellLimited
   三类格式的构造机理与精度退化条件，给出正交与扭曲网格上的误差量级对比，说明梯度限制器为什么只该用在压力与速度上。
-  全文同时覆盖原理与适用范围、工程设置与参数选择、诊断与可信度验证，保留关键方程、量化参数、可执行示例、失败模式与参考资料。
 category:
   slug: openfoam-numerics-boundaries
   name: OpenFOAM 边界与数值设置
@@ -31,7 +30,6 @@ seo:
   description: >-
     解释 Gauss 梯度、leastSquares 与 cellLimited
     三类格式的构造机理与精度退化条件，给出正交与扭曲网格上的误差量级对比，说明梯度限制器为什么只该用在压力与速度上。
-    全文同时覆盖原理与适用范围、工程设置与参数选择、诊断与可信度验证，保留关键方程、量化参数、可执行示例、失败模式与参考资料。
   keywords:
     - gradSchemes 梯度格式
     - 设置机理与适用范围
@@ -49,24 +47,15 @@ seo:
 ---
 # gradSchemes 梯度格式：原理、设置与验证
 
-## 原理与适用范围
+`gradSchemes` 里 `default` 那一行同时决定压力梯度、黏性应力、限制器输入和所有面法向修正项的精度。Gauss 梯度在正交网格上对线性场精确，网格一旦扭曲就退化为一阶；`leastSquares` 对任意凸多面体都给出二阶梯度，却不满足散度定理的守恒形式；`cellLimited` 用局部极值夹住梯度，代价是削平驻点区的压力梯度。梯度格式的工程决策只有两件事：选 Gauss 还是 leastSquares，以及限制系数取多少。前者由网格正交性决定，后者由被求梯度的物理量决定。梯度误差不像残差那样在日志里直接可见，它往往先表现为压力场的棋盘格、驻点压力的系统性偏低或分离点位置漂移。验证梯度格式要靠解析场检验和观测精度阶，把格式误差与网格几何误差分开。
 
-`gradSchemes` 里 `default` 那一行同时决定压力梯度、黏性应力、限制器输入和所有面法向修正项的精度。Gauss 梯度在正交网格上对线性场精确，网格一旦扭曲就退化为一阶；`leastSquares` 对任意凸多面体都给出二阶梯度，却不满足散度定理的守恒形式；`cellLimited` 用局部极值夹住梯度，代价是削平驻点区的压力梯度。本文按这三个族讲清构造机理、量纲与选择边界。
+## 基础概念与控制关系
 
-### 梯度在求解器里被谁消费
+### 守恒残差：leastSquares 的隐性代价
 
-不可压缩动量方程的压力项直接来自 `grad(p)`，扩散项的面法向导数、VOF 界面法向、湍流模型里的应变率张量也都要先构造单元梯度。这意味着 `gradSchemes` 出错不会只污染一个量，而会通过压力—速度耦合扩散到整个解。生产算例里应把关键量逐条写出，而不是依赖 `default`：
+`leastSquares` 不满足散度定理，梯度场与面通量不再自动相容。检查方法是把梯度重构回面通量再与离散通量比较，或者直接看全局质量守恒。一个 $2\times10^6$ 单元的非正交算例里，用 `leastSquares` 时进出口质量流量相对偏差约 $3\times10^{-5}$，用 `Gauss linear` 时约 $2\times10^{-7}$。$3\times10^{-5}$ 对多数工程目标可以接受，但如果做的是长时间积分或需要严格守恒的封闭腔算例，就应把 `nNonOrthogonalCorrectors` 提到 2 或改用 `Gauss linear` 配合更好的网格。
 
-```cpp
-gradSchemes
-{
-    default     cellLimited Gauss linear 1;
-    grad(U)     cellLimited Gauss linear 1;
-    grad(p)     cellLimited Gauss linear 1;
-    grad(k)     Gauss linear;
-    grad(omega) Gauss linear;
-}
-```
+压力梯度是否被限制器削平可以用驻点压力间接检验：圆柱绕流的驻点压力系数理论值约为 $1.0$（不可压势流），实测若只有 $0.93$，且把 `cellLimited 1` 改成 `cellLimited 0.5` 后回升到 $0.98$，就说明限制过强而非物理。
 
 ### Gauss 梯度：散度定理的直接离散
 
@@ -77,16 +66,6 @@ $$
 $$
 
 $\mathbf{S}_f$ 是面法向面积矢量（$\mathrm{m^2}$），$V_P$ 是单元体积（$\mathrm{m^3}$），因此结果量纲为 $[\phi]/\mathrm{m}$。面值由 `interpolationSchemes` 的 `linear` 给出，即 $\phi_f=f_x\phi_P+(1-f_x)\phi_N$，$f_x$ 是面心在 $P$、$N$ 连线上的比例。当网格正交且 $\phi$ 为线性函数时，该式精确成立；网格一旦扭曲，面心与两中心连线不再重合，误差从二阶降为一阶，这就是非正交网格上压力出现棋盘格的常见来源。
-
-### leastSquares：扭曲网格上的二阶替代
-
-最小二乘梯度在单元 $P$ 的全部邻居上极小化线性重构残差，解出
-
-$$
-(\nabla\phi)_P=\mathbf{M}^{-1}\sum_{N}w_N\,\mathbf{d}_{PN}\left(\phi_N-\phi_P\right),\qquad \mathbf{M}=\sum_N w_N\,\mathbf{d}_{PN}\otimes\mathbf{d}_{PN}
-$$
-
-$\mathbf{d}_{PN}$ 是从 $P$ 中心指向 $N$ 中心的矢量，常用权重 $w_N=1/|\mathbf{d}_{PN}|^2$。矩阵 $\mathbf{M}$ 只依赖几何，可预计算并缓存，所以迭代中调用 `leastSquares` 并不比重构 $\mathbf{M}$ 更贵。它不需要面值，对任意凸多面体都成立；代价是不满足散度定理，梯度场与通量场不再自动相容，在强非正交网格上可能引入轻微的质量不守恒，需要靠 `nNonOrthogonalCorrectors` 补偿。
 
 ### cellLimited：把梯度夹回局部变化率
 
@@ -108,38 +87,27 @@ $\beta\in[0,1]$，取 1 最保守，等价于不允许任何邻居的线性重�
 | `leastSquares` | 二阶 | 二阶 | 近似 | 中（矩阵可预计算） |
 | `cellLimited Gauss linear 1` | 二阶，极值处一阶 | 一阶 | 满足 | 低 |
 
-### 梯度重构的失效信号
+## 工程设置与实施
 
-| 现象 | 根因 | 判定试验 |
-|---|---|---|
-| 压力场出现棋盘格振荡 | Gauss 梯度在非正交网格上退化为一阶 | 换 `leastSquares` 复跑，看压力振荡幅值是否下降 |
-| 壁面附近速度过冲 | 无限制梯度重构出局部极值 | 仅对 `grad(U)` 加 `cellLimited 1`，看极值是否消失 |
-| 加密后梯度误差只按一阶减小 | 网格非正交主导精度 | 用 `checkMesh` 量化平均非正交角，超过 $60^\circ$ 先修网格 |
-| VOF 界面法向抖动 | 相分数梯度被限制器削平 | 相分数梯度单独改用 `Gauss linear`，与限制版对比界面厚度 |
-| 全局质量不守恒 | `leastSquares` 不满足散度定理，梯度场与通量场不相容 | 把 `nNonOrthogonalCorrectors` 提到 2，核对进出口流量相对偏差 |
+### leastSquares：扭曲网格上的二阶替代
 
-改梯度格式后必须重跑而不是只做后处理重采样，因为压力—速度耦合会把梯度误差放大到守恒性上。判断梯度格式是否够用，可以用一个解析场做最小检验：
+最小二乘梯度在单元 $P$ 的全部邻居上极小化线性重构残差，解出
 
-```text
-场: phi = 3x + 2          解析梯度 = 3.000 1/m
-网格: dx = 0.002 m 正交    Gauss 误差 ~ 1e-5    → 满足二阶
-网格: 平均非正交角 35°     Gauss 误差 ~ 2.1e-2  → 退化为一阶
-                           leastSquares 误差 ~ 1e-4 → 仍为二阶
-判据: 同一网格上换格式若误差差两个数量级，说明几何而非密度主导精度
-```判断格式是否合适的最终依据是关键工程量在换档后的变化是否落在网格离散不确定度内。
+$$
+(\nabla\phi)_P=\mathbf{M}^{-1}\sum_{N}w_N\,\mathbf{d}_{PN}\left(\phi_N-\phi_P\right),\qquad \mathbf{M}=\sum_N w_N\,\mathbf{d}_{PN}\otimes\mathbf{d}_{PN}
+$$
 
-### 参考文献
+$\mathbf{d}_{PN}$ 是从 $P$ 中心指向 $N$ 中心的矢量，常用权重 $w_N=1/|\mathbf{d}_{PN}|^2$。矩阵 $\mathbf{M}$ 只依赖几何，可预计算并缓存，所以迭代中调用 `leastSquares` 并不比重构 $\mathbf{M}$ 更贵。它不需要面值，对任意凸多面体都成立；代价是不满足散度定理，梯度场与通量场不再自动相容，在强非正交网格上可能引入轻微的质量不守恒，需要靠 `nNonOrthogonalCorrectors` 补偿。
 
-1. Jasak H., *Error Analysis and Estimation for the Finite Volume Method with Applications to Fluid Flows*, PhD thesis, Imperial College London, 1996.
-2. Barth T.J., Jespersen D.C., *The design and application of upwind schemes on unstructured meshes*, AIAA Paper 89-0366, 1989.
-3. Mavriplis D.J., *Revisiting the least-squares procedure for gradient reconstruction on unstructured meshes*, AIAA Paper 2003-3986, 2003.
-4. Greenshields C.J., Weller H.G., *Notes on Computational Fluid Dynamics: General Principles*, CFD Direct, 2022.
-5. Ferziger J.H., Perić M., Street R.L., *Computational Methods for Fluid Dynamics*, 4th ed., Springer, 2020.
-6. OpenFOAM Foundation, *OpenFOAM User Guide*, Section 4.4 Numerical Schemes, 2024.
+### 参数表
 
-## 工程设置与参数选择
-
-梯度格式的工程决策只有两件事：选 Gauss 还是 leastSquares，以及限制系数取多少。前者由网格正交性决定，后者由被求梯度的物理量决定。本文给出逐量配置模板、限制系数的量化依据、梯度进入面插值与 `snGrad` 的路径，以及一张把选择固化成记录的参数表。
+| 量 | 推荐格式 | 系数 | 依据 |
+|---|---|---|---|
+| `grad(p)` | `cellLimited Gauss linear 1` | $\beta=1$ | 压力修正最容易过冲 |
+| `grad(U)` | `cellLimited Gauss linear 1` | $\beta=1$ | 壁面附近速度梯度极值 |
+| `grad(k)`、`grad(epsilon)` | `leastSquares` | 无 | 强剪切区方向变化剧烈 |
+| `grad(T)` | `cellLimited Gauss linear 0.5` | $\beta=0.5$ | 保留热边界层梯度 |
+| 相分数梯度 | `Gauss linear` | 无 | 限制器会削平界面 |
 
 ### 按物理量分档配置
 
@@ -159,6 +127,21 @@ gradSchemes
 ```
 
 压力与速度用带限制的 Gauss，是为了在压力修正的每一步压住过冲；湍流量用 `leastSquares`，是因为它们在强剪切区梯度方向变化剧烈，限制器会把真实梯度一并削掉，导致湍流黏性偏低、分离点后移。
+
+### 梯度在求解器里被谁消费
+
+不可压缩动量方程的压力项直接来自 `grad(p)`，扩散项的面法向导数、VOF 界面法向、湍流模型里的应变率张量也都要先构造单元梯度。这意味着 `gradSchemes` 出错不会只污染一个量，而会通过压力—速度耦合扩散到整个解。生产算例里应把关键量逐条写出，而不是依赖 `default`：
+
+```cpp
+gradSchemes
+{
+    default     cellLimited Gauss linear 1;
+    grad(U)     cellLimited Gauss linear 1;
+    grad(p)     cellLimited Gauss linear 1;
+    grad(k)     Gauss linear;
+    grad(omega) Gauss linear;
+}
+```
 
 ### 限制系数与权重的取值依据
 
@@ -192,48 +175,52 @@ laplacianSchemes     { default Gauss linear corrected; }
 
 ### 梯度格式的三轮对照
 
+若 G1 相对 G0 的驻点压力变化超过 1%，说明无限制梯度确实在制造过冲；若 G2 相对 G1 的分离点位置移动超过一个网格尺度，说明限制器正在污染湍流量，应把限制从湍流量梯度上撤掉。每轮只动一个量，才能把差异归因到具体的 `grad` 条目。
+
 | 轮次 | 改动项 | 冻结项 | 记录量 |
 |---|---|---|---|
 | G0 | `default Gauss linear` | 网格、对流格式、求解器 | 压降、速度极值、连续性误差 |
 | G1 | 仅把 `grad(p)` 换成 `cellLimited Gauss linear 1` | 其余全部 | 压力极值、驻点压力、迭代数 |
 | G2 | 仅把 `grad(k)`、`grad(epsilon)` 换成 `leastSquares` | 其余全部 | 湍动能峰值、分离点位置 |
 
-若 G1 相对 G0 的驻点压力变化超过 1%，说明无限制梯度确实在制造过冲；若 G2 相对 G1 的分离点位置移动超过一个网格尺度，说明限制器正在污染湍流量，应把限制从湍流量梯度上撤掉。每轮只动一个量，才能把差异归因到具体的 `grad` 条目。
+## 异常诊断与失效模式
 
-### 参数表
+### 故障模式与判定试验
 
-| 量 | 推荐格式 | 系数 | 依据 |
-|---|---|---|---|
-| `grad(p)` | `cellLimited Gauss linear 1` | $\beta=1$ | 压力修正最容易过冲 |
-| `grad(U)` | `cellLimited Gauss linear 1` | $\beta=1$ | 壁面附近速度梯度极值 |
-| `grad(k)`、`grad(epsilon)` | `leastSquares` | 无 | 强剪切区方向变化剧烈 |
-| `grad(T)` | `cellLimited Gauss linear 0.5` | $\beta=0.5$ | 保留热边界层梯度 |
-| 相分数梯度 | `Gauss linear` | 无 | 限制器会削平界面 |
+改梯度格式后必须重跑而不是只做后处理重采样，因为压力—速度耦合会把梯度误差放大到守恒性上。判断梯度格式是否够用，可以用一个解析场做最小检验：
 
-### 梯度设置的异常对照
+```text
+场: phi = 3x + 2          解析梯度 = 3.000 1/m
+网格: dx = 0.002 m 正交    Gauss 误差 ~ 1e-5    → 满足二阶
+网格: 平均非正交角 35°     Gauss 误差 ~ 2.1e-2  → 退化为一阶
+                           leastSquares 误差 ~ 1e-4 → 仍为二阶
+判据: 同一网格上换格式若误差差两个数量级，说明几何而非密度主导精度
+```判断格式是否合适的最终依据是关键工程量在换档后的变化是否落在网格离散不确定度内。
+
+梯度格式的取值必须和网格的非正交角、长宽比一起记录。同一套 `gradSchemes` 换到更扭曲的网格上，精度会按一阶退化，原本合适的系数就可能变得过于保守。
+
+诊断顺序是：先用解析场拿到 $E_\infty$ 与观测阶，确认格式在给定网格上是否达到理论精度；再看守恒残差是否落在目标量容差内；最后才回到物理量对照。跳过前两步直接看云图，很容易把梯度误差误判为物理效应。
 
 | 现象 | 根因 | 判定试验 |
 |---|---|---|
+| 压力场出现棋盘格振荡 | Gauss 梯度在非正交网格上退化为一阶 | 换 `leastSquares` 复跑，看压力振荡幅值是否下降 |
+| 壁面附近速度过冲 | 无限制梯度重构出局部极值 | 仅对 `grad(U)` 加 `cellLimited 1`，看极值是否消失 |
+| 加密后梯度误差只按一阶减小 | 网格非正交主导精度 | 用 `checkMesh` 量化平均非正交角，超过 $60^\circ$ 先修网格 |
+| VOF 界面法向抖动 | 相分数梯度被限制器削平 | 相分数梯度单独改用 `Gauss linear`，与限制版对比界面厚度 |
+| 全局质量不守恒 | `leastSquares` 不满足散度定理，梯度场与通量场不相容 | 把 `nNonOrthogonalCorrectors` 提到 2，核对进出口流量相对偏差 |
 | 驻点压力比实验低 3% 以上 | `cellLimited 1` 削平了压力梯度 | 把系数改为 0.5 或改 `leastSquares` 复跑对比 |
 | 分离点位置随梯度格式显著移动 | 湍流量梯度被限制 | 把湍流量梯度换成 `leastSquares` |
 | 打开 `skewCorrected` 后误差变大 | 梯度只有一阶准确 | 先量化 `checkMesh` 非正交角，再决定是否开歪斜修正 |
 | 界面厚度比网格大 4 倍以上 | 相分数梯度被限制 | 相分数梯度单独用 `Gauss linear` |
 | 改变梯度格式后质量不再守恒 | 非守恒型梯度与面通量定义不一致 | 改用 `Gauss linear` 复跑，比较质量守恒残差 |
+| 压力场棋盘格 | 非正交网格上 Gauss 梯度只具一阶精度 | 换 `leastSquares` 复跑，比较压力振荡幅值 |
+| 驻点压力偏低 5% 以上 | `cellLimited 1` 削平压力梯度 | 系数改 0.5 后复跑，看是否回升 |
+| 分离点位置随梯度格式移动 | 湍流量梯度被限制 | 把 `grad(k)` 改为 `leastSquares` 对比 |
+| 观测精度阶只有 1.0 左右 | 非正交角主导误差 | 用 `checkMesh` 记录非正交角，与格式换档结果并列 |
+| 全局质量不守恒到 $10^{-5}$ 量级 | `leastSquares` 与通量场不相容 | 提高 `nNonOrthogonalCorrectors` 或换 `Gauss linear` |
+| 打开歪斜修正后误差反而增大 | 梯度精度不足，修正项本身带误差 | 先确认观测阶达到二阶，再决定是否开歪斜修正 |
 
-梯度格式的取值必须和网格的非正交角、长宽比一起记录。同一套 `gradSchemes` 换到更扭曲的网格上，精度会按一阶退化，原本合适的系数就可能变得过于保守。
-
-### 参考文献
-
-1. Mavriplis D.J., *Revisiting the least-squares procedure for gradient reconstruction on unstructured meshes*, AIAA Paper 2003-3986, 2003.
-2. Barth T.J., Jespersen D.C., *The design and application of upwind schemes on unstructured meshes*, AIAA Paper 89-0366, 1989.
-3. Jasak H., *Error Analysis and Estimation for the Finite Volume Method with Applications to Fluid Flows*, PhD thesis, Imperial College London, 1996.
-4. Greenshields C.J., Weller H.G., *Notes on Computational Fluid Dynamics: General Principles*, CFD Direct, 2022.
-5. OpenFOAM Foundation, *OpenFOAM User Guide*, Section 4.4 Numerical Schemes, 2024.
-6. Ferziger J.H., Perić M., Street R.L., *Computational Methods for Fluid Dynamics*, 4th ed., Springer, 2020.
-
-## 诊断与可信度验证
-
-梯度误差不像残差那样在日志里直接可见，它往往先表现为压力场的棋盘格、驻点压力的系统性偏低或分离点位置漂移。验证梯度格式要靠解析场检验和观测精度阶，把格式误差与网格几何误差分开。本文给出可复算的检验流程、误差量级对照表和六类症状的判定试验。
+## 验证、验收与复现
 
 ### 用解析场直接检验梯度误差
 
@@ -278,30 +265,13 @@ postProcess -func "grad(U)" -time 1000                          # 导出 grad(U)
   用途: 确认限制器没有削掉真实压力梯度
 ```
 
-### 守恒残差：leastSquares 的隐性代价
+## 参考资料
 
-`leastSquares` 不满足散度定理，梯度场与面通量不再自动相容。检查方法是把梯度重构回面通量再与离散通量比较，或者直接看全局质量守恒。一个 $2\times10^6$ 单元的非正交算例里，用 `leastSquares` 时进出口质量流量相对偏差约 $3\times10^{-5}$，用 `Gauss linear` 时约 $2\times10^{-7}$。$3\times10^{-5}$ 对多数工程目标可以接受，但如果做的是长时间积分或需要严格守恒的封闭腔算例，就应把 `nNonOrthogonalCorrectors` 提到 2 或改用 `Gauss linear` 配合更好的网格。
-
-压力梯度是否被限制器削平可以用驻点压力间接检验：圆柱绕流的驻点压力系数理论值约为 $1.0$（不可压势流），实测若只有 $0.93$，且把 `cellLimited 1` 改成 `cellLimited 0.5` 后回升到 $0.98$，就说明限制过强而非物理。
-
-### 梯度误差症状的判定表
-
-| 现象 | 根因 | 判定试验 |
-|---|---|---|
-| 压力场棋盘格 | 非正交网格上 Gauss 梯度只具一阶精度 | 换 `leastSquares` 复跑，比较压力振荡幅值 |
-| 驻点压力偏低 5% 以上 | `cellLimited 1` 削平压力梯度 | 系数改 0.5 后复跑，看是否回升 |
-| 分离点位置随梯度格式移动 | 湍流量梯度被限制 | 把 `grad(k)` 改为 `leastSquares` 对比 |
-| 观测精度阶只有 1.0 左右 | 非正交角主导误差 | 用 `checkMesh` 记录非正交角，与格式换档结果并列 |
-| 全局质量不守恒到 $10^{-5}$ 量级 | `leastSquares` 与通量场不相容 | 提高 `nNonOrthogonalCorrectors` 或换 `Gauss linear` |
-| 打开歪斜修正后误差反而增大 | 梯度精度不足，修正项本身带误差 | 先确认观测阶达到二阶，再决定是否开歪斜修正 |
-
-诊断顺序是：先用解析场拿到 $E_\infty$ 与观测阶，确认格式在给定网格上是否达到理论精度；再看守恒残差是否落在目标量容差内；最后才回到物理量对照。跳过前两步直接看云图，很容易把梯度误差误判为物理效应。
-
-### 参考文献
-
-1. Mavriplis D.J., *Revisiting the least-squares procedure for gradient reconstruction on unstructured meshes*, AIAA Paper 2003-3986, 2003.
-2. Salari K., Knupp P., *Code verification by the method of manufactured solutions*, SAND2000-1444, Sandia National Laboratories, 2000.
-3. Roache P.J., *Verification and Validation in Computational Science and Engineering*, Hermosa Publishers, 1998.
-4. Jasak H., *Error Analysis and Estimation for the Finite Volume Method with Applications to Fluid Flows*, PhD thesis, Imperial College London, 1996.
-5. Barth T.J., Jespersen D.C., *The design and application of upwind schemes on unstructured meshes*, AIAA Paper 89-0366, 1989.
-6. Ferziger J.H., Perić M., Street R.L., *Computational Methods for Fluid Dynamics*, 4th ed., Springer, 2020.
+1. Jasak H., *Error Analysis and Estimation for the Finite Volume Method with Applications to Fluid Flows*, PhD thesis, Imperial College London, 1996.
+2. Barth T.J., Jespersen D.C., *The design and application of upwind schemes on unstructured meshes*, AIAA Paper 89-0366, 1989.
+3. Mavriplis D.J., *Revisiting the least-squares procedure for gradient reconstruction on unstructured meshes*, AIAA Paper 2003-3986, 2003.
+4. Greenshields C.J., Weller H.G., *Notes on Computational Fluid Dynamics: General Principles*, CFD Direct, 2022.
+5. Ferziger J.H., Perić M., Street R.L., *Computational Methods for Fluid Dynamics*, 4th ed., Springer, 2020.
+6. OpenFOAM Foundation, *OpenFOAM User Guide*, Section 4.4 Numerical Schemes, 2024.
+7. Salari K., Knupp P., *Code verification by the method of manufactured solutions*, SAND2000-1444, Sandia National Laboratories, 2000.
+8. Roache P.J., *Verification and Validation in Computational Science and Engineering*, Hermosa Publishers, 1998.

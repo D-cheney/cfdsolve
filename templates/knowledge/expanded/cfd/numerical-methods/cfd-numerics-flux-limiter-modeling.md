@@ -5,7 +5,6 @@ title: 通量限制器：原理、设置与验证
 summary: >-
   从总变差定义与 Godunov 定理出发，说明限制器为什么必须是非线性算子：给出 TVD 的充分条件、通量限制器形式、显式格式的 CFL
   约束，并用一次手算对比中心差分与迎风的总变差变化。
-  全文同时覆盖原理与适用范围、工程设置与参数选择、诊断与可信度验证，保留关键方程、量化参数、可执行示例、失败模式与参考资料。
 category:
   slug: numerical-methods
   name: CFD 数值方法
@@ -31,7 +30,6 @@ seo:
   description: >-
     从总变差定义与 Godunov 定理出发，说明限制器为什么必须是非线性算子：给出 TVD 的充分条件、通量限制器形式、显式格式的 CFL
     约束，并用一次手算对比中心差分与迎风的总变差变化。
-    全文同时覆盖原理与适用范围、工程设置与参数选择、诊断与可信度验证，保留关键方程、量化参数、可执行示例、失败模式与参考资料。
   keywords:
     - 通量限制器
     - 离散原理与适用范围
@@ -46,21 +44,9 @@ seo:
 ---
 # 通量限制器：原理、设置与验证
 
-## 原理与适用范围
+限制器不是精度补丁，而是线性格式无法同时满足二阶精度与单调性这一结论的直接产物。理解这一点，才能判断某条 `div` 项该不该加限制器、加了之后能指望它解决什么。通量限制器的工程配置真正需要拍板的只有两件事：选哪个限制器函数、给它多大的系数。其余设置——单元 Péclet 数、CFL、线性求解容差——决定的是限制器有没有机会起作用。本文把 Sweby 的 TVD 约束逐条映射到 `fvSchemes` 条目，给出四个常用限制器在同一 $r$ 处的取值对照，并说明怎样用五组工况在半天内定下参数。限制器把高阶重构压回 TVD 区域，代价是在极值点附近降为一阶。诊断限制器是否正常工作，要看三个量：总变差是否单调不增、限制器函数 $\phi(r)$ 的采样是否落在 Sweby 允许区域内、以及极值点的削平量是否随网格收敛。
 
-限制器不是精度补丁，而是线性格式无法同时满足二阶精度与单调性这一结论的直接产物。理解这一点，才能判断某条 `div` 项该不该加限制器、加了之后能指望它解决什么。本文给出总变差的离散定义、Godunov 定理的表述、通量限制器的一般形式，并用一次四步手算说明中心差分怎样在一步内把总变差抬高 90 %。
-
-### 总变差：把"不振荡"变成可测量的量
-
-对一维网格上的离散解 $\phi_j$，定义总变差
-
-$$TV(\phi^n)=\sum_{j}\left|\phi_{j+1}^{n}-\phi_{j}^{n}\right|$$
-
-一个不产生新极值的格式应当满足
-
-$$TV(\phi^{n+1})\le TV(\phi^{n})$$
-
-满足该不等式的格式称为 TVD（Total Variation Diminishing）。这个定义的工程价值在于它是可测的：后处理脚本读入两个时刻的场，逐面求和即可得到两个数，比较大小就能判定格式是否振荡，不需要先知道解析解。
+## 基础概念与控制关系
 
 ### Godunov 定理与非线性化的必然性
 
@@ -94,55 +80,19 @@ $$\Delta t=\frac{\nu\Delta x}{u}=\frac{0.9\times0.002}{30}=6.0\times10^{-5}\ \ma
 
 中心格式 $\phi_j^{n+1}=\phi_j^n-\tfrac{\nu}{2}(\phi_{j+1}^n-\phi_{j-1}^n)$ 一步后得 $[300,300,282,322,340,340]\ \mathrm{K}$，$TV=18+40+18=76\ \mathrm{K}$，比初始值高 90 %，并且出现了 282 K 的过冲——低于冷端 300 K。这两个数字就是限制器要消除的对象。
 
-### 适用范围与失效信号
+### 单因素对照矩阵
 
-限制器能保证的是标量守恒律的单调性，它的适用条件比常见宣传窄：
+S3 是判据关键：$\Delta t$ 减半后目标量变化小于 1 %，说明时间误差不主导，此时 S1、S2 的差异才可归因于限制器；若 S3 差异明显，前面比较的其实是时间耗散。
 
-- **只对标量、一维、显式、标量守恒律有严格证明**。方程组（Euler、Navier–Stokes）逐分量施加限制器，不能保证密度与压力同时有界；
-- **在光滑极值点必然退化为一阶**。TVD 格式在 $\phi'=0$ 处被强制降阶，这是定理层面的代价，加密网格只能减小受影响的单元数，不能消除降阶；
-- **多维非结构网格上的 TVD 定义不唯一**。用 Sweby 带只是逐面施加一维判据，方向性偏差要靠 `limitedLinearV` 这类分量式限制来缓解；
-- **隐式格式的 TVD 条件与 CFL 无关，但需要更强的矩阵性质**。不能把显式结论直接搬到 `backward` 或 `CrankNicolson` 上。
+| 工况 | div(phi,U) | CFL | Δx / m | 观察量 | 预期 |
+|---|---|---|---|---|---|
+| B0 | limitedLinearV 1 | 0.5 | 0.010 | 尾迹峰值 | 基准 |
+| S1 | vanLeer | 0.5 | 0.010 | 尾迹峰值 | 峰值略降 |
+| S2 | superbee | 0.5 | 0.010 | 尾迹峰值 | 峰值升高、阶跃变陡 |
+| S3 | limitedLinearV 1 | 0.25 | 0.010 | 尾迹峰值 | 与 B0 差异应 < 1 % |
+| S4 | limitedLinearV 1 | 0.5 | 0.005 | 尾迹峰值 | 向同一极限收敛 |
 
-```python
-import numpy as np
-
-def psi_minmod(r):    return np.maximum(0.0, np.minimum(r, 1.0))
-def psi_vanleer(r):   return (r + np.abs(r)) / (1.0 + np.abs(r))
-def psi_superbee(r):  return np.maximum(0.0, np.maximum(np.minimum(2*r, 1.0), np.minimum(r, 2.0)))
-
-def tvd_check(r, psi):
-    """Sweby 第二区域: 0 <= psi(r) <= min(2r, 2)"""
-    upper = np.minimum(2.0*r, 2.0)
-    ok = (psi >= 0.0) & (psi <= upper + 1e-12)
-    return ok, upper
-
-r = np.array([0.25, 0.5, 1.0, 2.0, 3.0])
-for name, f in [("minmod", psi_minmod), ("vanLeer", psi_vanleer), ("superbee", psi_superbee)]:
-    ok, up = tvd_check(r, f(r))
-    print(name, np.round(f(r), 4), "TVD:", ok.all(), "上界:", up)
-# 期望: 三者均 TVD; r=3 时 superbee 取到上界 2.0, minmod 取 1.0
-```
-
-### 失败模式
-
-| 现象 | 根因 | 判定试验 |
-|---|---|---|
-| 阶跃解在极值处被削平 | TVD 格式在 $\phi'=0$ 处强制降阶 | 把同一剖面做 4 次网格加密，若极值误差按一阶收敛即确认 |
-| 密度有界但压力出现负值 | 分量式限制器不能保证方程组的物理可容许性 | 同时输出密度、压力极值，若只有压力越界则需换成特征变量限制 |
-| $\nu=1.2$ 时限制器完全失效 | 显式 TVD 的 CFL 充分条件被破坏 | 固定限制器，把 $\nu$ 从 1.2 降到 0.9，观察 TV 是否恢复不增 |
-| 二维斜向波前沿比法向波更陡 | 逐面一维判据引入方向偏差 | 把波前旋转 45° 重跑，比较前沿厚度是否随方向改变 |
-| 换成 superbee 后 TV 不增但剖面呈阶梯 | 压缩性把圆滑过渡挤压成分段常数 | 计算剖面的二阶差分极值，若在光滑区出现符号交替即为压缩伪影 |
-
-### 参考文献
-
-1. Godunov S.K., *A difference method for numerical calculation of discontinuous solutions of the equations of hydrodynamics*, Matematicheskii Sbornik, 47(3):271–306, 1959.
-2. Toro E.F., *Riemann Solvers and Numerical Methods for Fluid Dynamics*, 3rd ed., Springer, 2009.
-3. LeVeque R.J., *Finite Volume Methods for Hyperbolic Problems*, Cambridge University Press, 2002.
-4. Hirsch C., *Numerical Computation of Internal and External Flows, Volume 2*, Wiley, 1990.
-
-## 工程设置与参数选择
-
-通量限制器的工程配置真正需要拍板的只有两件事：选哪个限制器函数、给它多大的系数。其余设置——单元 Péclet 数、CFL、线性求解容差——决定的是限制器有没有机会起作用。本文把 Sweby 的 TVD 约束逐条映射到 `fvSchemes` 条目，给出四个常用限制器在同一 $r$ 处的取值对照，并说明怎样用五组工况在半天内定下参数。
+## 适用边界与方案选择
 
 ### Sweby 图划出的合法取值带
 
@@ -156,16 +106,6 @@ $$0\le\psi(r)\le\min\left(2r,\,2\right),\qquad r>0$$
 
 这条带子排除了两个极端。$\psi\equiv 0$ 是一阶迎风，贴在下边界；$\psi\equiv 1$ 是中心差分，只在 $r\le 0.5$ 时留在带内。工程上所谓"高阶又有界"，可选的余地就只有这条带子本身，任何超出带子的写法都会在阶跃附近产生新的极值。
 
-### 四个限制器的解析形式
-
-$$\psi_{\min\bmod}(r)=\max\left(0,\min\left(r,1\right)\right)$$
-
-$$\psi_{\text{van Leer}}(r)=\frac{r+|r|}{1+|r|}$$
-
-$$\psi_{\text{superbee}}(r)=\max\left(0,\min\left(2r,1\right),\min\left(r,2\right)\right)$$
-
-OpenFOAM 的 `limitedLinear` 用系数 $k$ 参数化，$\psi(r)=\max\left(0,\min\left(2r/k,\,1\right)\right)$；$k=1$ 最耗散，$k=2$ 的压缩程度与 minmod 接近。速度场常用 `limitedLinearV`，它对三个分量分别施加限制，避免剪切层里某一分量的限制器被其他分量带偏。
-
 ### 手算：r = 0.5 处的取值与 TVD 校验
 
 取 $r=0.5$，此时带子上界为 $\min(2\times0.5,\,2)=1$。
@@ -176,6 +116,18 @@ OpenFOAM 的 `limitedLinear` 用系数 $k$ 参数化，$\psi(r)=\max\left(0,\min
 - limitedLinear 1：$\min(2\times0.5/1,\,1)=1$。
 
 四者都 $\le 1$，校验通过。superbee 在 $r=0.5$ 就顶到上界，这解释了它在阶跃附近最陡、同时最容易把本应圆滑的解压成阶梯；van Leer 在 $r$ 的整个正半轴上都留有余量，是默认配置里最省心的选择。
+
+## 工程设置与实施
+
+### 四个限制器的解析形式
+
+$$\psi_{\min\bmod}(r)=\max\left(0,\min\left(r,1\right)\right)$$
+
+$$\psi_{\text{van Leer}}(r)=\frac{r+|r|}{1+|r|}$$
+
+$$\psi_{\text{superbee}}(r)=\max\left(0,\min\left(2r,1\right),\min\left(r,2\right)\right)$$
+
+OpenFOAM 的 `limitedLinear` 用系数 $k$ 参数化，$\psi(r)=\max\left(0,\min\left(2r/k,\,1\right)\right)$；$k=1$ 最耗散，$k=2$ 的压缩程度与 minmod 接近。速度场常用 `limitedLinearV`，它对三个分量分别施加限制，避免剪切层里某一分量的限制器被其他分量带偏。
 
 ### 先定时间步：Péclet 数与 CFL 反算
 
@@ -212,40 +164,71 @@ fluxRequired         { default no; p; }
 
 换成 van Leer 只需把 `div(phi,U)` 一行改成 `Gauss vanLeer`，换 superbee 改成 `Gauss superbee`。限制器函数是这一行的第二个词，系数是第三个词，改动范围只有一处。
 
-### 单因素对照矩阵
+## 异常诊断与失效模式
 
-| 工况 | div(phi,U) | CFL | Δx / m | 观察量 | 预期 |
-|---|---|---|---|---|---|
-| B0 | limitedLinearV 1 | 0.5 | 0.010 | 尾迹峰值 | 基准 |
-| S1 | vanLeer | 0.5 | 0.010 | 尾迹峰值 | 峰值略降 |
-| S2 | superbee | 0.5 | 0.010 | 尾迹峰值 | 峰值升高、阶跃变陡 |
-| S3 | limitedLinearV 1 | 0.25 | 0.010 | 尾迹峰值 | 与 B0 差异应 < 1 % |
-| S4 | limitedLinearV 1 | 0.5 | 0.005 | 尾迹峰值 | 向同一极限收敛 |
+### 故障模式与判定试验
 
-S3 是判据关键：$\Delta t$ 减半后目标量变化小于 1 %，说明时间误差不主导，此时 S1、S2 的差异才可归因于限制器；若 S3 差异明显，前面比较的其实是时间耗散。
+限制器能保证的是标量守恒律的单调性，它的适用条件比常见宣传窄：
 
-### 失败模式
+- **只对标量、一维、显式、标量守恒律有严格证明**。方程组（Euler、Navier–Stokes）逐分量施加限制器，不能保证密度与压力同时有界；
+- **在光滑极值点必然退化为一阶**。TVD 格式在 $\phi'=0$ 处被强制降阶，这是定理层面的代价，加密网格只能减小受影响的单元数，不能消除降阶；
+- **多维非结构网格上的 TVD 定义不唯一**。用 Sweby 带只是逐面施加一维判据，方向性偏差要靠 `limitedLinearV` 这类分量式限制来缓解；
+- **隐式格式的 TVD 条件与 CFL 无关，但需要更强的矩阵性质**。不能把显式结论直接搬到 `backward` 或 `CrankNicolson` 上。
+
+```python
+import numpy as np
+
+def psi_minmod(r):    return np.maximum(0.0, np.minimum(r, 1.0))
+def psi_vanleer(r):   return (r + np.abs(r)) / (1.0 + np.abs(r))
+def psi_superbee(r):  return np.maximum(0.0, np.maximum(np.minimum(2*r, 1.0), np.minimum(r, 2.0)))
+
+def tvd_check(r, psi):
+    """Sweby 第二区域: 0 <= psi(r) <= min(2r, 2)"""
+    upper = np.minimum(2.0*r, 2.0)
+    ok = (psi >= 0.0) & (psi <= upper + 1e-12)
+    return ok, upper
+
+r = np.array([0.25, 0.5, 1.0, 2.0, 3.0])
+for name, f in [("minmod", psi_minmod), ("vanLeer", psi_vanleer), ("superbee", psi_superbee)]:
+    ok, up = tvd_check(r, f(r))
+    print(name, np.round(f(r), 4), "TVD:", ok.all(), "上界:", up)
+# 期望: 三者均 TVD; r=3 时 superbee 取到上界 2.0, minmod 取 1.0
+```
 
 | 现象 | 根因 | 判定试验 |
 |---|---|---|
+| 阶跃解在极值处被削平 | TVD 格式在 $\phi'=0$ 处强制降阶 | 把同一剖面做 4 次网格加密，若极值误差按一阶收敛即确认 |
+| 密度有界但压力出现负值 | 分量式限制器不能保证方程组的物理可容许性 | 同时输出密度、压力极值，若只有压力越界则需换成特征变量限制 |
+| $\nu=1.2$ 时限制器完全失效 | 显式 TVD 的 CFL 充分条件被破坏 | 固定限制器，把 $\nu$ 从 1.2 降到 0.9，观察 TV 是否恢复不增 |
+| 二维斜向波前沿比法向波更陡 | 逐面一维判据引入方向偏差 | 把波前旋转 45° 重跑，比较前沿厚度是否随方向改变 |
+| 换成 superbee 后 TV 不增但剖面呈阶梯 | 压缩性把圆滑过渡挤压成分段常数 | 计算剖面的二阶差分极值，若在光滑区出现符号交替即为压缩伪影 |
 | 阶跃下游出现 $-0.08$ 的负浓度 | 限制器系数过大，或汇项未按 $S_p\le0$ 线性化 | 把该项临时改为 `Gauss upwind` 重跑，负值消失即格式无界 |
 | 尾迹峰值随网格加密持续升高 | superbee 的压缩性人为抬高峰值 | 换 vanLeer 在同一网格重跑，比较峰值差 |
 | 换限制器后残差曲线完全重合 | 该方程的对流项没被这一行覆盖 | 检查 `divSchemes` 中对应项是否仍是 `linear` |
 | CFL 减半结果变化 8 % | 时间误差主导，限制器比较失效 | 固定限制器，CFL 取 0.5/0.25/0.125 看收敛趋势 |
 | 并行后阶跃位置随分区数改变 | 限制器 stencil 跨处理器面被截断 | 单核重跑同一算例，比对阶跃坐标 |
+| 阶跃处出现对称振荡 | 限制器未启用，或 $\phi$ 超出 Sweby 上界 | 打印 $\phi(r)$ 在 $0<r<3$ 上的采样，与 $2r$、$2$ 两条边界比较 |
+| 光滑极值被削平 | 极值点 $r<0$ 时 minmod 退化为迎风 | 换 MC 或 van Leer，比较极值处的幅值衰减 |
+| 限制器几乎不激活但解仍振荡 | 限制器作用在错误的变量上，或未在预测步施加 | 在预测与校正两步分别输出激活单元计数 |
+| 加密后解不收敛到精确解 | 限制器使格式在极值处降为一阶 | 在极值附近单独统计误差，观察局部收敛阶 |
+| 总变差缓慢增长 | 时间推进不是 TVD 的，例如用了普通 RK4 | 换 SSP-RK3，重算总变差历史 |
+| 对称初值演化后失去对称 | 限制器在对称面上取向不一致 | 用对称初值运行，比较左右两侧解的差 |
 
-### 参考文献
+### 总变差：把"不振荡"变成可测量的量
 
-1. Sweby P.K., *High resolution schemes using flux limiters for hyperbolic conservation laws*, SIAM Journal on Numerical Analysis, 21(5):995–1011, 1984.
-2. van Leer B., *Towards the ultimate conservative difference scheme V: a second-order sequel to Godunov's method*, Journal of Computational Physics, 32(1):101–136, 1979.
-3. Harten A., *High resolution schemes for hyperbolic conservation laws*, Journal of Computational Physics, 49(3):357–393, 1983.
-4. Leonard B.P., *The ULTIMATE conservative difference scheme applied to unsteady one-dimensional advection*, Computer Methods in Applied Mechanics and Engineering, 88(1):17–74, 1991.
+对一维网格上的离散解 $\phi_j$，定义总变差
 
-## 诊断与可信度验证
+$$TV(\phi^n)=\sum_{j}\left|\phi_{j+1}^{n}-\phi_{j}^{n}\right|$$
 
-限制器把高阶重构压回 TVD 区域，代价是在极值点附近降为一阶。诊断限制器是否正常工作，要看三个量：总变差是否单调不增、限制器函数 $\phi(r)$ 的采样是否落在 Sweby 允许区域内、以及极值点的削平量是否随网格收敛。本文给出这三项的阈值与校验方法。
+一个不产生新极值的格式应当满足
 
-### 一、总变差是 TVD 的直接检验量
+$$TV(\phi^{n+1})\le TV(\phi^{n})$$
+
+满足该不等式的格式称为 TVD（Total Variation Diminishing）。这个定义的工程价值在于它是可测的：后处理脚本读入两个时刻的场，逐面求和即可得到两个数，比较大小就能判定格式是否振荡，不需要先知道解析解。
+
+## 验证、验收与复现
+
+### 总变差是 TVD 的直接检验量
 
 $$
 \mathrm{TV}\!\left(u^n\right)=\sum_i\left|u_{i+1}^n-u_i^n\right|,\qquad \mathrm{TV}\!\left(u^{n+1}\right)\le\mathrm{TV}\!\left(u^{n}\right)
@@ -255,7 +238,7 @@ Godunov 定理指出，线性单调格式至多一阶精度，因此二阶精度
 
 以 1D 阶跃初值（幅值 1，位于 $x=0.5$ m）为例：$N=200$、$\Delta x=5\times10^{-3}$ m、$a=1$ m/s、库朗数 0.5，则 $\Delta t=0.5\times5\times10^{-3}/1=2.5\times10^{-3}$ s，传播到 $t=1$ s 共 400 步。精确解的总变差恒为 $\mathrm{TV}=2$。实测：无限制中心格式在 $t=1$ s 时 $\mathrm{TV}\approx2.31$（约 15% 过冲，峰值约 1.09）；minmod 与 superbee 的 $\mathrm{TV}$ 均不超过 2.0，但 superbee 在阶跃两侧留下更窄的"台阶"。以 5% 为验收阈值，$\mathrm{TV}$ 相对偏差 $|2.31-2|/2=15.5\%$ 明显超标。
 
-### 二、限制器函数必须落在 Sweby 区域内
+### 限制器函数必须落在 Sweby 区域内
 
 $$
 \phi(r)=\max\left(0,\min(1,r)\right)\qquad\text{minmod}
@@ -271,7 +254,7 @@ $$
 
 二阶 TVD 格式的 $\phi$ 必须落在允许区域 $0\le\phi(r)\le\min(2r,2)$ 内并通过 $(1,1)$ 点：超出上界会失去 TVD，长期落在下界附近则退化为过度压缩的一阶。诊断时把算例中实际出现的 $(r,\phi(r))$ 点画在 $(r,\phi)$ 平面上，与 $2r$、$2$ 两条边界比较，一眼就能看出是否有越界采样。
 
-### 三、梯度比 $r$ 的分布
+### 梯度比 $r$ 的分布
 
 $$
 r_i=\frac{u_i-u_{i-1}}{u_{i+1}-u_i}
@@ -279,18 +262,7 @@ $$
 
 在光滑区 $r\approx1$，而 $\phi(1)=1$，限制器不改变重构；在极值点 $r<0$，minmod 给出 $\phi=0$（退化为迎风），这就是极值削平的来源。诊断时应输出 $r$ 的直方图：若光滑区的 $r$ 分布明显偏离 1，说明网格分辨率不足或格式本身有相位误差，此时限制器只是在替另一个问题背锅。
 
-### 四、症状、根因与判定
-
-| 现象 | 根因 | 判定试验 |
-|---|---|---|
-| 阶跃处出现对称振荡 | 限制器未启用，或 $\phi$ 超出 Sweby 上界 | 打印 $\phi(r)$ 在 $0<r<3$ 上的采样，与 $2r$、$2$ 两条边界比较 |
-| 光滑极值被削平 | 极值点 $r<0$ 时 minmod 退化为迎风 | 换 MC 或 van Leer，比较极值处的幅值衰减 |
-| 限制器几乎不激活但解仍振荡 | 限制器作用在错误的变量上，或未在预测步施加 | 在预测与校正两步分别输出激活单元计数 |
-| 加密后解不收敛到精确解 | 限制器使格式在极值处降为一阶 | 在极值附近单独统计误差，观察局部收敛阶 |
-| 总变差缓慢增长 | 时间推进不是 TVD 的，例如用了普通 RK4 | 换 SSP-RK3，重算总变差历史 |
-| 对称初值演化后失去对称 | 限制器在对称面上取向不一致 | 用对称初值运行，比较左右两侧解的差 |
-
-### 五、限制器校验代码
+### 限制器校验代码
 
 ```python
 import numpy as np
@@ -316,13 +288,17 @@ for name, f in (("minmod", phi_minmod), ("MC", phi_mc), ("vanLeer", phi_vanleer)
     print(f"{name:8s} phi={p}  in_Sweby={ok}")
 ```
 
-### 六、与精确解对照
+### 与精确解对照
 
 用 1D 线性对流的矩形波验证：精确解总变差恒为 2，任何 TVD 格式的数值解都不应超过它。再取光滑极值（如 $\sin$ 波峰）验证限制器的削平量：在 $N=200$ 与 $N=400$ 两套网格上分别测量峰值，若峰值随加密按一阶收敛回 1，说明削平来自限制器而非格式缺陷；若峰值停滞在 0.95 附近不收敛，则应改用 MC 或 van Leer 重新评估。
 
-### 七、延伸阅读
+## 参考资料
 
-1. Sweby P. K., "High Resolution Schemes Using Flux Limiters for Hyperbolic Conservation Laws", *SIAM Journal on Numerical Analysis*, 21(5), 995-1011, 1984.
-2. van Leer B., "Towards the Ultimate Conservative Difference Scheme V: A Second-Order Sequel to Godunov's Method", *Journal of Computational Physics*, 32(1), 101-136, 1979.
-3. Godunov S. K., "A Difference Method for Numerical Calculation of Discontinuous Solutions of the Equations of Hydrodynamics", *Matematicheskii Sbornik*, 47(3), 271-306, 1959.
-4. LeVeque R. J., *Finite Volume Methods for Hyperbolic Problems*, Cambridge University Press, 2002.
+1. Godunov S.K., *A difference method for numerical calculation of discontinuous solutions of the equations of hydrodynamics*, Matematicheskii Sbornik, 47(3):271–306, 1959.
+2. Toro E.F., *Riemann Solvers and Numerical Methods for Fluid Dynamics*, 3rd ed., Springer, 2009.
+3. LeVeque R.J., *Finite Volume Methods for Hyperbolic Problems*, Cambridge University Press, 2002.
+4. Hirsch C., *Numerical Computation of Internal and External Flows, Volume 2*, Wiley, 1990.
+5. Sweby P.K., *High resolution schemes using flux limiters for hyperbolic conservation laws*, SIAM Journal on Numerical Analysis, 21(5):995–1011, 1984.
+6. van Leer B., *Towards the ultimate conservative difference scheme V: a second-order sequel to Godunov's method*, Journal of Computational Physics, 32(1):101–136, 1979.
+7. Harten A., *High resolution schemes for hyperbolic conservation laws*, Journal of Computational Physics, 49(3):357–393, 1983.
+8. Leonard B.P., *The ULTIMATE conservative difference scheme applied to unsteady one-dimensional advection*, Computer Methods in Applied Mechanics and Engineering, 88(1):17–74, 1991.

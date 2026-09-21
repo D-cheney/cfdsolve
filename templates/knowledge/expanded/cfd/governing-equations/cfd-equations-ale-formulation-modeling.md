@@ -4,7 +4,7 @@ slug: cfd-equations-ale-formulation-modeling
 title: ALE 动网格守恒形式：原理与工程设置
 summary: >-
   讲清 ALE 为何要人为引入网格速度场、几何守恒律为什么是自由流保持性的前提、扩散权重如何决定变形分配，以及变形量超出分辨率后 ALE
-  应该在哪个信号上被放弃。 全文同时覆盖原理与适用范围、工程设置与参数选择，保留关键方程、量化参数、可执行示例、失败模式与参考资料。
+  应该在哪个信号上被放弃。
 category:
   slug: governing-equations
   name: 控制方程与物理建模
@@ -27,7 +27,7 @@ seo:
   title: ALE 动网格守恒形式：原理与工程设置
   description: >-
     讲清 ALE 为何要人为引入网格速度场、几何守恒律为什么是自由流保持性的前提、扩散权重如何决定变形分配，以及变形量超出分辨率后 ALE
-    应该在哪个信号上被放弃。 全文同时覆盖原理与适用范围、工程设置与参数选择，保留关键方程、量化参数、可执行示例、失败模式与参考资料。
+    应该在哪个信号上被放弃。
   keywords:
     - ALE 动网格守恒形式
     - 物理建模与适用边界
@@ -40,19 +40,9 @@ seo:
 ---
 # ALE 动网格守恒形式：原理与工程设置
 
-## 原理与适用范围
+ALE 不是一套新物理，而是在拉格朗日与欧拉描述之间插入一个可自由选择的参考运动。这个自由度的代价是：参考运动必须自身满足几何守恒律，否则连均匀来流都无法在动网格上原样保持。本文交代网格速度场的来源、变形在计算域中的分配规律，以及 ALE 应该在什么信号上被换成重叠网格或重划分。ALE 动网格出错的多数场合不是物理选错，而是网格通量与体积变化率没有对上：把流场冻结、只让网格运动，解也会凭空长出或丢掉质量。
 
-ALE 不是一套新物理，而是在拉格朗日与欧拉描述之间插入一个可自由选择的参考运动。这个自由度的代价是：参考运动必须自身满足几何守恒律，否则连均匀来流都无法在动网格上原样保持。本文交代网格速度场的来源、变形在计算域中的分配规律，以及 ALE 应该在什么信号上被换成重叠网格或重划分。
-
-### ALE 站在拉格朗日与欧拉之间
-
-纯拉格朗日让网格随流体走，$\mathbf{u}_g=\mathbf{u}$，对流项消失，但网格很快畸变；纯欧拉让网格不动，$\mathbf{u}_g=0$，网格质量稳定，但界面和自由面被数值扩散抹开。ALE 取中间：网格以任意速度 $\mathbf{u}_g$ 运动，只要求它把关心的界面贴住、同时不让单元畸变。
-
-$$
-\mathbf{u}_g=\left.\frac{\partial\mathbf{x}}{\partial t}\right|_{\chi},\qquad \mathbf{x}=\mathbf{x}(\chi,t)
-$$
-
-$\chi$ 是参考坐标，与流体质点无关。因此 $\mathbf{u}_g$ 既不是物理量，也不受动量方程约束——它是一个由使用者选定的辅助场，这正是 ALE 灵活与危险并存的原因。
+## 基础概念与控制关系
 
 ### 连续性方程在动网格上的形式变了
 
@@ -114,7 +104,19 @@ print("max relative GCL error =", err)          # 目标 < 1e-12
 
 输出量级若在 $10^{-12}$ 以上，说明体积由几何更新、通量由插值计算，两条路径不一致；此时把两者改为由同一组面位移量导出，即可恢复自由流保持性。
 
+### ALE 站在拉格朗日与欧拉之间
+
+纯拉格朗日让网格随流体走，$\mathbf{u}_g=\mathbf{u}$，对流项消失，但网格很快畸变；纯欧拉让网格不动，$\mathbf{u}_g=0$，网格质量稳定，但界面和自由面被数值扩散抹开。ALE 取中间：网格以任意速度 $\mathbf{u}_g$ 运动，只要求它把关心的界面贴住、同时不让单元畸变。
+
+$$
+\mathbf{u}_g=\left.\frac{\partial\mathbf{x}}{\partial t}\right|_{\chi},\qquad \mathbf{x}=\mathbf{x}(\chi,t)
+$$
+
+$\chi$ 是参考坐标，与流体质点无关。因此 $\mathbf{u}_g$ 既不是物理量，也不受动量方程约束——它是一个由使用者选定的辅助场，这正是 ALE 灵活与危险并存的原因。
+
 ### 什么信号说明 ALE 该退场
+
+最后两行是 ALE 的主要失效边界：一是拓扑必须保持，一旦需要网格合并、分裂或穿透处理，必须换成重叠网格、界面重构或重划分；二是变形必须留在分辨率预算内，首层高度的时间漂移会直接污染壁面通量。用工程语言说，ALE 的适用域由"拓扑不变"和"首层拉伸可忽略"两条边界围成，越界后继续缩时间步只会增加成本而不会恢复精度。
 
 | 现象 | 根因 | 判定试验 |
 |---|---|---|
@@ -124,8 +126,6 @@ print("max relative GCL error =", err)          # 目标 < 1e-12
 | 接触、穿透或破裂工况下体积变为负 | ALE 要求网格拓扑不变，无法处理合并与分裂 | 检查是否出现面接触或单元穿透 |
 | 壁面热流比基准低一截 | 首层被反复拉伸，$y^+$ 在时间上漂移 | 逐时刻输出首层高度与 $y^+$ 的极值 |
 | 网格速度场出现高频振荡 | 网格运动与流场双向耦合未做内迭代 | 冻结流场只解网格运动，看场是否平滑 |
-
-最后两行是 ALE 的主要失效边界：一是拓扑必须保持，一旦需要网格合并、分裂或穿透处理，必须换成重叠网格、界面重构或重划分；二是变形必须留在分辨率预算内，首层高度的时间漂移会直接污染壁面通量。用工程语言说，ALE 的适用域由"拓扑不变"和"首层拉伸可忽略"两条边界围成，越界后继续缩时间步只会增加成本而不会恢复精度。
 
 ### 变形预算的一个可用上限
 
@@ -143,16 +143,7 @@ $$
 
 超过这个振幅，要么缩小 $\Delta x_{\min}$（提高分辨率而非降低成本），要么把运动交给重叠网格。这条上限与具体求解器无关，只取决于分辨率预算，因此适合在建模阶段先算一遍，再决定参考运动的描述方式。
 
-### 参考资料
-
-1. Hughes T.J.R., Liu W.K., Zimmermann T.K., "Lagrangian-Eulerian finite element formulation for incompressible viscous flows", Computer Methods in Applied Mechanics and Engineering, 29(3), 1981, 329-349.
-2. Thomas P.D., Lombard C.K., "Geometric conservation law and its application to flow computations on moving grids", AIAA Journal, 17(10), 1979, 1030-1037.
-3. Lesoinne M., Farhat C., "Geometric conservation laws for flow problems with moving boundaries and deformable meshes, and their impact on aeroelastic computations", Computer Methods in Applied Mechanics and Engineering, 134(1-2), 1996, 71-90.
-4. Batina J.T., "Unsteady Euler airfoil solutions using unstructured dynamic meshes", AIAA Journal, 28(8), 1990, 1381-1388.
-
-## 工程设置与参数选择
-
-ALE 动网格出错的多数场合不是物理选错，而是网格通量与体积变化率没有对上：把流场冻结、只让网格运动，解也会凭空长出或丢掉质量。本文给出把几何守恒律写进字典的具体做法、动网格柯朗数的取值区间，以及活塞压缩算例的逐项手算，可直接当作新算例的自检脚本。
+## 工程设置与实施
 
 ### 网格速度改变了哪一项
 
@@ -175,6 +166,16 @@ V_P^{\,n}-V_P^{\,n-1}=\Delta t\sum_f\left(\mathbf{u}_{g,f}\cdot\mathbf{A}_f\righ
 $$
 
 工程上把 $\varphi_{g,f}=\mathbf{u}_{g,f}\cdot\mathbf{A}_f$ 称为网格体积通量。求解器组装对流通量时会直接用它；若体积变化率由几何直接算出而与 $\sum_f\varphi_{g,f}$ 不等，差量就表现为虚假源项，并随步数线性累积。
+
+### 动网格柯朗数与时间步
+
+限制时间步的量有两个。流场柯朗数 $\mathrm{Co}=|\mathbf{u}|\Delta t/\Delta x$ 管对流稳定性；动网格柯朗数
+
+$$
+\mathrm{Co}_{\mathrm{mesh}}=\frac{|\mathbf{u}_g|\,\Delta t}{\Delta x_{\min}}
+$$
+
+管单元会不会被自身运动穿过。取 $\mathrm{Co}_{\mathrm{mesh}}\le 0.3$ 时，单元体积一步内变化不超过三成，`velocityLaplacian` 的扩散解稳定；超过 0.5 后 `checkMesh` 常报最小体积趋零甚至为负。
 
 ### 字典里要写对的三处
 
@@ -202,16 +203,6 @@ ddtSchemes      { default backward; }
 
 三点说明。其一，`diffusivity` 取 `quadratic inverseDistance` 时权重正比于 $1/d^2$，$d$ 是到指定 patch 的距离；壁面附近 $d$ 小、权重极大，因此近壁单元接近刚体平移，变形被挤到远场，薄边界层不会被拉坏。其二，`ddtSchemes` 必须给 `backward`，一阶欧拉把网格速度取在旧时间层，会留下与 $\Delta t$ 同阶的守恒偏差。其三，`piston` 面上的流场速度在 `0/U` 中用 `movingWallVelocity`，它与网格速度自动一致，不要手填 `fixedValue`。
 
-### 动网格柯朗数与时间步
-
-限制时间步的量有两个。流场柯朗数 $\mathrm{Co}=|\mathbf{u}|\Delta t/\Delta x$ 管对流稳定性；动网格柯朗数
-
-$$
-\mathrm{Co}_{\mathrm{mesh}}=\frac{|\mathbf{u}_g|\,\Delta t}{\Delta x_{\min}}
-$$
-
-管单元会不会被自身运动穿过。取 $\mathrm{Co}_{\mathrm{mesh}}\le 0.3$ 时，单元体积一步内变化不超过三成，`velocityLaplacian` 的扩散解稳定；超过 0.5 后 `checkMesh` 常报最小体积趋零甚至为负。
-
 ### 活塞压缩算例：一次可核对的手算
 
 缸径 $D=100\ \mathrm{mm}$，活塞面积
@@ -230,7 +221,9 @@ $$
 
 再从体积侧核对：$\mathrm{d}V/\mathrm{d}t=A u_g=7.854\times10^{-3}\times2.0=1.571\times10^{-2}\ \mathrm{m^3/s}$，单步体积增量 $\Delta V=1.571\times10^{-2}\times5\times10^{-5}=7.854\times10^{-7}\ \mathrm{m^3}$。单元体积 $V=A\Delta x_{\min}=7.854\times10^{-3}\times1.0\times10^{-3}=7.854\times10^{-6}\ \mathrm{m^3}$，故 $\Delta V/V=0.10$，与 $\mathrm{Co}_{\mathrm{mesh}}$ 完全一致，这正是几何守恒律应有的结果。若日志里 cumulative continuity error 与这个量级同阶，问题出在网格通量没跟上体积变化，而不是流场。
 
-### 失败模式与判定试验
+## 异常诊断与失效模式
+
+### 故障模式与判定试验
 
 | 现象 | 根因 | 判定试验 |
 |---|---|---|
@@ -241,13 +234,19 @@ $$
 | 动网格算例的 $k$、$\varepsilon$ 出现负值 | 湍流生成项未按相对速度计算 | 冻结网格到同一物理时刻，对比动网格与静网格的 $k$ 场 |
 | 每步都有小的同号漂移 | 网格速度取在旧时间层 | 切到 `backward`，观察 cumulative error 是否停止累积 |
 
+## 验证、验收与复现
+
 ### 收敛与验收要看什么
 
 残差只说明代数方程被解开了，不说明网格账目平了。验收至少留三项：每个时间步 `time step continuity errors` 中 global 项相对入口流量的比例，建议小于 $10^{-4}$；冻结流场自检下体积变化与网格通量的相对差，应在机器精度量级；以及目标量对 $\mathrm{Co}_{\mathrm{mesh}}$ 在 0.05 / 0.10 / 0.20 三档下的变化。若第三项在 0.10 到 0.20 之间跳变，说明网格已经承受不住该行程，应先改运动求解器或加密，而不是继续缩时间步。
 
-### 参考资料
+## 参考资料
 
-1. Hirt C.W., Amsden A.A., Cook J.L., "An arbitrary Lagrangian-Eulerian computing method for all flow speeds", Journal of Computational Physics, 14(3), 1974, 227-253.
-2. Demirdžić I., Perić M., "Space conservation law in finite volume calculations of fluid flow", International Journal for Numerical Methods in Fluids, 8(9), 1988, 1037-1050.
-3. Farhat C., Lesoinne M., Maman N., "Mixed explicit/implicit time integration of coupled aeroelastic problems: three-field formulation, geometric conservation and distributed solution", International Journal for Numerical Methods in Fluids, 21(10), 1995, 807-835.
-4. Donea J., Huerta A., Ponthot J.-Ph., Rodríguez-Ferran A., "Arbitrary Lagrangian-Eulerian methods", Encyclopedia of Computational Mechanics, Vol. 1, Wiley, 2004.
+1. Hughes T.J.R., Liu W.K., Zimmermann T.K., "Lagrangian-Eulerian finite element formulation for incompressible viscous flows", Computer Methods in Applied Mechanics and Engineering, 29(3), 1981, 329-349.
+2. Thomas P.D., Lombard C.K., "Geometric conservation law and its application to flow computations on moving grids", AIAA Journal, 17(10), 1979, 1030-1037.
+3. Lesoinne M., Farhat C., "Geometric conservation laws for flow problems with moving boundaries and deformable meshes, and their impact on aeroelastic computations", Computer Methods in Applied Mechanics and Engineering, 134(1-2), 1996, 71-90.
+4. Batina J.T., "Unsteady Euler airfoil solutions using unstructured dynamic meshes", AIAA Journal, 28(8), 1990, 1381-1388.
+5. Hirt C.W., Amsden A.A., Cook J.L., "An arbitrary Lagrangian-Eulerian computing method for all flow speeds", Journal of Computational Physics, 14(3), 1974, 227-253.
+6. Demirdžić I., Perić M., "Space conservation law in finite volume calculations of fluid flow", International Journal for Numerical Methods in Fluids, 8(9), 1988, 1037-1050.
+7. Farhat C., Lesoinne M., Maman N., "Mixed explicit/implicit time integration of coupled aeroelastic problems: three-field formulation, geometric conservation and distributed solution", International Journal for Numerical Methods in Fluids, 21(10), 1995, 807-835.
+8. Donea J., Huerta A., Ponthot J.-Ph., Rodríguez-Ferran A., "Arbitrary Lagrangian-Eulerian methods", Encyclopedia of Computational Mechanics, Vol. 1, Wiley, 2004.

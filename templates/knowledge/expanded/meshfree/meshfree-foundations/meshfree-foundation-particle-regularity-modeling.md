@@ -4,7 +4,7 @@ slug: meshfree-foundation-particle-regularity-modeling
 title: 粒子分布规则性：原理与诊断验证
 summary: >-
   从粒子求积误差解释为什么无序分布把二阶精度压到 d/2 阶，给出二维六边形与正方形点阵、三维 FCC/BCC/SC 的填充率与近邻数对照，并用 0.3Δx
-  抖动的随机游走估算 4.2% 的梯度误差量级。 全文同时覆盖原理与适用范围、诊断与可信度验证，保留关键方程、量化参数、可执行示例、失败模式与参考资料。
+  抖动的随机游走估算 4.2% 的梯度误差量级。
 category:
   slug: meshfree-foundations
   name: 无网格法 · 方法与验证
@@ -28,7 +28,6 @@ seo:
   description: >-
     从粒子求积误差解释为什么无序分布把二阶精度压到 d/2 阶，给出二维六边形与正方形点阵、三维 FCC/BCC/SC 的填充率与近邻数对照，并用
     0.3Δx 抖动的随机游走估算 4.2% 的梯度误差量级。
-    全文同时覆盖原理与适用范围、诊断与可信度验证，保留关键方程、量化参数、可执行示例、失败模式与参考资料。
   keywords:
     - 粒子分布规则性
     - 离散原理与适用边界
@@ -41,35 +40,9 @@ seo:
 ---
 # 粒子分布规则性：原理与诊断验证
 
-## 原理与适用范围
+核近似的连续形式是二阶精确的，但落到粒子求积上，精度由点阵的几何决定。对称点阵能让一阶矩逐项抵消，误差维持二阶；粒子一旦随机错位，一阶矩变成一个随机量，误差降到 $\Delta x^{d/2}$ 阶。这条差异解释了为什么同样的格式在不同初始排布下表现相差一个数量级，也决定了粒子移位这类"整理分布"的技术应当被当成建模选择而非后期美化。同一个求解器，同一套参数，把初始点阵从规则格点换成位置抖动 $0.3\Delta x$ 的随机排布，$L_2$ 收敛阶就会从 2.0 掉到 1.0，压力噪声翻两三倍。这说明"粒子乱不乱"不是观感问题，而是决定精度的独立变量。诊断它不需要额外物理模型，只需三个统计量和一组对照算例。
 
-核近似的连续形式是二阶精确的，但落到粒子求积上，精度由点阵的几何决定。对称点阵能让一阶矩逐项抵消，误差维持二阶；粒子一旦随机错位，一阶矩变成一个随机量，误差降到 $\Delta x^{d/2}$ 阶。这条差异解释了为什么同样的格式在不同初始排布下表现相差一个数量级，也决定了粒子移位这类"整理分布"的技术应当被当成建模选择而非后期美化。本文给出求积误差的推导、常见点阵的几何参数，以及恢复规则性的几种手段各自适用到哪里为止。
-
-### 一阶矩的抵消条件决定收敛阶
-
-核近似把点值换成求和，误差来自把积分换成有限和：
-
-$$
-\sum_j V_j f_j W_{ij}=f_i+\frac{\sigma^{2}}{2}\nabla^{2}f_i+E_{\text{quad}}, \qquad \sum_j V_j\left(\mathbf{x}_j-\mathbf{x}_i\right)W_{ij}=\begin{cases}\mathbf{0}, & \text{对称点阵}\\[2pt] O\!\left(\Delta x^{d/2}\right), & \text{无序分布}\end{cases}
-$$
-
-规则点阵里每一对关于粒子 $i$ 对称的邻居贡献大小相等、方向相反，一阶矩精确为零，$E_{\text{quad}}$ 与核偏差同为 $O(\Delta x^{2})$。粒子位置一旦抖动，这种配对不再严格成立，一阶矩变成 $N_{\text{nb}}$ 个独立小量之和，按随机游走只衰减到 $\Delta x^{d/2}$。合并两项：
-
-$$
-e_{L_2}\sim C_1h^{2}+C_2\Delta x^{d/2}\quad\Longrightarrow\quad p=\min\left(2,\ \tfrac{d}{2}\right)
-$$
-
-二维无序分布的理论阶是 1，三维是 1.5。这解释了实测中二维抖动点阵稳定停在 1.0 附近，而三维同一算例往往测到 1.4~1.6——不是实现有 bug，是维度写在阶数里。
-
-### 抖动幅度换算成梯度误差
-
-把误差量级写出来更好用。设单粒子位置偏差 $\delta=0.3\Delta x$，平滑长度 $h=1.2\Delta x$，则单次偏差对梯度的相对贡献为 $\delta/h=0.25$；$N_{\text{nb}}=35$ 个邻居的随机抵消把它压到
-
-$$
-\frac{\delta}{h\sqrt{N_{\text{nb}}}}=\frac{0.3}{1.2\times\sqrt{35}}=\frac{0.25}{5.92}=0.042
-$$
-
-即约 $4.2\%$ 的梯度误差。把 $\delta$ 降到 $0.1\Delta x$ 后该值降到 $1.4\%$，把 $h/\Delta x$ 从 1.2 提到 1.5 后降到 $3.3\%$。三个旋钮里，整理分布（减小 $\delta$）的性价比最高，因为误差与 $\delta$ 成正比，而增大 $h$ 会同时抹掉物理特征。
+## 基础概念与控制关系
 
 ### 点阵几何决定初始规则性与邻居数
 
@@ -108,7 +81,11 @@ def shift_particles(x, dx, rho, grad_rho, delta=0.02):
     return x - delta * dx * g        # 沿密度减小的方向推开聚集区
 ```
 
-### 失败模式
+## 异常诊断与失效模式
+
+### 故障模式与判定试验
+
+全局统计量会互相抵消，必须分区看。做法是给每个粒子打上"到自由面距离"和"局部应变率"两个标签，再按标签分箱统计 $C_N$ 与 $C_V$。经验上，异常几乎总集中在三类位置：自由面下方一两层粒子（缺少外侧邻居，密度亏损会诱发向内塌缩）；剪切层（粒子沿流线被拉长，形成各向异性分布）；冲击后稀疏波区（粒子被拉散，$\bar N$ 骤降）。若损伤区的 $C_N$ 超过 $40\%$，即使全局 $C_N$ 只有 $8\%$，结果也不可信。
 
 | 现象 | 根因 | 判定试验 |
 |---|---|---|
@@ -118,49 +95,30 @@ def shift_particles(x, dx, rho, grad_rho, delta=0.02):
 | 开启移位后质量或动量漂移 | 移位位移未与守恒更新同步 | 关掉移位重跑，比较总动量残差 |
 | 固体算例移位后应力错乱 | 移位破坏材料坐标与粒子的对应关系 | 用重构应力方案替换移位，比较变形历史 |
 | 近壁 $C_V$ 高而内部正常 | 边界粒子层数不足，缺外侧邻居 | 增厚边界粒子层，重测近壁 $C_V$ |
+| 阶数停在 1.0 且压力噪声大 | 初始点阵无序，求积误差退化为一阶 | 换成六边形点阵重跑，看阶数是否回到 2 |
+| 自由面附近粒子成对聚集 | 表面密度亏损诱发向内塌缩 | 画自由面下两层的 $d_{\min}/\Delta x$ 剖面 |
+| 损伤区 $\bar N$ 骤降到 12 | 稀疏波把粒子拉散，核求和权重不足 | 输出该区 $C_N$ 与局部 $h/\Delta x$ 实际值 |
+| 全局指标正常但局部结果失真 | 分区异常被平均掉 | 按自由面距离与应变率分箱统计 $C_N$ |
+| 开启粒子移位后结果反而变差 | 移位强度过大，引入额外数值耗散 | 扫描移位系数，比较 $C_V$ 与目标量误差 |
+| 三维算例 $C_N$ 明显高于二维 | 同 $h/\Delta x$ 下三维邻居数更多，对无序更敏感 | 分别统计二维与三维的 $\bar N$，核对是否落在 30~50 与 50~80 |
 
-### 参考文献
+## 验证、验收与复现
 
-1. Quinlan N.J., Basa M., Lastiwka M., *Truncation error in mesh-free particle methods*, International Journal for Numerical Methods in Engineering, 66(13): 2064-2085, 2006.
-2. Lind S.J., Xu R., Stansby P.K., Rogers B.D., *Incompressible smoothed particle hydrodynamics for free-surface flows: A generalised diffusion-based algorithm for stability and validations for impulsive flows and propagating waves*, Journal of Computational Physics, 231(4): 1499-1523, 2012.
-3. Monaghan J.J., *Smoothed Particle Hydrodynamics*, Annual Review of Astronomy and Astrophysics, 30: 543-574, 1992.
-4. Liu M.B., Liu G.R., *Smoothed particle hydrodynamics (SPH): an overview and recent developments*, Archives of Computational Methods in Engineering, 17: 25-76, 2010.
-5. Violeau D., *Fluid Mechanics and the SPH Method: Theory and Applications*, Oxford University Press, 2012.
-6. Belytschko T., Krongauz Y., Organ D., Fleming M., Krysl P., *Meshless methods: An overview and recent developments*, Computer Methods in Applied Mechanics and Engineering, 139: 3-47, 1996.
+### 一阶矩的抵消条件决定收敛阶
 
-## 诊断与可信度验证
-
-同一个求解器，同一套参数，把初始点阵从规则格点换成位置抖动 $0.3\Delta x$ 的随机排布，$L_2$ 收敛阶就会从 2.0 掉到 1.0，压力噪声翻两三倍。这说明"粒子乱不乱"不是观感问题，而是决定精度的独立变量。诊断它不需要额外物理模型，只需三个统计量和一组对照算例。本文给出这些量的定义与阈值、一次完整的阶数对照手算，以及把异常定位到具体区域的流程。
-
-### 三个统计量就够描述分布质量
-
-对每个粒子数出支持域内的邻居数，统计其均值与离散度：
+核近似把点值换成求和，误差来自把积分换成有限和：
 
 $$
-\bar N=\frac{1}{N}\sum_i N_i, \qquad \sigma_N=\sqrt{\frac{1}{N}\sum_i\left(N_i-\bar N\right)^{2}}, \qquad C_N=\frac{\sigma_N}{\bar N}
+\sum_j V_j f_j W_{ij}=f_i+\frac{\sigma^{2}}{2}\nabla^{2}f_i+E_{\text{quad}}, \qquad \sum_j V_j\left(\mathbf{x}_j-\mathbf{x}_i\right)W_{ij}=\begin{cases}\mathbf{0}, & \text{对称点阵}\\[2pt] O\!\left(\Delta x^{d/2}\right), & \text{无序分布}\end{cases}
 $$
 
-$C_N$ 是邻居数变异系数，比 $\bar N$ 本身更能反映局部结构。规则六边形点阵的 $C_N$ 通常在 $5\%$ 以内；一旦某区域出现粒子成串或空洞，$C_N$ 会先于压力噪声升高。
-
-第二个量是 Voronoi 胞元面积的离散度，它对"成对聚集"格外敏感：
+规则点阵里每一对关于粒子 $i$ 对称的邻居贡献大小相等、方向相反，一阶矩精确为零，$E_{\text{quad}}$ 与核偏差同为 $O(\Delta x^{2})$。粒子位置一旦抖动，这种配对不再严格成立，一阶矩变成 $N_{\text{nb}}$ 个独立小量之和，按随机游走只衰减到 $\Delta x^{d/2}$。合并两项：
 
 $$
-C_V=\frac{1}{\bar A}\sqrt{\frac{1}{N}\sum_i\left(A_i-\bar A\right)^{2}}
+e_{L_2}\sim C_1h^{2}+C_2\Delta x^{d/2}\quad\Longrightarrow\quad p=\min\left(2,\ \tfrac{d}{2}\right)
 $$
 
-第三个量是归一化最小间距 $d_{\min}/\Delta x$。规则点阵该值约为 1.0；出现粒子对（间距趋近零）时会掉到 0.2 以下，而那一对粒子在核求和里的权重会异常放大。
-
-### 一组二维数据给出可对照的阈值
-
-取 $\Delta x=0.010\ \text{m}$、$h=1.2\Delta x=0.012\ \text{m}$、$r_c=2h=0.024\ \text{m}$，二维邻居数的理论期望为 $\pi(r_c/\Delta x)^{2}=\pi\times2.4^{2}=18.1$。
-
-| 状态 | $\bar N$ | $\sigma_N$ | $C_N$ | $C_V$ | $d_{\min}/\Delta x$ |
-|---|---|---|---|---|---|
-| 初始六边形点阵 | 18.2 | 0.9 | 4.9% | 4.2% | 0.98 |
-| 冲击后稳定区 | 18.0 | 1.5 | 8.3% | 9.1% | 0.71 |
-| 冲击后损伤区 | 12.1 | 5.6 | 46.3% | 38.0% | 0.12 |
-
-判定阈值可以这样取：$C_N<10\%$ 且 $C_V<12\%$ 视为健康；$C_N$ 超过 $20\%$ 或 $C_V$ 超过 $25\%$ 时，该区域的梯度精度已不可信，必须先做粒子移位或加密再取结果。损伤区那行的 $d_{\min}/\Delta x=0.12$ 是配对的前兆信号，与拉伸不稳定共用同一批症状，需要结合压力符号区分。
+二维无序分布的理论阶是 1，三维是 1.5。这解释了实测中二维抖动点阵稳定停在 1.0 附近，而三维同一算例往往测到 1.4~1.6——不是实现有 bug，是维度写在阶数里。
 
 ### 收敛阶是分布质量最直接的证据
 
@@ -191,26 +149,53 @@ def regularity(x, rc, dx):
 # 实测：六边形点阵 (18.2, 0.049, 0.042, 0.98)；损伤区 (12.1, 0.463, 0.380, 0.12)
 ```
 
-### 把异常定位到区域而不是全局
+### 抖动幅度换算成梯度误差
 
-全局统计量会互相抵消，必须分区看。做法是给每个粒子打上"到自由面距离"和"局部应变率"两个标签，再按标签分箱统计 $C_N$ 与 $C_V$。经验上，异常几乎总集中在三类位置：自由面下方一两层粒子（缺少外侧邻居，密度亏损会诱发向内塌缩）；剪切层（粒子沿流线被拉长，形成各向异性分布）；冲击后稀疏波区（粒子被拉散，$\bar N$ 骤降）。若损伤区的 $C_N$ 超过 $40\%$，即使全局 $C_N$ 只有 $8\%$，结果也不可信。
+把误差量级写出来更好用。设单粒子位置偏差 $\delta=0.3\Delta x$，平滑长度 $h=1.2\Delta x$，则单次偏差对梯度的相对贡献为 $\delta/h=0.25$；$N_{\text{nb}}=35$ 个邻居的随机抵消把它压到
 
-### 失败模式
+$$
+\frac{\delta}{h\sqrt{N_{\text{nb}}}}=\frac{0.3}{1.2\times\sqrt{35}}=\frac{0.25}{5.92}=0.042
+$$
 
-| 现象 | 根因 | 判定试验 |
-|---|---|---|
-| 阶数停在 1.0 且压力噪声大 | 初始点阵无序，求积误差退化为一阶 | 换成六边形点阵重跑，看阶数是否回到 2 |
-| 自由面附近粒子成对聚集 | 表面密度亏损诱发向内塌缩 | 画自由面下两层的 $d_{\min}/\Delta x$ 剖面 |
-| 损伤区 $\bar N$ 骤降到 12 | 稀疏波把粒子拉散，核求和权重不足 | 输出该区 $C_N$ 与局部 $h/\Delta x$ 实际值 |
-| 全局指标正常但局部结果失真 | 分区异常被平均掉 | 按自由面距离与应变率分箱统计 $C_N$ |
-| 开启粒子移位后结果反而变差 | 移位强度过大，引入额外数值耗散 | 扫描移位系数，比较 $C_V$ 与目标量误差 |
-| 三维算例 $C_N$ 明显高于二维 | 同 $h/\Delta x$ 下三维邻居数更多，对无序更敏感 | 分别统计二维与三维的 $\bar N$，核对是否落在 30~50 与 50~80 |
+即约 $4.2\%$ 的梯度误差。把 $\delta$ 降到 $0.1\Delta x$ 后该值降到 $1.4\%$，把 $h/\Delta x$ 从 1.2 提到 1.5 后降到 $3.3\%$。三个旋钮里，整理分布（减小 $\delta$）的性价比最高，因为误差与 $\delta$ 成正比，而增大 $h$ 会同时抹掉物理特征。
 
-### 参考文献
+### 三个统计量就够描述分布质量
+
+对每个粒子数出支持域内的邻居数，统计其均值与离散度：
+
+$$
+\bar N=\frac{1}{N}\sum_i N_i, \qquad \sigma_N=\sqrt{\frac{1}{N}\sum_i\left(N_i-\bar N\right)^{2}}, \qquad C_N=\frac{\sigma_N}{\bar N}
+$$
+
+$C_N$ 是邻居数变异系数，比 $\bar N$ 本身更能反映局部结构。规则六边形点阵的 $C_N$ 通常在 $5\%$ 以内；一旦某区域出现粒子成串或空洞，$C_N$ 会先于压力噪声升高。
+
+第二个量是 Voronoi 胞元面积的离散度，它对"成对聚集"格外敏感：
+
+$$
+C_V=\frac{1}{\bar A}\sqrt{\frac{1}{N}\sum_i\left(A_i-\bar A\right)^{2}}
+$$
+
+第三个量是归一化最小间距 $d_{\min}/\Delta x$。规则点阵该值约为 1.0；出现粒子对（间距趋近零）时会掉到 0.2 以下，而那一对粒子在核求和里的权重会异常放大。
+
+### 一组二维数据给出可对照的阈值
+
+取 $\Delta x=0.010\ \text{m}$、$h=1.2\Delta x=0.012\ \text{m}$、$r_c=2h=0.024\ \text{m}$，二维邻居数的理论期望为 $\pi(r_c/\Delta x)^{2}=\pi\times2.4^{2}=18.1$。
+
+判定阈值可以这样取：$C_N<10\%$ 且 $C_V<12\%$ 视为健康；$C_N$ 超过 $20\%$ 或 $C_V$ 超过 $25\%$ 时，该区域的梯度精度已不可信，必须先做粒子移位或加密再取结果。损伤区那行的 $d_{\min}/\Delta x=0.12$ 是配对的前兆信号，与拉伸不稳定共用同一批症状，需要结合压力符号区分。
+
+| 状态 | $\bar N$ | $\sigma_N$ | $C_N$ | $C_V$ | $d_{\min}/\Delta x$ |
+|---|---|---|---|---|---|
+| 初始六边形点阵 | 18.2 | 0.9 | 4.9% | 4.2% | 0.98 |
+| 冲击后稳定区 | 18.0 | 1.5 | 8.3% | 9.1% | 0.71 |
+| 冲击后损伤区 | 12.1 | 5.6 | 46.3% | 38.0% | 0.12 |
+
+## 参考资料
 
 1. Quinlan N.J., Basa M., Lastiwka M., *Truncation error in mesh-free particle methods*, International Journal for Numerical Methods in Engineering, 66(13): 2064-2085, 2006.
 2. Lind S.J., Xu R., Stansby P.K., Rogers B.D., *Incompressible smoothed particle hydrodynamics for free-surface flows: A generalised diffusion-based algorithm for stability and validations for impulsive flows and propagating waves*, Journal of Computational Physics, 231(4): 1499-1523, 2012.
 3. Monaghan J.J., *Smoothed Particle Hydrodynamics*, Annual Review of Astronomy and Astrophysics, 30: 543-574, 1992.
-4. Liu G.R., Liu M.B., *Smoothed Particle Hydrodynamics: A Meshfree Particle Method*, World Scientific, 2003.
+4. Liu M.B., Liu G.R., *Smoothed particle hydrodynamics (SPH): an overview and recent developments*, Archives of Computational Methods in Engineering, 17: 25-76, 2010.
 5. Violeau D., *Fluid Mechanics and the SPH Method: Theory and Applications*, Oxford University Press, 2012.
-6. Zhu Q., Hernquist L., Li Y., *Numerical convergence in smoothed particle hydrodynamics simulations without pairing instability*, The Astrophysical Journal, 800(1): 6, 2015.
+6. Belytschko T., Krongauz Y., Organ D., Fleming M., Krysl P., *Meshless methods: An overview and recent developments*, Computer Methods in Applied Mechanics and Engineering, 139: 3-47, 1996.
+7. Liu G.R., Liu M.B., *Smoothed Particle Hydrodynamics: A Meshfree Particle Method*, World Scientific, 2003.
+8. Zhu Q., Hernquist L., Li Y., *Numerical convergence in smoothed particle hydrodynamics simulations without pairing instability*, The Astrophysical Journal, 800(1): 6, 2015.

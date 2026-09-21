@@ -5,7 +5,6 @@ title: 可压缩流与总量关系：原理与诊断验证
 summary: >-
   从总焓守恒出发说明总温总压的建模含义、能量方程中压力功与黏性耗散的取舍、绝热壁温与恢复因子的关系，并给出 M=0.85
   外流的总温、总压、恢复温度与壁面热流完整换算，以及比热比假设失效的温度门槛。
-  全文同时覆盖原理与适用范围、诊断与可信度验证，保留关键方程、量化参数、可执行示例、失败模式与参考资料。
 category:
   slug: heat-transfer
   name: 传热与可压缩流
@@ -29,7 +28,6 @@ seo:
   description: >-
     从总焓守恒出发说明总温总压的建模含义、能量方程中压力功与黏性耗散的取舍、绝热壁温与恢复因子的关系，并给出 M=0.85
     外流的总温、总压、恢复温度与壁面热流完整换算，以及比热比假设失效的温度门槛。
-    全文同时覆盖原理与适用范围、诊断与可信度验证，保留关键方程、量化参数、可执行示例、失败模式与参考资料。
   keywords:
     - 可压缩流与总量关系
     - 物理建模与适用边界
@@ -43,9 +41,9 @@ seo:
 ---
 # 可压缩流与总量关系：原理与诊断验证
 
-## 原理与适用范围
+高速流动里，静温与总温相差的动能项可以达到几十开尔文，直接决定壁面热流的方向和大小。可压缩流算例的残差曲线好看并不代表结果可用，真正能定性的是四个积分量：总温的一致性、进出口质量流量差、喉部临界流量、激波后的总压损失。本文把每个量写成可以手算对照的形式，并给出提取它们的具体命令。
 
-高速流动里，静温与总温相差的动能项可以达到几十开尔文，直接决定壁面热流的方向和大小。本文从总焓守恒出发，说明总量关系在能量方程里的位置、绝热壁温与恢复因子的换算，并给出一次 $M=0.85$ 外流的完整数值链路。
+## 基础概念与控制关系
 
 ### 静量与总量的定义差别
 
@@ -66,22 +64,6 @@ $$
 $$
 
 $E=e+\frac{1}{2}|\mathbf{u}|^2$ 为总能量，$\boldsymbol{\tau}\cdot\mathbf{u}$ 是黏性功，它同时包含黏性耗散与压力功的贡献。稳态、绝热、无外功时，方程右端只剩黏性功，且对绝热壁面其积分为零，于是 $\nabla\cdot(\rho H\mathbf{u})=0$，即总焓沿流线守恒。这条性质是诊断高速算例的第一把尺子：若绝热无外功的算例里 $T_0$ 沿流线变了，问题一定在能量方程形式或边界定义，而不在格式。
-
-### 绝热壁温与恢复因子
-
-真实壁面有摩擦加热，绝热壁温不等于静温，也不完全等于总温，而由恢复因子 $r$ 决定：
-
-$$
-T_{aw}=T\left(1+r\frac{\gamma-1}{2}M^2\right),\qquad r\approx Pr^{1/3}\ (\text{层流}),\quad r\approx Pr^{1/2}\ (\text{湍流})
-$$
-
-空气 $Pr\approx0.72$ 时，层流 $r\approx0.896$，湍流 $r\approx0.849$。壁面热流必须用绝热壁温而不是静温或总温作参考：
-
-$$
-q''_w=h(T_w-T_{aw})
-$$
-
-用错参考温度会让热流符号都反过来：以静温作参考时，冷壁可能被算成受热。
 
 ### 什么时候总量关系不再成立
 
@@ -136,7 +118,19 @@ q_w = h * (Tw - Taw)                   # 3675 W/m^2
 print(a, U, T0, p0, r, Taw, q_w)
 ```
 
-### 失效信号
+## 异常诊断与失效模式
+
+### 诊断表：现象、根因、判定试验
+
+| 现象 | 根因 | 判定试验 |
+|---|---|---|
+| $\varepsilon_{T_0}=3\%$ 且绝热无外功 | 用了简化能量形式，压力功被丢弃 | 换总能量形式重算，比较 $T_0$ 场的极差 |
+| 进出口质量流量差 2.4% | 积分面落在回流区，或出口边界反射 | 把积分面向上游平移两个边界层厚度再积一次 |
+| 喉部流量比手算高 3.7% | 入口把总温当静温，或喉部面积用了网格面积 | 用 $\rho^*A^*a^*$ 复核，核对几何喉道面积 |
+| 激波后总压比解析值高 3.7% | 激波涂抹过宽，损失被低估 | 加密激波法向网格并比较 $p_{0,2}/p_{0,1}$ |
+| 出口压力与内部压力差 5% 且不收敛 | 超声速出口被施加了静压 | 移除出口压力条件后重算，观察是否消失 |
+
+### 故障模式与判定试验
 
 | 现象 | 根因 | 判定试验 |
 |---|---|---|
@@ -146,18 +140,51 @@ print(a, U, T0, p0, r, Taw, q_w)
 | $M>1$ 区下游总压高于上游 | 跨激波仍套等熵关系 | 用正激波总压比公式核对 |
 | 燃气算例整体偏差 8% | 比热比按 1.4 取值，实际约 1.33 | 用 $c_p(T)$ 反算当地 $\gamma$ 并重算总温 |
 
-### 参考文献
+### 绝热壁温与恢复因子
 
-1. Anderson J.D., *Modern Compressible Flow: With Historical Perspective*, 3rd ed., McGraw-Hill, 2003.
-2. Shapiro A.H., *The Dynamics and Thermodynamics of Compressible Fluid Flow*, Ronald Press, 1953.
-3. White F.M., *Viscous Fluid Flow*, 3rd ed., McGraw-Hill, 2006.
-4. Kays W.M., Crawford M.E., Weigand B., *Convective Heat and Mass Transfer*, 4th ed., McGraw-Hill, 2005.
-5. Liepmann H.W., Roshko A., *Elements of Gasdynamics*, Wiley, 1957.
-6. Zucrow M.J., Hoffman J.D., *Gas Dynamics*, Vol. 1, Wiley, 1976.
+真实壁面有摩擦加热，绝热壁温不等于静温，也不完全等于总温，而由恢复因子 $r$ 决定：
 
-## 诊断与可信度验证
+$$
+T_{aw}=T\left(1+r\frac{\gamma-1}{2}M^2\right),\qquad r\approx Pr^{1/3}\ (\text{层流}),\quad r\approx Pr^{1/2}\ (\text{湍流})
+$$
 
-可压缩流算例的残差曲线好看并不代表结果可用，真正能定性的是四个积分量：总温的一致性、进出口质量流量差、喉部临界流量、激波后的总压损失。本文把每个量写成可以手算对照的形式，并给出提取它们的具体命令。
+空气 $Pr\approx0.72$ 时，层流 $r\approx0.896$，湍流 $r\approx0.849$。壁面热流必须用绝热壁温而不是静温或总温作参考：
+
+$$
+q''_w=h(T_w-T_{aw})
+$$
+
+用错参考温度会让热流符号都反过来：以静温作参考时，冷壁可能被算成受热。
+
+## 验证、验收与复现
+
+### 喉部临界流量：手算与 CFD 对照
+
+对 $\gamma$ 恒定的理想气体，收缩—扩张喷管在喉部达到声速时，质量流量只由总状态与喉部面积决定：
+
+$$
+\dot m=\frac{A^*p_0}{\sqrt{T_0}}\sqrt{\frac{\gamma}{R}}\left(\frac{2}{\gamma+1}\right)^{\frac{\gamma+1}{2(\gamma-1)}}
+$$
+
+取 $A^*=1.0\times10^{-4}\ \mathrm{m^2}$、$p_0=500\ \mathrm{kPa}$、$T_0=350\ \mathrm{K}$、$\gamma=1.4$、$R=287\ \mathrm{J/(kg\cdot K)}$：
+
+$$
+\dot m=\frac{1.0\times10^{-4}\times5.0\times10^5}{\sqrt{350}}\times\sqrt{\frac{1.4}{287}}\times\left(\frac{2}{2.4}\right)^{3}=0.1080\ \mathrm{kg/s}
+$$
+
+其中 $\sqrt{350}=18.708$、$\sqrt{1.4/287}=0.06984$、$(0.8333)^3=0.5787$。
+
+用连续性独立复核：$\rho_0=p_0/(RT_0)=5.0\times10^5/(287\times350)=4.978\ \mathrm{kg/m^3}$，$\rho^*=\rho_0(2/2.4)^{2.5}=4.978\times0.6339=3.155\ \mathrm{kg/m^3}$，$T^*=T_0\times2/2.4=291.7\ \mathrm{K}$，$a^*=\sqrt{1.4\times287\times291.7}=342.3\ \mathrm{m/s}$，故
+
+$$
+\dot m=\rho^*A^*a^*=3.155\times1.0\times10^{-4}\times342.3=0.1080\ \mathrm{kg/s}
+$$
+
+两条路径相差 0.03%，说明公式与状态量的使用一致。CFD 若给出 0.112 kg/s，偏差 3.7%，应先检查喉部面积是否为几何喉道面积、总温是否在入口被误设为静温。
+
+### 验证记录该留什么
+
+记录里至少包含：$\varepsilon_{T_0}$ 的数值与采样时间、进出口质量流量与相对差、喉部临界流量的手算值与 CFD 值、激波前后 $p_0$ 比与解析值的偏差、三套网格上的出口马赫数。把这五项与所用 $\gamma$、$R$ 一起归档，任何人重跑时都能判断偏差来自物性、边界还是网格。若手算与 CFD 的偏差在加密后稳定收敛到 1% 以内，就可以认为该工况的结果已经闭合。
 
 ### 总温场是最便宜的一致性检验
 
@@ -184,30 +211,6 @@ $$
 $$
 
 工程容差取 0.5%：亚声速算例可到 0.1%，含强激波或大分离的算例放宽到 1%。若差到 2% 以上，通常不是格式问题，而是边界反射或出口回流让积分面不再位于均匀区。做法是把积分面向上游平移两个当地边界层厚度再积一次，若差值随位置剧烈变化，说明积分面选错了。
-
-### 喉部临界流量：手算与 CFD 对照
-
-对 $\gamma$ 恒定的理想气体，收缩—扩张喷管在喉部达到声速时，质量流量只由总状态与喉部面积决定：
-
-$$
-\dot m=\frac{A^*p_0}{\sqrt{T_0}}\sqrt{\frac{\gamma}{R}}\left(\frac{2}{\gamma+1}\right)^{\frac{\gamma+1}{2(\gamma-1)}}
-$$
-
-取 $A^*=1.0\times10^{-4}\ \mathrm{m^2}$、$p_0=500\ \mathrm{kPa}$、$T_0=350\ \mathrm{K}$、$\gamma=1.4$、$R=287\ \mathrm{J/(kg\cdot K)}$：
-
-$$
-\dot m=\frac{1.0\times10^{-4}\times5.0\times10^5}{\sqrt{350}}\times\sqrt{\frac{1.4}{287}}\times\left(\frac{2}{2.4}\right)^{3}=0.1080\ \mathrm{kg/s}
-$$
-
-其中 $\sqrt{350}=18.708$、$\sqrt{1.4/287}=0.06984$、$(0.8333)^3=0.5787$。
-
-用连续性独立复核：$\rho_0=p_0/(RT_0)=5.0\times10^5/(287\times350)=4.978\ \mathrm{kg/m^3}$，$\rho^*=\rho_0(2/2.4)^{2.5}=4.978\times0.6339=3.155\ \mathrm{kg/m^3}$，$T^*=T_0\times2/2.4=291.7\ \mathrm{K}$，$a^*=\sqrt{1.4\times287\times291.7}=342.3\ \mathrm{m/s}$，故
-
-$$
-\dot m=\rho^*A^*a^*=3.155\times1.0\times10^{-4}\times342.3=0.1080\ \mathrm{kg/s}
-$$
-
-两条路径相差 0.03%，说明公式与状态量的使用一致。CFD 若给出 0.112 kg/s，偏差 3.7%，应先检查喉部面积是否为几何喉道面积、总温是否在入口被误设为静温。
 
 ### 激波总压损失的核对
 
@@ -271,25 +274,17 @@ print(mdot, rho_s * Astar * as_)        # 0.1080, 0.1080
 
 超声速出口上施加静压会在出口形成驻波，表现为出口面压力与相邻内部单元压力持续存在 5% 以上的差。诊断方法是把出口压力监测点向内平移 10 个单元，若两点压力差随迭代不下降，说明边界在向上游注入扰动。亚声速入口只给一个量则会出现总压缓慢漂移。两类问题的共同根源都是边界指定量与当地马赫数不匹配，与格式和网格无关。
 
-### 诊断表：现象、根因、判定试验
+## 参考资料
 
-| 现象 | 根因 | 判定试验 |
-|---|---|---|
-| $\varepsilon_{T_0}=3\%$ 且绝热无外功 | 用了简化能量形式，压力功被丢弃 | 换总能量形式重算，比较 $T_0$ 场的极差 |
-| 进出口质量流量差 2.4% | 积分面落在回流区，或出口边界反射 | 把积分面向上游平移两个边界层厚度再积一次 |
-| 喉部流量比手算高 3.7% | 入口把总温当静温，或喉部面积用了网格面积 | 用 $\rho^*A^*a^*$ 复核，核对几何喉道面积 |
-| 激波后总压比解析值高 3.7% | 激波涂抹过宽，损失被低估 | 加密激波法向网格并比较 $p_{0,2}/p_{0,1}$ |
-| 出口压力与内部压力差 5% 且不收敛 | 超声速出口被施加了静压 | 移除出口压力条件后重算，观察是否消失 |
-
-### 验证记录该留什么
-
-记录里至少包含：$\varepsilon_{T_0}$ 的数值与采样时间、进出口质量流量与相对差、喉部临界流量的手算值与 CFD 值、激波前后 $p_0$ 比与解析值的偏差、三套网格上的出口马赫数。把这五项与所用 $\gamma$、$R$ 一起归档，任何人重跑时都能判断偏差来自物性、边界还是网格。若手算与 CFD 的偏差在加密后稳定收敛到 1% 以内，就可以认为该工况的结果已经闭合。
-
-### 参考文献
-
-1. Toro E.F., *Riemann Solvers and Numerical Methods for Fluid Dynamics*, 3rd ed., Springer, 2009.
-2. Thompson P.A., *Compressible-Fluid Dynamics*, McGraw-Hill, 1972.
-3. LeVeque R.J., *Finite Volume Methods for Hyperbolic Problems*, Cambridge University Press, 2002.
-4. Hirsch C., *Numerical Computation of Internal and External Flows*, 2nd ed., Butterworth-Heinemann, 2007.
-5. Ferziger J.H., Perić M., Street R.L., *Computational Methods for Fluid Dynamics*, 4th ed., Springer, 2020.
-6. Bertin J.J., Cummings R.M., *Aerodynamics for Engineers*, 6th ed., Pearson, 2014.
+1. Anderson J.D., *Modern Compressible Flow: With Historical Perspective*, 3rd ed., McGraw-Hill, 2003.
+2. Shapiro A.H., *The Dynamics and Thermodynamics of Compressible Fluid Flow*, Ronald Press, 1953.
+3. White F.M., *Viscous Fluid Flow*, 3rd ed., McGraw-Hill, 2006.
+4. Kays W.M., Crawford M.E., Weigand B., *Convective Heat and Mass Transfer*, 4th ed., McGraw-Hill, 2005.
+5. Liepmann H.W., Roshko A., *Elements of Gasdynamics*, Wiley, 1957.
+6. Zucrow M.J., Hoffman J.D., *Gas Dynamics*, Vol. 1, Wiley, 1976.
+7. Toro E.F., *Riemann Solvers and Numerical Methods for Fluid Dynamics*, 3rd ed., Springer, 2009.
+8. Thompson P.A., *Compressible-Fluid Dynamics*, McGraw-Hill, 1972.
+9. LeVeque R.J., *Finite Volume Methods for Hyperbolic Problems*, Cambridge University Press, 2002.
+10. Hirsch C., *Numerical Computation of Internal and External Flows*, 2nd ed., Butterworth-Heinemann, 2007.
+11. Ferziger J.H., Perić M., Street R.L., *Computational Methods for Fluid Dynamics*, 4th ed., Springer, 2020.
+12. Bertin J.J., Cummings R.M., *Aerodynamics for Engineers*, 6th ed., Pearson, 2014.

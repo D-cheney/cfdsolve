@@ -5,7 +5,6 @@ title: 量纲系统与 dimensioned 类型：工程设置与诊断验证
 summary: >-
   梳理七指数 dimensionSet 的顺序与含义，给出不可压与可压两套常用场的量纲向量表，说明 dimensionedScalar
   的构造方式与运动学压力/静压的取舍，并用粘度与导热系数两例完成量纲闭合的手算核对。
-  全文同时覆盖工程设置与参数选择、诊断与可信度验证，保留关键方程、量化参数、可执行示例、失败模式与参考资料。
 category:
   slug: openfoam-getting-started
   name: OpenFOAM 入门与案例组织
@@ -29,7 +28,6 @@ seo:
   description: >-
     梳理七指数 dimensionSet 的顺序与含义，给出不可压与可压两套常用场的量纲向量表，说明 dimensionedScalar
     的构造方式与运动学压力/静压的取舍，并用粘度与导热系数两例完成量纲闭合的手算核对。
-    全文同时覆盖工程设置与参数选择、诊断与可信度验证，保留关键方程、量化参数、可执行示例、失败模式与参考资料。
   keywords:
     - 量纲系统与 dimensioned 类型
     - 工程设置与参数选择
@@ -42,9 +40,9 @@ seo:
 ---
 # 量纲系统与 dimensioned 类型：工程设置与诊断验证
 
-## 工程设置与参数选择
+OpenFOAM 把每个物理量都写成"数值 + 七指数向量"的 `dimensioned` 类型，求解器在运行时对加减、乘除、比较逐项校验量纲。这意味着写错量纲不会被静默接受，而是立刻中止；也意味着只要量纲向量写对，物性单位就从"记得住"变成"推导得出"。量纲错误有两种表现：一种在启动阶段就被拦下，另一种一路算完却给出量级离谱的结果。前者只需读报错里的七元组，后者要靠量级比对与无量纲数交叉验证。
 
-OpenFOAM 把每个物理量都写成"数值 + 七指数向量"的 `dimensioned` 类型，求解器在运行时对加减、乘除、比较逐项校验量纲。这意味着写错量纲不会被静默接受，而是立刻中止；也意味着只要量纲向量写对，物性单位就从"记得住"变成"推导得出"。本文给出指数顺序、常用场对照表、`dimensionedScalar` 的构造方式，以及不可压与可压两套压力约定该怎么选。
+## 工程设置与实施
 
 ### 七个指数的固定顺序
 
@@ -60,6 +58,8 @@ $$
 
 ### 常用场的量纲向量对照
 
+表中最容易写错的是 `kappa`。它等于 $\mathrm{kg\cdot m/(s^3\cdot K)}$，即 `[1 1 -3 -1 0 0 0]`，长度指数是正的 1，容易被误写成 `[1 -1 -3 -1 0 0 0]`。
+
 | 物理量 | 典型单位 | dimensions |
 |---|---|---|
 | 速度 U | m/s | [0 1 -1 0 0 0 0] |
@@ -73,8 +73,6 @@ $$
 | 比热容 Cp | J/(kg·K) | [0 2 -2 -1 0 0 0] |
 | 导热系数 kappa | W/(m·K) | [1 1 -3 -1 0 0 0] |
 | 温度 T | K | [0 0 0 1 0 0 0] |
-
-表中最容易写错的是 `kappa`。它等于 $\mathrm{kg\cdot m/(s^3\cdot K)}$，即 `[1 1 -3 -1 0 0 0]`，长度指数是正的 1，容易被误写成 `[1 -1 -3 -1 0 0 0]`。
 
 ### 用两条乘积关系做量纲闭合
 
@@ -120,7 +118,9 @@ dimensionedScalar kappaEff
 
 换算关系为 $p_{\mathrm{Pa}} = \rho\,(p/\rho)$。取 $\rho = 1.225\ \mathrm{kg/m^3}$、运动学压力 $12.5\ \mathrm{m^2/s^2}$，静压为 $1.225\times 12.5 = 15.31\ \mathrm{Pa}$。反过来，若一个不可压算例报告 $p = 101325$，那是把静压填进了运动学压力的位置，量纲虽未报错（因为都是数值），但物理量级偏大约 $8\times 10^{3}$ 倍，动量方程会立刻发散。
 
-### 典型故障与判定试验
+## 异常诊断与失效模式
+
+### 故障模式与判定试验
 
 | 现象 | 根因 | 判定试验 |
 |---|---|---|
@@ -129,19 +129,23 @@ dimensionedScalar kappaEff
 | 压力数量级偏大 $10^{3}$ 以上 | 把静压填入运动学压力场 | 用 $p/\rho$ 反算，量级应回到 $10^{1}\ \mathrm{m^2/s^2}$ 内 |
 | 温度场量纲写成 `[0 0 0 0 0 0 0]` | 误用 `dimless` | 改为 `[0 0 0 1 0 0 0]`，热物性模型才能读取 |
 | 自定义源项一加入就报量纲错 | 源项量纲与方程因变量不匹配 | 用因变量量纲除以时间量纲，反推源项应取的指数 |
+| 报 `Different dimensions` 并列出两组七元组 | 操作数或被赋值对象量纲不符 | 逐项相减，差值集中在质量与时间项即为压力约定错用 |
+| 报 `wrong token type - expected dimensionSet` | `dimensions` 未用方括号包裹 | 检查该行语法，应为 `dimensions [0 2 -1 0 0 0 0];` |
+| 压力场极值达 $10^{4}$ 以上 | 绝对压力填入运动学压力场 | 用 $\tfrac{1}{2}U^{2}$ 估动压，压力波动应同量级 |
+| 由物性反算的 $Re$ 偏离设计值 1000 倍 | 长度或粘度单位错用（mm 当 m、mPa·s 当 Pa·s） | 用 $\rho U L/\mu$ 重算，并核对单位标注 |
+| 温度结果比能量平衡预测高数倍 | $c_p$ 数值与单位不匹配 | 用 $\Delta T = \dot Q/(\dot m c_p)$ 反算并比对 |
 
-### 参考文献
+## 验证、验收与复现
 
-1. OpenFOAM Foundation, *OpenFOAM User Guide*, v14, Section "Dimensional units and dimensioned types".
-2. OpenFOAM Foundation, *OpenFOAM Programmer's Guide*, v14, Chapter "Primitive types: dimensionSet".
-3. BIPM, *Le Système international d'unités (SI)*, 9th ed., 2019.
-4. ISO, *ISO 80000-1:2009 Quantities and units — Part 1: General*, International Organization for Standardization, 2009.
-5. I. Mills, T. Cvitaš, K. Homann, N. Kallay, K. Kuchitsu, *Quantities, Units and Symbols in Physical Chemistry*, 3rd ed., RSC Publishing, 2007.
-6. F. P. Incropera, D. P. DeWitt, T. L. Bergman, A. S. Lavine, *Fundamentals of Heat and Mass Transfer*, 6th ed., Wiley, 2007.
+### 诊断量级偏差的验证计算
 
-## 诊断与可信度验证
+一次真实的量级排查：某可压算例的出口温度报告 $T = 311.4\ \mathrm{K}$，入口 $T = 300.0\ \mathrm{K}$，比热 $c_p = 1005\ \mathrm{J/(kg\cdot K)}$，流量 $0.42\ \mathrm{kg/s}$，加热功率设计值 $4.8\ \mathrm{kW}$。由能量平衡，温升应为
 
-量纲错误有两种表现：一种在启动阶段就被拦下，另一种一路算完却给出量级离谱的结果。前者只需读报错里的七元组，后者要靠量级比对与无量纲数交叉验证。本文给出从报错文本反推不一致指数的方法、运动学压力与静压的换算判据、源项量纲闭合的检验步骤，以及一次完整的量级核对计算。
+$$
+\Delta T = \frac{\dot Q}{\dot m\,c_p} = \frac{4800}{0.42\times 1005} = \frac{4800}{422.1} = 11.37\ \mathrm{K}
+$$
+
+预测出口温度 $300.0 + 11.37 = 311.37\ \mathrm{K}$，与报告的 $311.4\ \mathrm{K}$ 相差 $0.03\ \mathrm{K}$，相对偏差 $9.6\times 10^{-5}$。这说明热物性、流量与能量源项的量纲与数值彼此自洽。若实测出口为 $341\ \mathrm{K}$，温升 $41\ \mathrm{K}$ 接近计算值的 3.6 倍，最可能的解释是 $c_p$ 被填成了 $\mathrm{J/(kg\cdot K)}$ 的千分之一或流量单位错用，而不是湍流模型的问题。
 
 ### 报错里的两个七元组就是全部证据
 
@@ -187,31 +191,12 @@ $$
 
 检验方法是把源项表达式中每个因子展开成七元组相加，看结果是否等于因变量量纲除以时间。这一步可以在纸面上完成，不需要运行求解器。
 
-### 诊断量级偏差的验证计算
-
-一次真实的量级排查：某可压算例的出口温度报告 $T = 311.4\ \mathrm{K}$，入口 $T = 300.0\ \mathrm{K}$，比热 $c_p = 1005\ \mathrm{J/(kg\cdot K)}$，流量 $0.42\ \mathrm{kg/s}$，加热功率设计值 $4.8\ \mathrm{kW}$。由能量平衡，温升应为
-
-$$
-\Delta T = \frac{\dot Q}{\dot m\,c_p} = \frac{4800}{0.42\times 1005} = \frac{4800}{422.1} = 11.37\ \mathrm{K}
-$$
-
-预测出口温度 $300.0 + 11.37 = 311.37\ \mathrm{K}$，与报告的 $311.4\ \mathrm{K}$ 相差 $0.03\ \mathrm{K}$，相对偏差 $9.6\times 10^{-5}$。这说明热物性、流量与能量源项的量纲与数值彼此自洽。若实测出口为 $341\ \mathrm{K}$，温升 $41\ \mathrm{K}$ 接近计算值的 3.6 倍，最可能的解释是 $c_p$ 被填成了 $\mathrm{J/(kg\cdot K)}$ 的千分之一或流量单位错用，而不是湍流模型的问题。
-
-### 症状、根因与判定试验
-
-| 现象 | 根因 | 判定试验 |
-|---|---|---|
-| 报 `Different dimensions` 并列出两组七元组 | 操作数或被赋值对象量纲不符 | 逐项相减，差值集中在质量与时间项即为压力约定错用 |
-| 报 `wrong token type - expected dimensionSet` | `dimensions` 未用方括号包裹 | 检查该行语法，应为 `dimensions [0 2 -1 0 0 0 0];` |
-| 压力场极值达 $10^{4}$ 以上 | 绝对压力填入运动学压力场 | 用 $\tfrac{1}{2}U^{2}$ 估动压，压力波动应同量级 |
-| 由物性反算的 $Re$ 偏离设计值 1000 倍 | 长度或粘度单位错用（mm 当 m、mPa·s 当 Pa·s） | 用 $\rho U L/\mu$ 重算，并核对单位标注 |
-| 温度结果比能量平衡预测高数倍 | $c_p$ 数值与单位不匹配 | 用 $\Delta T = \dot Q/(\dot m c_p)$ 反算并比对 |
-
-### 参考文献
+## 参考资料
 
 1. OpenFOAM Foundation, *OpenFOAM User Guide*, v14, Section "Dimensional units and dimensioned types".
 2. OpenFOAM Foundation, *OpenFOAM Programmer's Guide*, v14, Chapter "Primitive types: dimensionSet".
-3. E. Buckingham, "On physically similar systems; illustrations of the use of dimensional equations", *Physical Review*, 4(4):345–376, 1914.
-4. BIPM, *Le Système international d'unités (SI)*, 9th ed., 2019.
-5. ISO, *ISO 80000-1:2009 Quantities and units — Part 1: General*, International Organization for Standardization, 2009.
+3. BIPM, *Le Système international d'unités (SI)*, 9th ed., 2019.
+4. ISO, *ISO 80000-1:2009 Quantities and units — Part 1: General*, International Organization for Standardization, 2009.
+5. I. Mills, T. Cvitaš, K. Homann, N. Kallay, K. Kuchitsu, *Quantities, Units and Symbols in Physical Chemistry*, 3rd ed., RSC Publishing, 2007.
 6. F. P. Incropera, D. P. DeWitt, T. L. Bergman, A. S. Lavine, *Fundamentals of Heat and Mass Transfer*, 6th ed., Wiley, 2007.
+7. E. Buckingham, "On physically similar systems; illustrations of the use of dimensional equations", *Physical Review*, 4(4):345–376, 1914.

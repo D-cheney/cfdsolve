@@ -4,7 +4,7 @@ slug: openfoam-numerics-linear-solvers-modeling
 title: fvSolution 线性求解器：原理、设置与验证
 summary: >-
   从隐式离散产生的代数方程组出发，解释压力方程的对称性与动量方程的非对称性如何决定求解器选型，用条件数推导 CG 迭代次数估计，并说明 GAMG
-  多重网格的适用条件。 全文同时覆盖原理与适用范围、工程设置与参数选择、诊断与可信度验证，保留关键方程、量化参数、可执行示例、失败模式与参考资料。
+  多重网格的适用条件。
 category:
   slug: openfoam-numerics-boundaries
   name: OpenFOAM 边界与数值设置
@@ -29,7 +29,7 @@ seo:
   title: fvSolution 线性求解器：原理、设置与验证
   description: >-
     从隐式离散产生的代数方程组出发，解释压力方程的对称性与动量方程的非对称性如何决定求解器选型，用条件数推导 CG 迭代次数估计，并说明 GAMG
-    多重网格的适用条件。 全文同时覆盖原理与适用范围、工程设置与参数选择、诊断与可信度验证，保留关键方程、量化参数、可执行示例、失败模式与参考资料。
+    多重网格的适用条件。
   keywords:
     - fvSolution 线性求解器
     - 设置机理与适用范围
@@ -47,9 +47,22 @@ seo:
 ---
 # fvSolution 线性求解器：原理、设置与验证
 
-## 原理与适用范围
+`fvSolution` 的 `solvers` 段决定每个隐式方程用哪种 Krylov 方法、哪种预条件器、以及什么时候停止。选错求解器不会让解变错，只会让迭代数爆炸或在容差处提前停下，留下一个看起来收敛实际没解开的代数系统。`fvSolution` 里真正需要斟酌的数字只有两类：`tolerance` 和 `relTol`。前者决定代数误差的绝对下限，后者决定外迭代过程中愿意接受的相对收敛程度。其余参数（求解器、预条件器、GAMG 层数）都有明确的选型规则。日志里 `Final residual = 4.2e-09` 看起来非常干净，但这个数只说明当前迭代步的残差小，并不保证解的误差小。残差与真实误差之间差着一个条件数因子，在坏网格或强耦合算例上这个因子可以达到 $10^6$。
 
-`fvSolution` 的 `solvers` 段决定每个隐式方程用哪种 Krylov 方法、哪种预条件器、以及什么时候停止。选错求解器不会让解变错，只会让迭代数爆炸或在容差处提前停下，留下一个看起来收敛实际没解开的代数系统。本文从矩阵性质出发说明压力为什么用 GAMG、速度为什么用 PBiCGStab，并给出由条件数估算迭代次数的可核对算例。
+## 基础概念与控制关系
+
+### 按方程分档选型
+
+压力用 `GAMG` 的理由是它把等效条件数从 $\mathcal{O}(h^{-2})$ 压到 $\mathcal{O}(1)$ 量级，迭代数不再随网格加密而线性增长。速度类方程矩阵非对称，只能用 `PBiCGStab` 系；若误用 `PCG`，求解器会在第一次迭代就报矩阵非对称错误。
+
+| 方程 | 求解器 | 预条件器 | `tolerance` | `relTol` |
+|---|---|---|---|---|
+| `p`（压力） | `GAMG` | `GaussSeidel` 光滑 | `1e-7` | `0.01` |
+| `pFinal` | `GAMG` | 同上 | `1e-7` | `0` |
+| `U`、`k`、`epsilon`、`omega` | `PBiCGStab` | `DILU` | `1e-8` | `0.1` |
+| `*Final` | `PBiCGStab` | `DILU` | `1e-8` | `0` |
+| 组分 `Yi` | `PBiCGStab` | `DILU` | `1e-8` | `0.1` |
+| 相分数 `alpha` | `PBiCGStab` | `DILU` | `1e-8` | `0.1` |
 
 ### 隐式离散产生的矩阵长什么样
 
@@ -87,13 +100,6 @@ GAMG      kappa = 1e2 : rho = 9/11    = 0.8182 → k ≈ 72
 ```
 
 ### GAMG 与 PBiCGStab 的分工
-
-| 求解器 | 要求矩阵 | 典型用于 | 关键参数 |
-|---|---|---|---|
-| `PCG` | 对称正定 | 压力、拉普拉斯类标量 | `preconditioner DIC` |
-| `PBiCGStab` | 非对称 | 速度、湍流量、组分 | `preconditioner DILU` |
-| `GAMG` | 对称，可处理非对称 | 压力方程 | `nCoarsestCells`、`smootherGaussSeidel` |
-| `smoothSolver` | 任意 | 便宜场、松弛迭代 | `sweeps` |
 
 一个覆盖不可压缩求解器的配置骨架：
 
@@ -134,35 +140,12 @@ solvers
 
 `relTol` 是相对首次残差的收敛门槛：迭代在残差降到 `tolerance` 或首次残差的 `relTol` 倍时停止，取两者中较松的那个。外迭代中每步都要解一次压力，用 `relTol 0.01` 可以省掉大量无意义的精解；只在最后一个外迭代用 `Final` 版本把 `relTol` 压到 0，保证最终解是真正解开的。
 
-### GAMG 的适用边界
-
-GAMG 依赖几何上的粗细网格层次，对高度各向异性或长宽比极大的网格，粗化过程会把单元聚成薄片，光滑效果急剧下降。判据是长宽比：低于 100 时 GAMG 通常表现良好；超过 1000 时应改用 `PCG` 配 `DIC`，或者先做网格各向同性化。另一个边界是并行：GAMG 的粗化在处理器交界处会产生额外通信，进程数超过约 512 后加速比明显下降，此时可以考虑 `PCG`。
-
-`nCoarsestCells` 控制粗化停止条件，取 1000 意味着最粗层至少 1000 个单元。取值过小会让最粗层求解变得昂贵，过大则层数不足、预条件效果下降。一般按总单元数的千分之一量级设置：$2\times10^6$ 单元的算例取 2000 是合理起点。
-
-### 求解器配置的失效信号
-
-| 现象 | 根因 | 判定试验 |
-|---|---|---|
-| 压力迭代数从 20 跳到 500 | 预条件器与矩阵类型不匹配 | 确认压力用对称求解器，检查是否误用 `DILU` |
-| `solver did not converge` 出现在 `Final` | `relTol` 未压到 0 | 检查 `Final` 段是否用 `$p` 继承并覆盖 `relTol` |
-| GAMG 在并行下加速比很低 | 粗层通信占比过高 | 对比 64 与 512 进程的每步耗时 |
-| 迭代数随网格加密线性增长 | 未使用多重网格预条件 | 记录不同网格上的平均迭代数，看是否随 $h^{-1}$ 增长 |
-
-求解器的职责只是把给定矩阵解到给定容差。若换求解器能让物理量变化，说明原设置根本没有解到收敛，问题在容差而不是求解器本身。
-
-### 参考文献
-
-1. Saad Y., *Iterative Methods for Sparse Linear Systems*, 2nd ed., SIAM, 2003.
-2. Barrett R., Berry M., Chan T.F., et al., *Templates for the Solution of Linear Systems: Building Blocks for Iterative Methods*, SIAM, 1994.
-3. Henson V.E., Yang U.M., *BoomerAMG: a parallel algebraic multigrid solver and preconditioner*, Applied Numerical Mathematics, 41(1), 155–177, 2002.
-4. Van der Vorst H.A., *Bi-CGSTAB: a fast and smoothly converging variant of Bi-CG for the solution of nonsymmetric linear systems*, SIAM Journal on Scientific and Statistical Computing, 13(2), 631–644, 1992.
-5. Greenshields C.J., Weller H.G., *Notes on Computational Fluid Dynamics: General Principles*, CFD Direct, 2022.
-6. OpenFOAM Foundation, *OpenFOAM User Guide*, Section 4.5 Solution and Algorithm Control, 2024.
-
-## 工程设置与参数选择
-
-`fvSolution` 里真正需要斟酌的数字只有两类：`tolerance` 和 `relTol`。前者决定代数误差的绝对下限，后者决定外迭代过程中愿意接受的相对收敛程度。其余参数（求解器、预条件器、GAMG 层数）都有明确的选型规则。本文给出按方程分档的选型表、容差的取值依据、可复现模板，以及用迭代数缩放估算成本的算例。
+| 求解器 | 要求矩阵 | 典型用于 | 关键参数 |
+|---|---|---|---|
+| `PCG` | 对称正定 | 压力、拉普拉斯类标量 | `preconditioner DIC` |
+| `PBiCGStab` | 非对称 | 速度、湍流量、组分 | `preconditioner DILU` |
+| `GAMG` | 对称，可处理非对称 | 压力方程 | `nCoarsestCells`、`smootherGaussSeidel` |
+| `smoothSolver` | 任意 | 便宜场、松弛迭代 | `sweeps` |
 
 ### 容差的语义与取值
 
@@ -176,131 +159,13 @@ $$
 
 一个常见错误是只写 `pFinal` 而忘了给 `p` 设 `relTol`，结果每个外迭代都精解到 $10^{-8}$，成本翻几倍却没有任何精度收益。另一个错误是 `Final` 段用 `$p` 继承时忘了覆盖 `relTol`，导致最终解仍停在相对容差上，表现为残差曲线在末步出现台阶。
 
-### 按方程分档选型
+## 适用边界与方案选择
 
-| 方程 | 求解器 | 预条件器 | `tolerance` | `relTol` |
-|---|---|---|---|---|
-| `p`（压力） | `GAMG` | `GaussSeidel` 光滑 | `1e-7` | `0.01` |
-| `pFinal` | `GAMG` | 同上 | `1e-7` | `0` |
-| `U`、`k`、`epsilon`、`omega` | `PBiCGStab` | `DILU` | `1e-8` | `0.1` |
-| `*Final` | `PBiCGStab` | `DILU` | `1e-8` | `0` |
-| 组分 `Yi` | `PBiCGStab` | `DILU` | `1e-8` | `0.1` |
-| 相分数 `alpha` | `PBiCGStab` | `DILU` | `1e-8` | `0.1` |
+### GAMG 的适用边界
 
-压力用 `GAMG` 的理由是它把等效条件数从 $\mathcal{O}(h^{-2})$ 压到 $\mathcal{O}(1)$ 量级，迭代数不再随网格加密而线性增长。速度类方程矩阵非对称，只能用 `PBiCGStab` 系；若误用 `PCG`，求解器会在第一次迭代就报矩阵非对称错误。
+GAMG 依赖几何上的粗细网格层次，对高度各向异性或长宽比极大的网格，粗化过程会把单元聚成薄片，光滑效果急剧下降。判据是长宽比：低于 100 时 GAMG 通常表现良好；超过 1000 时应改用 `PCG` 配 `DIC`，或者先做网格各向同性化。另一个边界是并行：GAMG 的粗化在处理器交界处会产生额外通信，进程数超过约 512 后加速比明显下降，此时可以考虑 `PCG`。
 
-### 一份可复现的 fvSolution
-
-```cpp
-solvers
-{
-    p
-    {
-        solver          GAMG;
-        tolerance       1e-7;
-        relTol          0.01;
-        smoother        GaussSeidel;
-        cacheAgglomeration true;
-        nCellsInCoarsestLevel 1000;
-        agglomerator    faceAreaPair;
-        mergeLevels     1;
-    }
-    pFinal { $p; relTol 0; }
-
-    "(U|k|epsilon|omega)"
-    {
-        solver          PBiCGStab;
-        preconditioner  DILU;
-        tolerance       1e-8;
-        relTol          0.1;
-    }
-    "(U|k|epsilon|omega)Final" { $U; relTol 0; }
-}
-```
-
-改完字典后先离线核对继承关系，再启动求解器，避免跑几个小时才发现 `Final` 段写错：
-
-```bash
-foamDictionary -entry solvers.pFinal.relTol -value system/fvSolution   # 期望输出 0
-foamDictionary -entry solvers.UFinal.tolerance -value system/fvSolution
-foamRun -solver incompressibleFluid 2>&1 | tee log.foamRun
-grep "Solving for p" log.foamRun | tail -20   # 看末步迭代数与最终残差
-```
-
-### 迭代数如何随网格增长
-
-对共轭梯度类方法，迭代数满足
-
-$$
-N_{iter}\propto\sqrt{\kappa}\propto\frac{L}{h}
-$$
-
-$L$ 是计算域特征长度，$h$ 是网格尺寸。用 `PCG` 解压力时，若 $100\times100$ 网格上平均 20 次迭代，加密到 $400\times400$（$h$ 缩小 4 倍）就需要约 80 次。而用 GAMG 时这个线性增长基本消失，$100\times100$ 与 $400\times400$ 的平均迭代数都在 10～20 之间。这就是大网格算例必须用多重网格的量化依据：$2\times10^6$ 单元的压力方程若用 `PCG`，单步迭代数可能到几百，整算例时间会长出数倍。
-
-GAMG 参数按下面的规则取：`nCellsInCoarsestLevel` 取总单元数的千分之一量级，$2\times10^6$ 单元取 2000；`mergeLevels 1` 是默认值，只在粗化过快导致精度下降时提到 2；`cacheAgglomeration true` 在并行下通常更快，但内存占用上升。
-
-### 求解器与容差的三轮对照
-
-| 轮次 | 改动项 | 固定项 | 记录量 |
-|---|---|---|---|
-| S0 | `p` 用 `PCG` + `DIC` | 网格、格式、松弛 | 平均迭代数、单步耗时 |
-| S1 | 仅把 `p` 换成 `GAMG` | 其余全部 | 同上，对比加速比 |
-| S2 | 仅把 `p` 的 `relTol` 从 0.01 改到 0.1 | 其余全部 | 目标量、总耗时 |
-| S3 | 仅把 `pFinal` 的 `relTol` 从 0 改到 0.01 | 其余全部 | 末步残差台阶、目标量漂移 |
-
-S2 若目标量变化超过工程容差，说明 `relTol 0.1` 太松；S3 用来量化"最终解没解干净"的代价，若目标量漂移超过 0.5%，说明 `Final` 段的 `relTol` 必须保持 0。
-
-### 容差与迭代数的记录
-
-| 现象 | 根因 | 判定试验 |
-|---|---|---|
-| 每个外迭代都跑几百次压力迭代 | `p` 段缺 `relTol` | `foamDictionary` 查 `solvers.p.relTol` 是否存在 |
-| 末步残差出现台阶 | `Final` 段继承了非零 `relTol` | 查 `pFinal.relTol` 是否为 0 |
-| `PCG` 报非对称矩阵 | 求解器与方程类型不匹配 | 速度类方程改 `PBiCGStab` |
-| 并行加速比在 512 进程后下降 | GAMG 粗层通信占比过高 | 对比 128 与 512 进程的单步耗时 |
-| 迭代数随网格线性增长 | 未启用多重网格预条件 | 记录两档网格的平均迭代数，检查是否随 $L/h$ 增长 |
-
-容差参数必须与网格规模一起记录。把 $10^5$ 单元上调好的 `relTol` 直接搬到 $10^7$ 单元算例，代数误差的绝对量级会随之放大，原本可接受的相对容差可能已经不够。
-
-### 参考文献
-
-1. Saad Y., *Iterative Methods for Sparse Linear Systems*, 2nd ed., SIAM, 2003.
-2. Henson V.E., Yang U.M., *BoomerAMG: a parallel algebraic multigrid solver and preconditioner*, Applied Numerical Mathematics, 41(1), 155–177, 2002.
-3. Van der Vorst H.A., *Bi-CGSTAB: a fast and smoothly converging variant of Bi-CG for the solution of nonsymmetric linear systems*, SIAM Journal on Scientific and Statistical Computing, 13(2), 631–644, 1992.
-4. Barrett R., Berry M., Chan T.F., et al., *Templates for the Solution of Linear Systems: Building Blocks for Iterative Methods*, SIAM, 1994.
-5. OpenFOAM Foundation, *OpenFOAM User Guide*, Section 4.5 Solution and Algorithm Control, 2024.
-6. Greenshields C.J., Weller H.G., *Notes on Computational Fluid Dynamics: General Principles*, CFD Direct, 2022.
-
-## 诊断与可信度验证
-
-日志里 `Final residual = 4.2e-09` 看起来非常干净，但这个数只说明当前迭代步的残差小，并不保证解的误差小。残差与真实误差之间差着一个条件数因子，在坏网格或强耦合算例上这个因子可以达到 $10^6$。本文给出把残差换算成误差上界的方法、日志残差的归一化口径差异，以及六类求解器症状的判定试验。
-
-### 残差小不等于误差小
-
-对 $A\phi=b$，第 $k$ 步的误差与残差满足
-
-$$
-\frac{\|e_k\|_2}{\|\phi\|_2}\le\kappa(A)\,\frac{\|r_k\|_2}{\|b\|_2},\qquad \kappa(A)=\|A\|_2\|A^{-1}\|_2
-$$
-
-这是一条上界，不是等式，但它给出了最坏情况的量级。举一个可核对的数：压力矩阵在长宽比 200 的边界层网格上 $\kappa\approx10^6$，若日志报告相对残差 $10^{-8}$，则相对误差上界为 $10^6\times10^{-8}=10^{-2}$，即 1%。也就是说，残差降到 $10^{-8}$ 的"收敛"解，其压力值仍可能有 1% 的误差。要把误差压到 $10^{-4}$，必须把残差降到 $10^{-10}$，或者把 $\kappa$ 降下来——后者靠改进网格或换更强的预条件器。
-
-上界依赖 $\kappa$ 的估计，而 $\kappa$ 本身很难准确算出。更实用的替代量是范数型后向误差，它不依赖 $\kappa$：
-
-$$
-\eta_k=\frac{\|r_k\|_2}{\|A\|_2\|\phi_k\|_2+\|b\|_2}
-$$
-
-$\eta_k$ 的含义是"计算解是某个相对扰动为 $\eta_k$ 的邻近系统的精确解"。$\eta_k$ 达到机器精度量级（双精度约 $10^{-16}$）说明线性系统已被解到极限；$\eta_k$ 停在 $10^{-6}$ 说明矩阵或右端项本身的量级导致残差无法再降，继续迭代没有意义。这个量比单纯看残差绝对值更能说明"是否还值得继续迭代"。
-
-```
-算例: 边界层网格, 长宽比 200, 压力矩阵 kappa ≈ 1e6
-目标: 相对误差 <= 1e-4
-需要: ||r||/||b|| <= 1e-4 / 1e6 = 1e-10
-若网格长宽比降到 20, kappa ≈ 1e4
-需要: ||r||/||b|| <= 1e-8   ← 容差可以放宽两个数量级
-结论: 容差的合理取值由 kappa 决定，不由习惯决定
-```
+`nCoarsestCells` 控制粗化停止条件，取 1000 意味着最粗层至少 1000 个单元。取值过小会让最粗层求解变得昂贵，过大则层数不足、预条件效果下降。一般按总单元数的千分之一量级设置：$2\times10^6$ 单元的算例取 2000 是合理起点。
 
 ### 条件数、容差与迭代次数的换算
 
@@ -332,6 +197,142 @@ $$
 
 取 $\kappa=1.0\times10^{6}$、$\varepsilon=1.0\times10^{-10}$，得 $\sqrt{\kappa}=1.0\times10^{3}$、$\ln(2/\varepsilon)=23.7$，故 $k_{\mathrm{CG}}\approx0.5\times1.0\times10^{3}\times23.7=1.2\times10^{4}$，一万次以上在工程上不可接受。GAMG 把有效条件数压到 $O(10)$，$\sqrt{\kappa}\approx3.2$，同精度下 $k_{\mathrm{CG}}\approx0.5\times3.2\times23.7=3.8\times10^{1}$，与日志中 `p` 的 15～40 次吻合。反过来，迭代数从几十次跳到几百次，说明预条件失效或长宽比恶化，而不是算例本身变难。
 
+## 工程设置与实施
+
+### 迭代数如何随网格增长
+
+对共轭梯度类方法，迭代数满足
+
+$$
+N_{iter}\propto\sqrt{\kappa}\propto\frac{L}{h}
+$$
+
+$L$ 是计算域特征长度，$h$ 是网格尺寸。用 `PCG` 解压力时，若 $100\times100$ 网格上平均 20 次迭代，加密到 $400\times400$（$h$ 缩小 4 倍）就需要约 80 次。而用 GAMG 时这个线性增长基本消失，$100\times100$ 与 $400\times400$ 的平均迭代数都在 10～20 之间。这就是大网格算例必须用多重网格的量化依据：$2\times10^6$ 单元的压力方程若用 `PCG`，单步迭代数可能到几百，整算例时间会长出数倍。
+
+GAMG 参数按下面的规则取：`nCellsInCoarsestLevel` 取总单元数的千分之一量级，$2\times10^6$ 单元取 2000；`mergeLevels 1` 是默认值，只在粗化过快导致精度下降时提到 2；`cacheAgglomeration true` 在并行下通常更快，但内存占用上升。
+
+### 求解器配置的失效信号
+
+求解器的职责只是把给定矩阵解到给定容差。若换求解器能让物理量变化，说明原设置根本没有解到收敛，问题在容差而不是求解器本身。
+
+| 现象 | 根因 | 判定试验 |
+|---|---|---|
+| 压力迭代数从 20 跳到 500 | 预条件器与矩阵类型不匹配 | 确认压力用对称求解器，检查是否误用 `DILU` |
+| `solver did not converge` 出现在 `Final` | `relTol` 未压到 0 | 检查 `Final` 段是否用 `$p` 继承并覆盖 `relTol` |
+| GAMG 在并行下加速比很低 | 粗层通信占比过高 | 对比 64 与 512 进程的每步耗时 |
+| 迭代数随网格加密线性增长 | 未使用多重网格预条件 | 记录不同网格上的平均迭代数，看是否随 $h^{-1}$ 增长 |
+
+### 求解器与容差的三轮对照
+
+S2 若目标量变化超过工程容差，说明 `relTol 0.1` 太松；S3 用来量化"最终解没解干净"的代价，若目标量漂移超过 0.5%，说明 `Final` 段的 `relTol` 必须保持 0。
+
+| 轮次 | 改动项 | 固定项 | 记录量 |
+|---|---|---|---|
+| S0 | `p` 用 `PCG` + `DIC` | 网格、格式、松弛 | 平均迭代数、单步耗时 |
+| S1 | 仅把 `p` 换成 `GAMG` | 其余全部 | 同上，对比加速比 |
+| S2 | 仅把 `p` 的 `relTol` 从 0.01 改到 0.1 | 其余全部 | 目标量、总耗时 |
+| S3 | 仅把 `pFinal` 的 `relTol` 从 0 改到 0.01 | 其余全部 | 末步残差台阶、目标量漂移 |
+
+## 异常诊断与失效模式
+
+### 故障模式与判定试验
+
+诊断顺序是：先确认没有 `solver did not converge`，再确认 `Final residual` 达到量级要求，然后用小网格直接解量化代数误差，最后才把剩余偏差归给离散或模型误差。把这三步倒过来做，很容易把代数误差误判成物理效应。
+
+| 现象 | 根因 | 判定试验 |
+|---|---|---|
+| 压力迭代数突然从 15 涨到 400 | 预条件器与矩阵不匹配或出现坏单元 | 定位最大长宽比单元，同时检查求解器类型 |
+| 末步 `Final residual` 出现台阶 | `Final` 段继承了非零 `relTol` | `foamDictionary` 查 `pFinal.relTol` 是否为 0 |
+| 残差很低但目标量仍在漂移 | 残差小不等于误差小，$\kappa$ 大 | 用小网格直接解界定代数误差量级 |
+| 迭代数随网格加密线性增长 | 未启用多重网格 | 记录两档网格的平均迭代数，对比 $L/h$ 缩放 |
+| `solver did not converge` 出现在中间步 | 时间步过大导致矩阵病态 | 减小 `maxCo` 或提高 `nNonOrthogonalCorrectors` |
+| 不同场残差不可比 | 混淆了归一化与绝对残差 | 统一用 `Initial residual` 做横向比较 |
+
+## 验证、验收与复现
+
+### 残差小不等于误差小
+
+对 $A\phi=b$，第 $k$ 步的误差与残差满足
+
+$$
+\frac{\|e_k\|_2}{\|\phi\|_2}\le\kappa(A)\,\frac{\|r_k\|_2}{\|b\|_2},\qquad \kappa(A)=\|A\|_2\|A^{-1}\|_2
+$$
+
+这是一条上界，不是等式，但它给出了最坏情况的量级。举一个可核对的数：压力矩阵在长宽比 200 的边界层网格上 $\kappa\approx10^6$，若日志报告相对残差 $10^{-8}$，则相对误差上界为 $10^6\times10^{-8}=10^{-2}$，即 1%。也就是说，残差降到 $10^{-8}$ 的"收敛"解，其压力值仍可能有 1% 的误差。要把误差压到 $10^{-4}$，必须把残差降到 $10^{-10}$，或者把 $\kappa$ 降下来——后者靠改进网格或换更强的预条件器。
+
+上界依赖 $\kappa$ 的估计，而 $\kappa$ 本身很难准确算出。更实用的替代量是范数型后向误差，它不依赖 $\kappa$：
+
+$$
+\eta_k=\frac{\|r_k\|_2}{\|A\|_2\|\phi_k\|_2+\|b\|_2}
+$$
+
+$\eta_k$ 的含义是"计算解是某个相对扰动为 $\eta_k$ 的邻近系统的精确解"。$\eta_k$ 达到机器精度量级（双精度约 $10^{-16}$）说明线性系统已被解到极限；$\eta_k$ 停在 $10^{-6}$ 说明矩阵或右端项本身的量级导致残差无法再降，继续迭代没有意义。这个量比单纯看残差绝对值更能说明"是否还值得继续迭代"。
+
+```
+算例: 边界层网格, 长宽比 200, 压力矩阵 kappa ≈ 1e6
+目标: 相对误差 <= 1e-4
+需要: ||r||/||b|| <= 1e-4 / 1e6 = 1e-10
+若网格长宽比降到 20, kappa ≈ 1e4
+需要: ||r||/||b|| <= 1e-8   ← 容差可以放宽两个数量级
+结论: 容差的合理取值由 kappa 决定，不由习惯决定
+```
+
+### 用直接解界定代数误差
+
+迭代误差到底有多大，可以用一个缩小版算例直接回答：把网格粗化到 $50\times50$ 以内，用 `PCG` 把 `tolerance` 压到 `1e-14`、`relTol` 设为 0，得到一个近似"精确"的代数解；再在同样网格上用生产设置的容差跑一遍，两者之差就是代数误差。若这个差在 $10^{-6}$ 量级，说明生产容差足够；若在 $10^{-3}$ 量级，就必须收紧容差或改进预条件。
+
+这个方法把"代数误差"从"离散误差"里单独剥出来，是唯一不依赖条件数估计的实证手段。它的代价只在于小网格算例的求解成本可以忽略。
+
+### 容差与迭代数的记录
+
+容差参数必须与网格规模一起记录。把 $10^5$ 单元上调好的 `relTol` 直接搬到 $10^7$ 单元算例，代数误差的绝对量级会随之放大，原本可接受的相对容差可能已经不够。
+
+| 现象 | 根因 | 判定试验 |
+|---|---|---|
+| 每个外迭代都跑几百次压力迭代 | `p` 段缺 `relTol` | `foamDictionary` 查 `solvers.p.relTol` 是否存在 |
+| 末步残差出现台阶 | `Final` 段继承了非零 `relTol` | 查 `pFinal.relTol` 是否为 0 |
+| `PCG` 报非对称矩阵 | 求解器与方程类型不匹配 | 速度类方程改 `PBiCGStab` |
+| 并行加速比在 512 进程后下降 | GAMG 粗层通信占比过高 | 对比 128 与 512 进程的单步耗时 |
+| 迭代数随网格线性增长 | 未启用多重网格预条件 | 记录两档网格的平均迭代数，检查是否随 $L/h$ 增长 |
+
+### 一份可复现的 fvSolution
+
+```cpp
+solvers
+{
+    p
+    {
+        solver          GAMG;
+        tolerance       1e-7;
+        relTol          0.01;
+        smoother        GaussSeidel;
+        cacheAgglomeration true;
+        nCellsInCoarsestLevel 1000;
+        agglomerator    faceAreaPair;
+        mergeLevels     1;
+    }
+    pFinal { $p; relTol 0; }
+
+"(U|k|epsilon|omega)"
+    {
+        solver          PBiCGStab;
+        preconditioner  DILU;
+        tolerance       1e-8;
+        relTol          0.1;
+    }
+    "(U|k|epsilon|omega)Final" { $U; relTol 0; }
+}
+```
+
+改完字典后先离线核对继承关系，再启动求解器，避免跑几个小时才发现 `Final` 段写错：
+
+```bash
+foamDictionary -entry solvers.pFinal.relTol -value system/fvSolution   # 期望输出 0
+foamDictionary -entry solvers.UFinal.tolerance -value system/fvSolution
+foamRun -solver incompressibleFluid 2>&1 | tee log.foamRun
+grep "Solving for p" log.foamRun | tail -20   # 看末步迭代数与最终残差
+```
+
 ### 日志里两个残差的口径不同
 
 OpenFOAM 打印的 `Initial residual` 是归一化后的量：对对称求解器，它被除以解项范数；`Final residual` 则是**未归一化**的绝对 L2 残差。这导致两个后果：不同方程的 `Initial residual` 可以横向比较，因为它们被各自归一化过；不同方程的 `Final residual` 不能直接比大小，因为场量纲和量级不同——压力的 $10^{-9}$ 与湍动能的 $10^{-9}$ 不代表同等精度。
@@ -345,30 +346,13 @@ grep -c "solver did not converge" log.foamRun   # 应为 0
 grep "time step continuity errors" log.foamRun | tail -10
 ```
 
-### 用直接解界定代数误差
-
-迭代误差到底有多大，可以用一个缩小版算例直接回答：把网格粗化到 $50\times50$ 以内，用 `PCG` 把 `tolerance` 压到 `1e-14`、`relTol` 设为 0，得到一个近似"精确"的代数解；再在同样网格上用生产设置的容差跑一遍，两者之差就是代数误差。若这个差在 $10^{-6}$ 量级，说明生产容差足够；若在 $10^{-3}$ 量级，就必须收紧容差或改进预条件。
-
-这个方法把"代数误差"从"离散误差"里单独剥出来，是唯一不依赖条件数估计的实证手段。它的代价只在于小网格算例的求解成本可以忽略。
-
-### 残差与迭代异常的判定表
-
-| 现象 | 根因 | 判定试验 |
-|---|---|---|
-| 压力迭代数突然从 15 涨到 400 | 预条件器与矩阵不匹配或出现坏单元 | 定位最大长宽比单元，同时检查求解器类型 |
-| 末步 `Final residual` 出现台阶 | `Final` 段继承了非零 `relTol` | `foamDictionary` 查 `pFinal.relTol` 是否为 0 |
-| 残差很低但目标量仍在漂移 | 残差小不等于误差小，$\kappa$ 大 | 用小网格直接解界定代数误差量级 |
-| 迭代数随网格加密线性增长 | 未启用多重网格 | 记录两档网格的平均迭代数，对比 $L/h$ 缩放 |
-| `solver did not converge` 出现在中间步 | 时间步过大导致矩阵病态 | 减小 `maxCo` 或提高 `nNonOrthogonalCorrectors` |
-| 不同场残差不可比 | 混淆了归一化与绝对残差 | 统一用 `Initial residual` 做横向比较 |
-
-诊断顺序是：先确认没有 `solver did not converge`，再确认 `Final residual` 达到量级要求，然后用小网格直接解量化代数误差，最后才把剩余偏差归给离散或模型误差。把这三步倒过来做，很容易把代数误差误判成物理效应。
-
-### 参考文献
+## 参考资料
 
 1. Saad Y., *Iterative Methods for Sparse Linear Systems*, 2nd ed., SIAM, 2003.
-2. Golub G.H., Van Loan C.F., *Matrix Computations*, 4th ed., Johns Hopkins University Press, 2013.
-3. Barrett R., Berry M., Chan T.F., et al., *Templates for the Solution of Linear Systems: Building Blocks for Iterative Methods*, SIAM, 1994.
-4. Roache P.J., *Verification and Validation in Computational Science and Engineering*, Hermosa Publishers, 1998.
-5. OpenFOAM Foundation, *OpenFOAM User Guide*, Section 4.5 Solution and Algorithm Control, 2024.
-6. Greenshields C.J., Weller H.G., *Notes on Computational Fluid Dynamics: General Principles*, CFD Direct, 2022.
+2. Barrett R., Berry M., Chan T.F., et al., *Templates for the Solution of Linear Systems: Building Blocks for Iterative Methods*, SIAM, 1994.
+3. Henson V.E., Yang U.M., *BoomerAMG: a parallel algebraic multigrid solver and preconditioner*, Applied Numerical Mathematics, 41(1), 155–177, 2002.
+4. Van der Vorst H.A., *Bi-CGSTAB: a fast and smoothly converging variant of Bi-CG for the solution of nonsymmetric linear systems*, SIAM Journal on Scientific and Statistical Computing, 13(2), 631–644, 1992.
+5. Greenshields C.J., Weller H.G., *Notes on Computational Fluid Dynamics: General Principles*, CFD Direct, 2022.
+6. OpenFOAM Foundation, *OpenFOAM User Guide*, Section 4.5 Solution and Algorithm Control, 2024.
+7. Golub G.H., Van Loan C.F., *Matrix Computations*, 4th ed., Johns Hopkins University Press, 2013.
+8. Roache P.J., *Verification and Validation in Computational Science and Engineering*, Hermosa Publishers, 1998.

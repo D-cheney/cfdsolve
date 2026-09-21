@@ -2,9 +2,7 @@
 template_version: flowlab-knowledge/1.0
 slug: cfd-boundary-coupled-interface-modeling
 title: 共轭与耦合界面：原理与诊断验证
-summary: >-
-  从界面通量与温度双条件出发，用热渗透系数估算界面温度、用 Biot 数判断固体内部是否可简化，并给出三种耦合方式的代价与 OpenFOAM 共轭界面配置。
-  全文同时覆盖原理与适用范围、诊断与可信度验证，保留关键方程、量化参数、可执行示例、失败模式与参考资料。
+summary: 从界面通量与温度双条件出发，用热渗透系数估算界面温度、用 Biot 数判断固体内部是否可简化，并给出三种耦合方式的代价与 OpenFOAM 共轭界面配置。
 category:
   slug: boundary-conditions
   name: 边界条件与初始化
@@ -27,7 +25,7 @@ seo:
   title: 共轭与耦合界面：原理与诊断验证
   description: >-
     从界面通量与温度双条件出发，用热渗透系数估算界面温度、用 Biot 数判断固体内部是否可简化，并给出三种耦合方式的代价与 OpenFOAM
-    共轭界面配置。 全文同时覆盖原理与适用范围、诊断与可信度验证，保留关键方程、量化参数、可执行示例、失败模式与参考资料。
+    共轭界面配置。
   keywords:
     - 共轭与耦合界面
     - 物理建模与适用边界
@@ -41,20 +39,13 @@ seo:
 ---
 # 共轭与耦合界面：原理与诊断验证
 
-## 原理与适用范围
+共轭传热的界面不是"一个边界条件"，而是两个耦合约束：温度连续和法向热流连续。把它们拆成"流体侧给温度、固体侧给热流"这类单向处理，在固体导热系数高、壁厚大或瞬态冲击时会产生数倍的界面温度误差。判断能否简化的关键量是 Biot 数，判断界面温度落在哪里的关键量是热渗透系数。共轭传热算例容易出现"看起来收敛、账目对不上"的情况：残差降到 $10^{-5}$，温度场光滑，但界面两侧热流相差 15%。这类问题不会自己暴露，必须靠三项独立的守恒与基准检查。
 
-共轭传热的界面不是"一个边界条件"，而是两个耦合约束：温度连续和法向热流连续。把它们拆成"流体侧给温度、固体侧给热流"这类单向处理，在固体导热系数高、壁厚大或瞬态冲击时会产生数倍的界面温度误差。判断能否简化的关键量是 Biot 数，判断界面温度落在哪里的关键量是热渗透系数。本文给出这两个量的算式与一次可核对的估算，并对比三种耦合方式的代价。
+## 基础概念与控制关系
 
-### 界面上只有两个条件
+### 三项必查的守恒账
 
-无相变、无接触热阻的理想界面满足
-
-$$
-T_s\big|_{\Gamma} = T_f\big|_{\Gamma}, \qquad
--k_s \left.\frac{\partial T}{\partial n}\right|_{\Gamma,s} = -k_f \left.\frac{\partial T}{\partial n}\right|_{\Gamma,f}
-$$
-
-耦合性在于：界面温度 $T_\Gamma$ 由两侧的导热能力共同决定，若把它当作已知量输入，就等价于切断了耦合。当固体侧热阻远小于流体侧对流热阻时，单向处理误差在 $5\%$ 以内。
+共轭算例的对账分三层，缺一层就无法定位误差来源：**界面局部账**要求每个面元上两侧法向热流相等，$q''_f = q''_s$；**区域整体账**要求流体域进出口焓差等于界面总传热量，$\dot Q_{in} - \dot Q_{out} = \dot Q_\Gamma$；**系统整体账**要求加热功率等于冷却侧带走的热量加储能变化。若第一层账合格而第二层不合格，说明界面之外还有未计入的换热面（通常是外壁面漏热）；若第一层就不合格，说明界面配对或插值有结构性错误，加密网格无效。
 
 ### 热渗透系数决定界面温度
 
@@ -142,6 +133,47 @@ $$
 
 其中只有 $2.11\ \mathrm{K}$ 落在固体内部，$20.0\ \mathrm{K}$ 落在对流边界层内。这个分解说明为什么薄壁铝件可以用给定壁温近似：固体侧只占温差的一成。
 
+### 界面通量不平衡的判据
+
+定义界面通量不平衡率
+
+$$
+\varepsilon_q = \frac{\left| q''_f - q''_s \right|}{\max \left( \left| q''_f \right|, \left| q''_s \right| \right)} \times 100\%
+$$
+
+该量应逐面元统计，报告最大值与面积加权平均值。判据：面匹配界面加权平均 $\varepsilon_q < 0.5\%$，非一致网格允许到 $2\%$；任何单面元的 $\varepsilon_q$ 都不应超过 $10\%$。举例：流体侧给出 $352\ \mathrm{kW/m^2}$、固体侧 $351\ \mathrm{kW/m^2}$，则 $\varepsilon_q = 1/352 = 0.28\%$，合格；若固体侧给出 $299\ \mathrm{kW/m^2}$，则 $\varepsilon_q = 15\%$，说明两侧温度场各自收敛到了不同解，耦合没有真正生效。
+
+## 适用边界与方案选择
+
+### 界面上只有两个条件
+
+无相变、无接触热阻的理想界面满足
+
+$$
+T_s\big|_{\Gamma} = T_f\big|_{\Gamma}, \qquad
+-k_s \left.\frac{\partial T}{\partial n}\right|_{\Gamma,s} = -k_f \left.\frac{\partial T}{\partial n}\right|_{\Gamma,f}
+$$
+
+耦合性在于：界面温度 $T_\Gamma$ 由两侧的导热能力共同决定，若把它当作已知量输入，就等价于切断了耦合。当固体侧热阻远小于流体侧对流热阻时，单向处理误差在 $5\%$ 以内。
+
+## 工程设置与实施
+
+### 固体侧网格与时间步的独立要求
+
+固体侧只有导热，其网格与时间步要求与流体侧不同，必须独立校核。显式格式的稳定条件是
+
+$$
+\mathrm{Fo} = \frac{\alpha \Delta t}{\Delta x^2} \le \frac{1}{2}, \qquad \alpha = \frac{k_s}{\rho c_p}
+$$
+
+不锈钢 $\rho = 8000\ \mathrm{kg/m^3}$、$c_p = 500\ \mathrm{J/(kg\cdot K)}$，则 $\alpha = 16.3/(8000 \times 500) = 4.08\times 10^{-6}\ \mathrm{m^2/s}$。取 $\Delta x = 0.5\ \mathrm{mm}$、$\Delta t = 0.01\ \mathrm{s}$，$\mathrm{Fo} = 4.08\times 10^{-6} \times 0.01/(5\times 10^{-4})^2 = 0.163$，稳定。另一个必须满足的条件是固体热扩散时间：
+
+$$
+t_{diff} \approx \frac{t^2}{\alpha} = \frac{(0.010)^2}{4.08\times 10^{-6}} = 24.5\ \mathrm{s}
+$$
+
+因此瞬态共轭算例至少需要运行 $3\,t_{diff} \approx 74\ \mathrm{s}$ 才能认为达到稳态。若只算到 $10\ \mathrm{s}$ 就提取界面温度，会系统性偏低——这是"瞬态共轭结果与稳态结果不一致"的最常见原因。固体侧网格还需在厚度方向至少布置 5 层单元，即 $\Delta x \le 2\ \mathrm{mm}$；若流体侧首层为 $0.05\ \mathrm{mm}$ 而固体侧为 $2\ \mathrm{mm}$，界面首层厚度比达 40，插值会产生 $5\%$ 以上的通量误差。
+
 ### OpenFOAM 共轭界面配置
 
 ```text
@@ -170,7 +202,34 @@ interface
 
 两侧必须成对声明且 `Tnbr` 指向对方场名。运行 `chtMultiRegionFoam` 后分别对 `-region fluid` 与 `-region solid` 执行 `wallHeatFlux`，两者应严格相等、方向相反。
 
-### 失败模式对照
+### 检查脚本
+
+```bash
+#!/usr/bin/env bash
+for reg in fluid solid; do
+    postProcess -func "wallHeatFlux" -region "$reg" -latestTime \
+        > "log.wallHeatFlux.$reg" 2>&1
+done
+postProcess -func "flowIn"  -latestTime > log.flowIn  2>&1
+postProcess -func "flowOut" -latestTime > log.flowOut 2>&1
+
+python3 - <<'PY'
+q_f, q_s = 352.0e3, 351.0e3          # W/m2, 界面两侧热流
+print("eps_q = %.2f %% (判据 < 0.5)" % (abs(q_f-q_s)/q_f*100))
+
+Th, Tc, hh, ks, t = 800.0, 350.0, 1500.0, 16.3, 0.010
+R = 1/hh + t/ks; q = (Th-Tc)/R; Tg = Th - q/hh
+print("R'' = %.3e m2K/W, q'' = %.1f kW/m2, T_G = %.1f K" % (R, q/1e3, Tg))
+
+alpha = 16.3/(8000*500)
+print("alpha = %.3e m2/s, t_ss ~ %.1f s, Fo = %.3f" %
+      (alpha, 3*t*t/alpha, alpha*0.01/(0.5e-3)**2))
+PY
+```
+
+## 异常诊断与失效模式
+
+### 故障模式与判定试验
 
 | 现象 | 根因 | 判定试验 |
 | --- | --- | --- |
@@ -180,32 +239,14 @@ interface
 | 薄铝板被算出 300 K 温差 | 误用了固定热流且热流值超过物理上限 | 用 $R''_{tot}$ 反算可达热流，与给定值比较 |
 | 瞬态算例界面温度阶跃 | 固体热容被忽略或密度给错 | 检查固体 `thermophysicalProperties` 的 $\rho c_p$ |
 | 稳态解界面温度比解析值低 20 K | 把界面温度当已知量单向输入 | 改为双向共轭重算，比较界面温度 |
+| 界面两侧热流差 $15\%$ | 两侧温度场未真正耦合，各自独立收敛 | 输出两侧 `wallHeatFlux` 逐面元比对，$\varepsilon_q$ 应 $< 0.5\%$ |
+| 界面温度比一维解析值低 $20\ \mathrm{K}$ | 流体侧对流换热系数被壁面函数低估 | 检查 $y^+$ 分布，与 $h$ 反算值对照 |
+| 瞬态算例界面温度持续上升不收敛 | 运行时长不足 $3t_{diff}$ | 用 $t^2/\alpha$ 估扩散时间，本例需约 $74\ \mathrm{s}$ |
+| 固体温度场出现棋盘振荡 | 两侧界面首层网格厚度比过大 | 检查厚度比，应 $< 5$ |
+| $\Delta T_\Gamma$ 在 $1\ \mathrm{K}$ 振荡 | 热阻比过大，外迭代无松弛 | 加欠松弛因子 $0.3 \sim 0.5$，观察是否单调下降 |
+| 整体能量收支差 $3\%$ | 外壁面漏热未计入边界条件 | 输出所有壁面热流求和，与加热功率对照 |
 
-### 参考文献
-
-1. Incropera F.P., DeWitt D.P., Bergman T.L., Lavine A.S., *Fundamentals of Heat and Mass Transfer*, 7th ed., Wiley, 2011.
-2. Carslaw H.S., Jaeger J.C., *Conduction of Heat in Solids*, 2nd ed., Oxford University Press, 1959.
-3. Patankar S.V., *Numerical Heat Transfer and Fluid Flow*, Hemisphere Publishing, 1980.
-4. Versteeg H.K., Malalasekera W., *An Introduction to Computational Fluid Dynamics: The Finite Volume Method*, 2nd ed., Pearson, 2007.
-5. OpenFOAM Foundation, *OpenFOAM User Guide*, chtMultiRegionFoam and coupled temperature boundaries, v2312, 2023.
-
-## 诊断与可信度验证
-
-共轭传热算例容易出现"看起来收敛、账目对不上"的情况：残差降到 $10^{-5}$，温度场光滑，但界面两侧热流相差 15%。这类问题不会自己暴露，必须靠三项独立的守恒与基准检查。本文给出界面通量不平衡判据、一维热阻网络解析基准、固体侧网格与时间步的独立要求，以及对账脚本。
-
-### 三项必查的守恒账
-
-共轭算例的对账分三层，缺一层就无法定位误差来源：**界面局部账**要求每个面元上两侧法向热流相等，$q''_f = q''_s$；**区域整体账**要求流体域进出口焓差等于界面总传热量，$\dot Q_{in} - \dot Q_{out} = \dot Q_\Gamma$；**系统整体账**要求加热功率等于冷却侧带走的热量加储能变化。若第一层账合格而第二层不合格，说明界面之外还有未计入的换热面（通常是外壁面漏热）；若第一层就不合格，说明界面配对或插值有结构性错误，加密网格无效。
-
-### 界面通量不平衡的判据
-
-定义界面通量不平衡率
-
-$$
-\varepsilon_q = \frac{\left| q''_f - q''_s \right|}{\max \left( \left| q''_f \right|, \left| q''_s \right| \right)} \times 100\%
-$$
-
-该量应逐面元统计，报告最大值与面积加权平均值。判据：面匹配界面加权平均 $\varepsilon_q < 0.5\%$，非一致网格允许到 $2\%$；任何单面元的 $\varepsilon_q$ 都不应超过 $10\%$。举例：流体侧给出 $352\ \mathrm{kW/m^2}$、固体侧 $351\ \mathrm{kW/m^2}$，则 $\varepsilon_q = 1/352 = 0.28\%$，合格；若固体侧给出 $299\ \mathrm{kW/m^2}$，则 $\varepsilon_q = 15\%$，说明两侧温度场各自收敛到了不同解，耦合没有真正生效。
+## 验证、验收与复现
 
 ### 用一维热阻网络建立解析基准
 
@@ -233,22 +274,6 @@ $$
 
 校核：$q'' t/k_s = 3.52\times 10^{5} \times 6.135\times 10^{-4} = 215.9\ \mathrm{K}$，$565.6 - 215.9 = 349.7\ \mathrm{K}$，与冷侧 $350\ \mathrm{K}$ 相差 $0.3\ \mathrm{K}$，说明热阻分解正确。若 CFD 给出界面温度 $545\ \mathrm{K}$，与解析值差 $20.6\ \mathrm{K}$，占总体温差 $450\ \mathrm{K}$ 的 $4.6\%$。该偏差超过网格离散误差的量级，应优先检查流体侧对流换热系数的求解是否正确（壁面函数、$y^+$、物性），而不是继续加密固体网格。
 
-### 固体侧网格与时间步的独立要求
-
-固体侧只有导热，其网格与时间步要求与流体侧不同，必须独立校核。显式格式的稳定条件是
-
-$$
-\mathrm{Fo} = \frac{\alpha \Delta t}{\Delta x^2} \le \frac{1}{2}, \qquad \alpha = \frac{k_s}{\rho c_p}
-$$
-
-不锈钢 $\rho = 8000\ \mathrm{kg/m^3}$、$c_p = 500\ \mathrm{J/(kg\cdot K)}$，则 $\alpha = 16.3/(8000 \times 500) = 4.08\times 10^{-6}\ \mathrm{m^2/s}$。取 $\Delta x = 0.5\ \mathrm{mm}$、$\Delta t = 0.01\ \mathrm{s}$，$\mathrm{Fo} = 4.08\times 10^{-6} \times 0.01/(5\times 10^{-4})^2 = 0.163$，稳定。另一个必须满足的条件是固体热扩散时间：
-
-$$
-t_{diff} \approx \frac{t^2}{\alpha} = \frac{(0.010)^2}{4.08\times 10^{-6}} = 24.5\ \mathrm{s}
-$$
-
-因此瞬态共轭算例至少需要运行 $3\,t_{diff} \approx 74\ \mathrm{s}$ 才能认为达到稳态。若只算到 $10\ \mathrm{s}$ 就提取界面温度，会系统性偏低——这是"瞬态共轭结果与稳态结果不一致"的最常见原因。固体侧网格还需在厚度方向至少布置 5 层单元，即 $\Delta x \le 2\ \mathrm{mm}$；若流体侧首层为 $0.05\ \mathrm{mm}$ 而固体侧为 $2\ \mathrm{mm}$，界面首层厚度比达 40，插值会产生 $5\%$ 以上的通量误差。
-
 ### 耦合外迭代的收敛证据
 
 双向共轭的收敛不能只看流场残差，还要看界面量在外迭代之间的变化：
@@ -259,46 +284,13 @@ $$
 
 若 $\Delta T_\Gamma$ 在 $1\ \mathrm{K}$ 量级反复振荡而不下降，说明热阻比过大，需要在界面温度更新上加欠松弛（典型因子 $0.3 \sim 0.5$）；若 $\Delta T_\Gamma$ 单调下降但每步只降 $2\%$，说明欠松弛因子过小。
 
-### 检查脚本
+## 参考资料
 
-```bash
-#!/usr/bin/env bash
-for reg in fluid solid; do
-    postProcess -func "wallHeatFlux" -region "$reg" -latestTime \
-        > "log.wallHeatFlux.$reg" 2>&1
-done
-postProcess -func "flowIn"  -latestTime > log.flowIn  2>&1
-postProcess -func "flowOut" -latestTime > log.flowOut 2>&1
-
-python3 - <<'PY'
-q_f, q_s = 352.0e3, 351.0e3          # W/m2, 界面两侧热流
-print("eps_q = %.2f %% (判据 < 0.5)" % (abs(q_f-q_s)/q_f*100))
-
-Th, Tc, hh, ks, t = 800.0, 350.0, 1500.0, 16.3, 0.010
-R = 1/hh + t/ks; q = (Th-Tc)/R; Tg = Th - q/hh
-print("R'' = %.3e m2K/W, q'' = %.1f kW/m2, T_G = %.1f K" % (R, q/1e3, Tg))
-
-alpha = 16.3/(8000*500)
-print("alpha = %.3e m2/s, t_ss ~ %.1f s, Fo = %.3f" %
-      (alpha, 3*t*t/alpha, alpha*0.01/(0.5e-3)**2))
-PY
-```
-
-### 失败模式对照
-
-| 现象 | 根因 | 判定试验 |
-| --- | --- | --- |
-| 界面两侧热流差 $15\%$ | 两侧温度场未真正耦合，各自独立收敛 | 输出两侧 `wallHeatFlux` 逐面元比对，$\varepsilon_q$ 应 $< 0.5\%$ |
-| 界面温度比一维解析值低 $20\ \mathrm{K}$ | 流体侧对流换热系数被壁面函数低估 | 检查 $y^+$ 分布，与 $h$ 反算值对照 |
-| 瞬态算例界面温度持续上升不收敛 | 运行时长不足 $3t_{diff}$ | 用 $t^2/\alpha$ 估扩散时间，本例需约 $74\ \mathrm{s}$ |
-| 固体温度场出现棋盘振荡 | 两侧界面首层网格厚度比过大 | 检查厚度比，应 $< 5$ |
-| $\Delta T_\Gamma$ 在 $1\ \mathrm{K}$ 振荡 | 热阻比过大，外迭代无松弛 | 加欠松弛因子 $0.3 \sim 0.5$，观察是否单调下降 |
-| 整体能量收支差 $3\%$ | 外壁面漏热未计入边界条件 | 输出所有壁面热流求和，与加热功率对照 |
-
-### 参考文献
-
-1. Patankar S.V., *Numerical Heat Transfer and Fluid Flow*, Hemisphere Publishing, 1980.
-2. Incropera F.P., DeWitt D.P., Bergman T.L., Lavine A.S., *Fundamentals of Heat and Mass Transfer*, 7th ed., Wiley, 2011.
-3. Verstraete T., Alsalihi Z., Van den Braembussche R.A., "Multidisciplinary Optimization of a Radial Compressor for Microgas Turbine Applications", *ASME Journal of Turbomachinery*, 132(3), 031004, 2010.
-4. ASME, *Standard for Verification and Validation in Computational Fluid Dynamics and Heat Transfer* (V&V 20-2009), 2009.
-5. OpenFOAM Foundation, *OpenFOAM User Guide*, v2312, 2023, wallHeatFlux function object.
+1. Incropera F.P., DeWitt D.P., Bergman T.L., Lavine A.S., *Fundamentals of Heat and Mass Transfer*, 7th ed., Wiley, 2011.
+2. Carslaw H.S., Jaeger J.C., *Conduction of Heat in Solids*, 2nd ed., Oxford University Press, 1959.
+3. Patankar S.V., *Numerical Heat Transfer and Fluid Flow*, Hemisphere Publishing, 1980.
+4. Versteeg H.K., Malalasekera W., *An Introduction to Computational Fluid Dynamics: The Finite Volume Method*, 2nd ed., Pearson, 2007.
+5. OpenFOAM Foundation, *OpenFOAM User Guide*, chtMultiRegionFoam and coupled temperature boundaries, v2312, 2023.
+6. Verstraete T., Alsalihi Z., Van den Braembussche R.A., "Multidisciplinary Optimization of a Radial Compressor for Microgas Turbine Applications", *ASME Journal of Turbomachinery*, 132(3), 031004, 2010.
+7. ASME, *Standard for Verification and Validation in Computational Fluid Dynamics and Heat Transfer* (V&V 20-2009), 2009.
+8. OpenFOAM Foundation, *OpenFOAM User Guide*, v2312, 2023, wallHeatFlux function object.

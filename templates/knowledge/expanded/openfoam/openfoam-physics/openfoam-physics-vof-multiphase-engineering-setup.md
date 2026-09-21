@@ -5,7 +5,6 @@ title: VOF 多相流：工程设置与诊断验证
 summary: >-
   用毛细数、韦伯数与 Bond 数判断表面张力是否必须保留，给出 alpha.water 边界、界面压缩 cAlpha、MULES
   子循环与重力字典的完整配置，并手算毛细时间步上限。
-  全文同时覆盖工程设置与参数选择、诊断与可信度验证，保留关键方程、量化参数、可执行示例、失败模式与参考资料。
 category:
   slug: openfoam-physics
   name: OpenFOAM 物理模型
@@ -29,7 +28,6 @@ seo:
   description: >-
     用毛细数、韦伯数与 Bond 数判断表面张力是否必须保留，给出 alpha.water 边界、界面压缩 cAlpha、MULES
     子循环与重力字典的完整配置，并手算毛细时间步上限。
-    全文同时覆盖工程设置与参数选择、诊断与可信度验证，保留关键方程、量化参数、可执行示例、失败模式与参考资料。
   keywords:
     - VOF 多相流
     - 工程设置与参数选择
@@ -43,9 +41,79 @@ seo:
 ---
 # VOF 多相流：工程设置与诊断验证
 
-## 工程设置与参数选择
+VOF 案例的设置错误通常不是"跑不起来"，而是"跑得很稳但界面物理不对"：界面被数值扩散抹厚，或毛细时间步被 CFL 掩盖导致虚假振荡。判断该保留哪些项要从三个无量纲数入手，再决定网格、时间步与界面压缩强度。本文以毫米级水-空气两相流（$\sigma=0.072\ \mathrm{N/m}$）为基准。VOF 结果的可信度不能用"界面看起来像"来判断。真正有效的做法是先跑三个解析或半解析基准，确认求解器在你的网格与时间步下能复现已知答案，再去看工程几何。这三个基准是：静止液滴的 Laplace 压力、Rayleigh-Taylor 不稳定性增长率、以及 Martin-Moyce 溃坝前沿位置。
 
-VOF 案例的设置错误通常不是"跑不起来"，而是"跑得很稳但界面物理不对"：界面被数值扩散抹厚，或毛细时间步被 CFL 掩盖导致虚假振荡。判断该保留哪些项要从三个无量纲数入手，再决定网格、时间步与界面压缩强度。本文以毫米级水-空气两相流（$\sigma=0.072\ \mathrm{N/m}$）为基准。
+## 基础概念与控制关系
+
+### 相体积守恒与 alpha 有界性
+
+VOF 不求解相质量方程，相体积守恒完全依赖输运格式。定义相对漂移
+
+$$\epsilon_V=\frac{\left|V_p(t)-V_p(0)\right|}{V_p(0)}$$
+
+在 1000 个时间步后应低于 $10^{-4}$。同时检查 alpha 场极值：合格范围是 $-10^{-6}\le\alpha\le1+10^{-6}$，超出即为限幅器失效。这两个指标可直接由 `volFieldValue` 与 `fieldMinMax` 功能对象在运行时输出。
+
+```cpp
+// system/controlDict
+functions
+{
+    phaseVolume
+    {
+        type            volFieldValue;
+        libs            ("libfieldFunctionObjects.so");
+        fields          (alpha.water);
+        operation       volIntegrate;
+        writeFields     false;
+    }
+    alphaRange
+    {
+        type            fieldMinMax;
+        libs            ("libfieldFunctionObjects.so");
+        fields          (alpha.water);
+        writeControl    timeStep;
+        writeInterval   100;
+    }
+}
+```
+
+## 工程设置与实施
+
+### alpha 场边界与初始化
+
+VOF 的相场叫 `alpha.<phase>`，本例为 `0/alpha.water`。边界类型要区分"水从哪进、气从哪进、界面在哪"。
+
+```cpp
+// 0/alpha.water
+dimensions      [0 0 0 0 0 0 0];
+internalField   uniform 0;
+boundaryField
+{
+    inlet
+    {
+        type            fixedValue;
+        value           uniform 1;      // 纯水入口
+    }
+    outlet
+    {
+        type            variableHeightFlowRate;
+        lowerBound      0;
+        upperBound      1;
+        value           uniform 0.5;
+    }
+    atmosphere
+    {
+        type            inletOutlet;
+        inletValue      uniform 0;
+        value           uniform 0;
+    }
+    walls
+    {
+        type            zeroGradient;
+    }
+}
+```
+
+`variableHeightFlowRate` 是 VOF 专用的出口条件，它按出口面上的相分率与静压自动调整回流分配，比 `zeroGradient` 更不易在下游产生假水团。若出口是淹没出流（全是水），直接用 `fixedValue 1` 即可，此时 `variableHeightFlowRate` 反而会引入不必要的耦合。
 
 ### 三个无量纲数决定模型清单
 
@@ -106,43 +174,6 @@ surfaceTension
 
 `surfaceTension` 的相名对必须与 `phases` 中出现的名字一致且顺序无关；若写成 `(water air)` 而字典中只有 `water`，求解器在构造 CSF 源项时会报找不到配对。重力方向必须与网格坐标一致，把 $(0,-9.81,0)$ 用在 $y$ 向上的网格里会让水往错误方向流。
 
-### alpha 场边界与初始化
-
-VOF 的相场叫 `alpha.<phase>`，本例为 `0/alpha.water`。边界类型要区分"水从哪进、气从哪进、界面在哪"。
-
-```cpp
-// 0/alpha.water
-dimensions      [0 0 0 0 0 0 0];
-internalField   uniform 0;
-boundaryField
-{
-    inlet
-    {
-        type            fixedValue;
-        value           uniform 1;      // 纯水入口
-    }
-    outlet
-    {
-        type            variableHeightFlowRate;
-        lowerBound      0;
-        upperBound      1;
-        value           uniform 0.5;
-    }
-    atmosphere
-    {
-        type            inletOutlet;
-        inletValue      uniform 0;
-        value           uniform 0;
-    }
-    walls
-    {
-        type            zeroGradient;
-    }
-}
-```
-
-`variableHeightFlowRate` 是 VOF 专用的出口条件，它按出口面上的相分率与静压自动调整回流分配，比 `zeroGradient` 更不易在下游产生假水团。若出口是淹没出流（全是水），直接用 `fixedValue 1` 即可，此时 `variableHeightFlowRate` 反而会引入不必要的耦合。
-
 ### 界面压缩与 MULES 子循环
 
 界面锐度由 `cAlpha` 控制，它是对流项中压缩速度与相对速度的比值上限。取值越大界面越锐，但过大会在界面处产生非物理速度。
@@ -175,7 +206,25 @@ boundaryField
 | 时间步限制 | `maxAlphaCo` 与毛细 $\Delta t_\sigma$ | 界面高频振荡 |
 | 密度/黏度 | `physicalProperties` 与 $Re$ 估算 | 边界层与湍流尺度不匹配 |
 
-### 失败模式
+### 用命令行做三个基准的快速判读
+
+```bash
+# 1) Laplace 基准：液滴内外压差
+postProcess -func "volFieldValue(p)" -region region0 -latestTime
+#    读数为内部体积分压力，除以液滴体积即为 p_in；与 p_out=0 之差应为 144 Pa
+
+# 2) 相体积漂移
+postProcess -func "volFieldValue(alpha.water)" -latestTime
+
+# 3) 界面厚度：沿一条线输出 alpha，统计 0.05~0.95 跨越的单元数
+postProcess -func "graphUniform(alpha.water)" -latestTime
+```
+
+判读顺序建议固定为 Laplace → 相体积 → 界面厚度 → 溃坝前沿。前一项不达标时后一项的偏差无法归因，继续看下去只会浪费计算资源。
+
+## 异常诊断与失效模式
+
+### 故障模式与判定试验
 
 | 现象 | 根因 | 判定试验 |
 |---|---|---|
@@ -185,18 +234,25 @@ boundaryField
 | 出口出现假水团 | 出口用了 `zeroGradient` 且存在回流 | 换 `variableHeightFlowRate` 重算 |
 | 水从气相入口倒灌 | `inletOutlet` 的 `inletValue` 设成 1 | 确认气相入口 `inletValue` 为 0 |
 | 质量不守恒随步数累积 | `MULESCorr` 关闭且子循环不足 | 打开 `MULESCorr` 并监控相体积积分 |
+| 静止液滴内部持续流动 | CSF 源项离散误差（虚假流） | 跑 Laplace 基准，测最大速度 |
+| 界面跨越 6 个单元 | `cAlpha` 过小或网格过粗 | 把 `cAlpha` 提到 1 并比较界面厚度 |
+| 相体积随时间单调减少 | 压缩项把水输运出计算域 | 监控出口面的相通量积分 |
+| 溃坝前沿始终慢于基准 | 对流项数值耗散过强 | 加密界面附近网格，观察偏差是否收窄 |
+| 短波扰动全部消失 | 网格未解析 $\lambda_c/4$ | 用 4 mm 与 2 mm 网格各算一遍对比 |
+| alpha 出现 1.02 | 限幅迭代不足 | 把 `nLimiterIter` 从 5 提到 10 |
 
-### 参考文献
+### 诊断量汇总
 
-1. Hirt C.W., Nichols B.D., "Volume of Fluid (VOF) Method for the Dynamics of Free Boundaries," Journal of Computational Physics, 1981.
-2. Brackbill J.U., Kothe D.B., Zemach C., "A Continuum Method for Modeling Surface Tension," Journal of Computational Physics, 1992.
-3. Rusche H., "Computational Fluid Dynamics of Dispersed Two-Phase Flows at High Phase Fractions," PhD Thesis, Imperial College London, 2002.
-4. Deshpande S.S., Anumolu L., Trujillo M.F., "Evaluating the Performance of the Two-Phase Flow Solver interFoam," Computational Science & Discovery, 2012.
-5. OpenFOAM Foundation, interFoam 教程与 User Guide（当前发行版，multiphase 与 surface tension 章节）.
+| 诊断量 | 提取方式 | 合格阈值 |
+|---|---|---|
+| Laplace 压差 | 液滴内外压力积分差 | $144\pm7\ \mathrm{Pa}$（5%） |
+| 虚假流速度 | 静止液滴内最大 $|\mathbf{U}|$ | $<0.072\ \mathrm{m/s}$ |
+| 界面厚度 | alpha 从 0.05 到 0.95 跨越的单元数 | $\le3$ |
+| 相体积漂移 | `volIntegrate(alpha.water)` | $<10^{-4}$ |
+| alpha 极值 | `fieldMinMax` | $[-10^{-6},1+10^{-6}]$ |
+| 溃坝前沿 | 最大 $x$ 处 alpha=0.5 位置 | 与解析式偏差 $<10\%$ |
 
-## 诊断与可信度验证
-
-VOF 结果的可信度不能用"界面看起来像"来判断。真正有效的做法是先跑三个解析或半解析基准，确认求解器在你的网格与时间步下能复现已知答案，再去看工程几何。这三个基准是：静止液滴的 Laplace 压力、Rayleigh-Taylor 不稳定性增长率、以及 Martin-Moyce 溃坝前沿位置。
+## 验证、验收与复现
 
 ### 基准一：静止液滴的 Laplace 压力
 
@@ -226,79 +282,14 @@ $$\frac{x}{a}=1.2+1.6\,t\sqrt{\frac{2g}{a}}$$
 
 以水柱宽 $a=0.057\ \mathrm{m}$ 为例，$\sqrt{2g/a}=\sqrt{19.62/0.057}=18.6\ \mathrm{s^{-1}}$。在 $t=0.05\ \mathrm{s}$ 时 $t\sqrt{2g/a}=0.930$，理论 $x/a=2.69$，即前沿位于 0.153 m。若模拟给出 0.130 m，偏低 15%，说明界面处的对流被过度耗散，应检查 `cAlpha` 与网格各向异性。
 
-### 相体积守恒与 alpha 有界性
+## 参考资料
 
-VOF 不求解相质量方程，相体积守恒完全依赖输运格式。定义相对漂移
-
-$$\epsilon_V=\frac{\left|V_p(t)-V_p(0)\right|}{V_p(0)}$$
-
-在 1000 个时间步后应低于 $10^{-4}$。同时检查 alpha 场极值：合格范围是 $-10^{-6}\le\alpha\le1+10^{-6}$，超出即为限幅器失效。这两个指标可直接由 `volFieldValue` 与 `fieldMinMax` 功能对象在运行时输出。
-
-```cpp
-// system/controlDict
-functions
-{
-    phaseVolume
-    {
-        type            volFieldValue;
-        libs            ("libfieldFunctionObjects.so");
-        fields          (alpha.water);
-        operation       volIntegrate;
-        writeFields     false;
-    }
-    alphaRange
-    {
-        type            fieldMinMax;
-        libs            ("libfieldFunctionObjects.so");
-        fields          (alpha.water);
-        writeControl    timeStep;
-        writeInterval   100;
-    }
-}
-```
-
-### 用命令行做三个基准的快速判读
-
-```bash
-# 1) Laplace 基准：液滴内外压差
-postProcess -func "volFieldValue(p)" -region region0 -latestTime
-#    读数为内部体积分压力，除以液滴体积即为 p_in；与 p_out=0 之差应为 144 Pa
-
-# 2) 相体积漂移
-postProcess -func "volFieldValue(alpha.water)" -latestTime
-
-# 3) 界面厚度：沿一条线输出 alpha，统计 0.05~0.95 跨越的单元数
-postProcess -func "graphUniform(alpha.water)" -latestTime
-```
-
-判读顺序建议固定为 Laplace → 相体积 → 界面厚度 → 溃坝前沿。前一项不达标时后一项的偏差无法归因，继续看下去只会浪费计算资源。
-
-### 诊断量汇总
-
-| 诊断量 | 提取方式 | 合格阈值 |
-|---|---|---|
-| Laplace 压差 | 液滴内外压力积分差 | $144\pm7\ \mathrm{Pa}$（5%） |
-| 虚假流速度 | 静止液滴内最大 $|\mathbf{U}|$ | $<0.072\ \mathrm{m/s}$ |
-| 界面厚度 | alpha 从 0.05 到 0.95 跨越的单元数 | $\le3$ |
-| 相体积漂移 | `volIntegrate(alpha.water)` | $<10^{-4}$ |
-| alpha 极值 | `fieldMinMax` | $[-10^{-6},1+10^{-6}]$ |
-| 溃坝前沿 | 最大 $x$ 处 alpha=0.5 位置 | 与解析式偏差 $<10\%$ |
-
-### 失败模式
-
-| 现象 | 根因 | 判定试验 |
-|---|---|---|
-| 静止液滴内部持续流动 | CSF 源项离散误差（虚假流） | 跑 Laplace 基准，测最大速度 |
-| 界面跨越 6 个单元 | `cAlpha` 过小或网格过粗 | 把 `cAlpha` 提到 1 并比较界面厚度 |
-| 相体积随时间单调减少 | 压缩项把水输运出计算域 | 监控出口面的相通量积分 |
-| 溃坝前沿始终慢于基准 | 对流项数值耗散过强 | 加密界面附近网格，观察偏差是否收窄 |
-| 短波扰动全部消失 | 网格未解析 $\lambda_c/4$ | 用 4 mm 与 2 mm 网格各算一遍对比 |
-| alpha 出现 1.02 | 限幅迭代不足 | 把 `nLimiterIter` 从 5 提到 10 |
-
-### 参考文献
-
-1. Martin J.C., Moyce W.J., "An Experimental Study of the Collapse of Liquid Columns on a Rigid Horizontal Plane," Philosophical Transactions of the Royal Society A, 1952.
-2. Sussman M., Smereka P., Osher S., "A Level Set Approach for Computing Solutions to Incompressible Two-Phase Flow," Journal of Computational Physics, 1994.
-3. Lafaurie B., Nardone C., Scardovelli R., Zaleski S., Zanetti G., "Modelling Merging and Fragmentation in Multiphase Flows with SURFER," Journal of Computational Physics, 1994.
-4. Popinet S., "An Accurate Adaptive Solver for Surface-Tension-Driven Interfacial Flows," Journal of Computational Physics, 2009.
-5. Hirt C.W., Nichols B.D., "Volume of Fluid (VOF) Method for the Dynamics of Free Boundaries," Journal of Computational Physics, 1981.
+1. Hirt C.W., Nichols B.D., "Volume of Fluid (VOF) Method for the Dynamics of Free Boundaries," Journal of Computational Physics, 1981.
+2. Brackbill J.U., Kothe D.B., Zemach C., "A Continuum Method for Modeling Surface Tension," Journal of Computational Physics, 1992.
+3. Rusche H., "Computational Fluid Dynamics of Dispersed Two-Phase Flows at High Phase Fractions," PhD Thesis, Imperial College London, 2002.
+4. Deshpande S.S., Anumolu L., Trujillo M.F., "Evaluating the Performance of the Two-Phase Flow Solver interFoam," Computational Science & Discovery, 2012.
+5. OpenFOAM Foundation, interFoam 教程与 User Guide（当前发行版，multiphase 与 surface tension 章节）.
+6. Martin J.C., Moyce W.J., "An Experimental Study of the Collapse of Liquid Columns on a Rigid Horizontal Plane," Philosophical Transactions of the Royal Society A, 1952.
+7. Sussman M., Smereka P., Osher S., "A Level Set Approach for Computing Solutions to Incompressible Two-Phase Flow," Journal of Computational Physics, 1994.
+8. Lafaurie B., Nardone C., Scardovelli R., Zaleski S., Zanetti G., "Modelling Merging and Fragmentation in Multiphase Flows with SURFER," Journal of Computational Physics, 1994.
+9. Popinet S., "An Accurate Adaptive Solver for Surface-Tension-Driven Interfacial Flows," Journal of Computational Physics, 2009.

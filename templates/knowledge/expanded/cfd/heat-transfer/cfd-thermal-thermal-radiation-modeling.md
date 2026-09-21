@@ -5,7 +5,6 @@ title: 热辐射模型：原理与诊断验证
 summary: >-
   用光学厚度、平均射线行程和导热—辐射参数三个量划定辐射模型的适用区间，给出 Rosseland
   等效导热系数与辐射源项形式，并完成一次圆柱炉膛的平均射线行程、光学厚度、辐射份额与灰体假设误差的估算。
-  全文同时覆盖原理与适用范围、诊断与可信度验证，保留关键方程、量化参数、可执行示例、失败模式与参考资料。
 category:
   slug: heat-transfer
   name: 传热与可压缩流
@@ -29,7 +28,6 @@ seo:
   description: >-
     用光学厚度、平均射线行程和导热—辐射参数三个量划定辐射模型的适用区间，给出 Rosseland
     等效导热系数与辐射源项形式，并完成一次圆柱炉膛的平均射线行程、光学厚度、辐射份额与灰体假设误差的估算。
-    全文同时覆盖原理与适用范围、诊断与可信度验证，保留关键方程、量化参数、可执行示例、失败模式与参考资料。
   keywords:
     - 热辐射模型
     - 物理建模与适用边界
@@ -43,26 +41,9 @@ seo:
 ---
 # 热辐射模型：原理与诊断验证
 
-## 原理与适用范围
+辐射是否要建模，取决于它相对对流和导热的份额；用哪一类模型，取决于光学厚度。辐射算例的结果很少出现明显的发散或负温度，问题往往藏在几个百分点的偏差里，靠看温度云图发现不了。可用的验收手段是三类独立证据：几何视角关系的自洽性、包腔内的辐射收支、以及角度离散的收敛行为。
 
-辐射是否要建模，取决于它相对对流和导热的份额；用哪一类模型，取决于光学厚度。本文给出三个可直接算出的判据量——平均射线行程、光学厚度、导热—辐射参数——并完成一次圆柱炉膛的完整估算，最后说明灰体假设在什么条件下失效。
-
-### 光学厚度决定模型层级
-
-参与性介质的辐射强度沿程按 Beer 定律衰减，衰减程度由光学厚度度量：
-
-$$
-\tau_L=(\kappa_a+\sigma_s)L_m
-$$
-
-$\kappa_a$ 是吸收系数、$\sigma_s$ 是散射系数，单位均为 $\mathrm{1/m}$；$L_m$ 是平均射线行程。工程上的分界是：
-
-- $\tau_L<0.1$：介质近似透明，用表面对表面（S2S）或离散坐标（DO）即可，无需考虑介质内的重吸收；
-- $0.1<\tau_L<1$：光学薄到中等，方向性强，必须用 DO；
-- $1<\tau_L<10$：P1 近似可用，误差通常在 10% 以内；
-- $\tau_L>10$：光学厚，Rosseland 扩散近似成立，辐射可并入导热。
-
-把 $\tau_L$ 算错一级，模型选型就错一级，其代价远大于角度分格或网格加密带来的差异。
+## 基础概念与控制关系
 
 ### 平均射线行程与几何尺度
 
@@ -83,28 +64,6 @@ L_m=\frac{3.6\times12.566}{31.416}=1.440\ \mathrm{m}
 $$
 
 若烟气在 1200 K 下的等效吸收系数 $\kappa_a=0.5\ \mathrm{m^{-1}}$（散射可忽略），则 $\tau_L=0.5\times1.44=0.72$，落在光学薄到中等区间，应选 DO 而不是 P1。若把 $\kappa_a$ 误取成 $5\ \mathrm{m^{-1}}$，$\tau_L=7.2$ 就会把人引向 P1，方向性被抹平，热点位置偏移。
-
-### 导热—辐射参数与辐射导热系数
-
-辐射相对导热的强弱由导热—辐射参数给出：
-
-$$
-N=\frac{k(\kappa_a+\sigma_s)}{4\sigma T^3},\qquad \sigma=5.67\times10^{-8}\ \mathrm{W/(m^2\cdot K^4)}
-$$
-
-$N\ll1$ 表示辐射主导，$N\gg1$ 表示导热主导。取烟气 $k=0.05\ \mathrm{W/(m\cdot K)}$、$\kappa_a=0.5\ \mathrm{m^{-1}}$、$T=1200\ \mathrm{K}$：
-
-$$
-N=\frac{0.05\times0.5}{4\times5.67\times10^{-8}\times1200^3}=\frac{0.025}{391.9}=6.4\times10^{-5}
-$$
-
-$N$ 比 1 小四个量级，辐射彻底主导。光学厚时还可把辐射写成等效导热：
-
-$$
-k_{rad}=\frac{16\sigma T^3}{3(\kappa_a+\sigma_s)}=\frac{16\times5.67\times10^{-8}\times1.728\times10^9}{3\times0.5}=1045\ \mathrm{W/(m\cdot K)}
-$$
-
-$k_{rad}$ 是分子导热系数的约 20900 倍，把两者相加会得到严重高估的有效导热系数——这正是 Rosseland 近似只在介质深处成立、靠近壁面必须修正的原因。
 
 ### 辐射源项与壁面热流
 
@@ -128,7 +87,62 @@ $$
 
 若同一处对流换热系数 $h=15\ \mathrm{W/(m^2\cdot K)}$、温差 $800\ \mathrm{K}$，对流传热为 $12000\ \mathrm{W/m^2}$，辐射是对流的 7.5 倍。此时关闭辐射相当于丢掉 88% 的热流。
 
-### 灰体假设的失效条件
+## 适用边界与方案选择
+
+### 光学厚度决定模型层级
+
+参与性介质的辐射强度沿程按 Beer 定律衰减，衰减程度由光学厚度度量：
+
+$$
+\tau_L=(\kappa_a+\sigma_s)L_m
+$$
+
+$\kappa_a$ 是吸收系数、$\sigma_s$ 是散射系数，单位均为 $\mathrm{1/m}$；$L_m$ 是平均射线行程。工程上的分界是：
+
+- $\tau_L<0.1$：介质近似透明，用表面对表面（S2S）或离散坐标（DO）即可，无需考虑介质内的重吸收；
+- $0.1<\tau_L<1$：光学薄到中等，方向性强，必须用 DO；
+- $1<\tau_L<10$：P1 近似可用，误差通常在 10% 以内；
+- $\tau_L>10$：光学厚，Rosseland 扩散近似成立，辐射可并入导热。
+
+把 $\tau_L$ 算错一级，模型选型就错一级，其代价远大于角度分格或网格加密带来的差异。
+
+## 工程设置与实施
+
+### 导热—辐射参数与辐射导热系数
+
+辐射相对导热的强弱由导热—辐射参数给出：
+
+$$
+N=\frac{k(\kappa_a+\sigma_s)}{4\sigma T^3},\qquad \sigma=5.67\times10^{-8}\ \mathrm{W/(m^2\cdot K^4)}
+$$
+
+$N\ll1$ 表示辐射主导，$N\gg1$ 表示导热主导。取烟气 $k=0.05\ \mathrm{W/(m\cdot K)}$、$\kappa_a=0.5\ \mathrm{m^{-1}}$、$T=1200\ \mathrm{K}$：
+
+$$
+N=\frac{0.05\times0.5}{4\times5.67\times10^{-8}\times1200^3}=\frac{0.025}{391.9}=6.4\times10^{-5}
+$$
+
+$N$ 比 1 小四个量级，辐射彻底主导。光学厚时还可把辐射写成等效导热：
+
+$$
+k_{rad}=\frac{16\sigma T^3}{3(\kappa_a+\sigma_s)}=\frac{16\times5.67\times10^{-8}\times1.728\times10^9}{3\times0.5}=1045\ \mathrm{W/(m\cdot K)}
+$$
+
+$k_{rad}$ 是分子导热系数的约 20900 倍，把两者相加会得到严重高估的有效导热系数——这正是 Rosseland 近似只在介质深处成立、靠近壁面必须修正的原因。
+
+## 异常诊断与失效模式
+
+### 诊断表：现象、根因、判定试验
+
+| 现象 | 根因 | 判定试验 |
+|---|---|---|
+| 视角系数闭合误差 $3\times10^{-3}$ | 半立方体投影漏面，或遮挡面未被识别 | 逐面重算 $F_{ij}$ 并与面积积分法对照 |
+| 包腔辐射收支偏差 3% | 存在透明或镜反射面未被计入，或对称面被当壁面 | 列出每个面的 $A_iq''_i$ 并逐项求和 |
+| 角度分格从 $2\times8$ 到 $6\times24$ 热流变化 7% | 射线效应，方向数不足 | 按 $4\times16$ 与 $6\times24$ 的结果判断是否进入渐近区 |
+| 灰体与 WSGG 结果相差 22% | 强选择吸收气体不能用单一灰体常数 | 用多灰气模型重算并比较总辐射热流 |
+| 总热流几乎不变但辐射份额应为 98% | 辐射未耦合进能量方程，或只输出了对流项 | 单独提取 $q''_{rad}$ 与 $q''_{conv}$ 并核对份额 |
+
+### 故障模式与判定试验
 
 灰体把光谱吸收系数按一个等效值处理。对强选择吸收的烟气（$\mathrm{CO_2}$、$\mathrm{H_2O}$），灰体与加权灰气模型（WSGG）的差距随光学厚度增大：$\tau_L\approx0.5$ 时总辐射热流偏差约 9%，$\tau_L\approx2$ 时偏差可达 22%，$\tau_L>5$ 时偏差继续增大但增幅趋缓。因此 $\tau_L>1$ 的燃烧系统应使用多灰气或波段模型，而不是单一灰体常数。
 
@@ -155,8 +169,6 @@ constantAbsorptionEmissionCoeffs
 }
 ```
 
-### 失效信号
-
 | 现象 | 根因 | 判定试验 |
 |---|---|---|
 | 炉内温度剖面比实测低 200 K | 参与介质被当作透明，气相辐射被漏掉 | 计算 $\tau_L$，若大于 0.1 则开启参与介质模型 |
@@ -165,18 +177,20 @@ constantAbsorptionEmissionCoeffs
 | 辐射源项开了但总热流不变 | 辐射未与能量方程耦合，或欠松弛过强 | 检查能量方程残差与辐射在总热流中的份额 |
 | 燃烧烟气热流偏差 20% 以上 | 用单一灰体常数处理强选择吸收气体 | 换 WSGG 多灰气模型重算 |
 
-### 参考文献
+## 验证、验收与复现
 
-1. Modest M.F., *Radiative Heat Transfer*, 3rd ed., Academic Press, 2013.
-2. Siegel R., Howell J.R., *Thermal Radiation Heat Transfer*, 4th ed., Taylor & Francis, 2002.
-3. Hottel H.C., Sarofim A.F., *Radiative Transfer*, McGraw-Hill, 1967.
-4. Smith T.F., Shen Z.F., Friedman J.N., "Evaluation of coefficients for the weighted sum of gray gases model", *Journal of Heat Transfer*, 104(4), 602–608, 1982.
-5. Chandrasekhar S., *Radiative Transfer*, Dover Publications, 1960.
-6. Modest M.F., Haworth D.C., *Radiative Heat Transfer in Turbulent Combustion Systems*, Springer, 2016.
+### 角度离散的收敛曲线
 
-## 诊断与可信度验证
+DO 的角度分格数直接决定辐射热流的收敛程度。对同一算例逐步加密：
 
-辐射算例的结果很少出现明显的发散或负温度，问题往往藏在几个百分点的偏差里，靠看温度云图发现不了。可用的验收手段是三类独立证据：几何视角关系的自洽性、包腔内的辐射收支、以及角度离散的收敛行为。
+解析值为 $32174\ \mathrm{W/m^2}$。$2\times8$ 时偏差 7.2%，是典型的射线效应；从 $3\times12$ 到 $4\times16$ 偏差从 1.3% 降到 0.11%，说明已经进入渐近区。工程上取 $4\times16$ 通常足够，但若壁面附近存在强遮挡或局部热点，需要按局部热流而不是平均值判断收敛。
+
+| 角度分格（$\theta\times\varphi$） | 壁面净辐射热流 $(\mathrm{W/m^2})$ | 相对解析值偏差 |
+|---|---|---|
+| $2\times8$ | 34500 | 7.2% |
+| $3\times12$ | 32600 | 1.3% |
+| $4\times16$ | 32210 | 0.11% |
+| $6\times24$ | 32180 | 0.02% |
 
 ### 视角系数的闭合与互换检查
 
@@ -203,19 +217,6 @@ $$
 $$
 
 这是比温度场更硬的一条检验，因为它是纯能量守恒，与模型精度无关。工程容差取各表面辐射功率绝对值之和的 0.5%。若收支偏差 3%，先查是否有表面被设成了透明或镜反射而未被计入，再查对称面是否被错误地当成了壁面。
-
-### 角度离散的收敛曲线
-
-DO 的角度分格数直接决定辐射热流的收敛程度。对同一算例逐步加密：
-
-| 角度分格（$\theta\times\varphi$） | 壁面净辐射热流 $(\mathrm{W/m^2})$ | 相对解析值偏差 |
-|---|---|---|
-| $2\times8$ | 34500 | 7.2% |
-| $3\times12$ | 32600 | 1.3% |
-| $4\times16$ | 32210 | 0.11% |
-| $6\times24$ | 32180 | 0.02% |
-
-解析值为 $32174\ \mathrm{W/m^2}$。$2\times8$ 时偏差 7.2%，是典型的射线效应；从 $3\times12$ 到 $4\times16$ 偏差从 1.3% 降到 0.11%，说明已经进入渐近区。工程上取 $4\times16$ 通常足够，但若壁面附近存在强遮挡或局部热点，需要按局部热流而不是平均值判断收敛。
 
 ### 灰体与非灰体的对照
 
@@ -291,21 +292,17 @@ q2 = -Q1 / A2                          # -8044 W/m^2
 print(q1, Q1, q2, A1 * q1 + A2 * q2)
 ```
 
-### 诊断表：现象、根因、判定试验
+## 参考资料
 
-| 现象 | 根因 | 判定试验 |
-|---|---|---|
-| 视角系数闭合误差 $3\times10^{-3}$ | 半立方体投影漏面，或遮挡面未被识别 | 逐面重算 $F_{ij}$ 并与面积积分法对照 |
-| 包腔辐射收支偏差 3% | 存在透明或镜反射面未被计入，或对称面被当壁面 | 列出每个面的 $A_iq''_i$ 并逐项求和 |
-| 角度分格从 $2\times8$ 到 $6\times24$ 热流变化 7% | 射线效应，方向数不足 | 按 $4\times16$ 与 $6\times24$ 的结果判断是否进入渐近区 |
-| 灰体与 WSGG 结果相差 22% | 强选择吸收气体不能用单一灰体常数 | 用多灰气模型重算并比较总辐射热流 |
-| 总热流几乎不变但辐射份额应为 98% | 辐射未耦合进能量方程，或只输出了对流项 | 单独提取 $q''_{rad}$ 与 $q''_{conv}$ 并核对份额 |
-
-### 参考文献
-
-1. Howell J.R., Mengüç M.P., Siegel R., *Thermal Radiation Heat Transfer*, 6th ed., CRC Press, 2020.
-2. Viskanta R., Mengüç M.P., "Radiation heat transfer in combustion systems", *Progress in Energy and Combustion Science*, 13(2), 97–160, 1987.
-3. Lockwood F.C., Shah N.G., "A new radiation solution method for incorporation in general combustion prediction procedures", *Symposium (International) on Combustion*, 18(1), 1405–1414, 1981.
-4. Sparrow E.M., Cess R.D., *Radiation Heat Transfer*, Hemisphere Publishing, 1978.
-5. Edwards D.K., "Molecular gas band radiation", *Advances in Heat Transfer*, 12, 115–193, 1976.
-6. Fiveland W.A., "Three-dimensional radiative heat-transfer solutions by the discrete-ordinates method", *Journal of Thermophysics and Heat Transfer*, 2(4), 309–316, 1988.
+1. Modest M.F., *Radiative Heat Transfer*, 3rd ed., Academic Press, 2013.
+2. Siegel R., Howell J.R., *Thermal Radiation Heat Transfer*, 4th ed., Taylor & Francis, 2002.
+3. Hottel H.C., Sarofim A.F., *Radiative Transfer*, McGraw-Hill, 1967.
+4. Smith T.F., Shen Z.F., Friedman J.N., "Evaluation of coefficients for the weighted sum of gray gases model", *Journal of Heat Transfer*, 104(4), 602–608, 1982.
+5. Chandrasekhar S., *Radiative Transfer*, Dover Publications, 1960.
+6. Modest M.F., Haworth D.C., *Radiative Heat Transfer in Turbulent Combustion Systems*, Springer, 2016.
+7. Howell J.R., Mengüç M.P., Siegel R., *Thermal Radiation Heat Transfer*, 6th ed., CRC Press, 2020.
+8. Viskanta R., Mengüç M.P., "Radiation heat transfer in combustion systems", *Progress in Energy and Combustion Science*, 13(2), 97–160, 1987.
+9. Lockwood F.C., Shah N.G., "A new radiation solution method for incorporation in general combustion prediction procedures", *Symposium (International) on Combustion*, 18(1), 1405–1414, 1981.
+10. Sparrow E.M., Cess R.D., *Radiation Heat Transfer*, Hemisphere Publishing, 1978.
+11. Edwards D.K., "Molecular gas band radiation", *Advances in Heat Transfer*, 12, 115–193, 1976.
+12. Fiveland W.A., "Three-dimensional radiative heat-transfer solutions by the discrete-ordinates method", *Journal of Thermophysics and Heat Transfer*, 2(4), 309–316, 1988.

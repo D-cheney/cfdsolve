@@ -4,7 +4,7 @@ slug: cfd-physics-buoyancy-flow-modeling
 title: 浮力与自然对流：原理与诊断验证
 summary: >-
   从 Boussinesq 近似的密度误差出发，说明浮力在动量方程与湍流输运方程中的落点、封闭腔与开口边界的处理方式，并给出 Rayleigh-Bénard
-  临界值与热边界层网格的量化判据。 全文同时覆盖原理与适用范围、诊断与可信度验证，保留关键方程、量化参数、可执行示例、失败模式与参考资料。
+  临界值与热边界层网格的量化判据。
 category:
   slug: physics
   name: 流体力学基础
@@ -28,7 +28,6 @@ seo:
   description: >-
     从 Boussinesq 近似的密度误差出发，说明浮力在动量方程与湍流输运方程中的落点、封闭腔与开口边界的处理方式，并给出
     Rayleigh-Bénard 临界值与热边界层网格的量化判据。
-    全文同时覆盖原理与适用范围、诊断与可信度验证，保留关键方程、量化参数、可执行示例、失败模式与参考资料。
   keywords:
     - 浮力与自然对流
     - 物理建模与适用边界
@@ -41,26 +40,11 @@ seo:
 ---
 # 浮力与自然对流：原理与诊断验证
 
-## 原理与适用范围
+浮力项写错位置或密度模型选得过粗，会让整个算例在正确的网格上解一个错误的方程。本文只讨论建模层面的三个决定：用 Boussinesq 还是变密度、浮力项落在动量方程与 $k$ 方程的哪一处、以及边界与域尺寸如何决定解的物理性。每条结论都给出可核算的数字，便于判断当前工况是否越界。自然对流算例最典型的失败方式不是发散，而是收敛到一个几乎不流动的解：残差漂亮下降、温度场光滑，但速度只有 $10^{-4}\,\mathrm{m/s}$ 量级，浮力被压力梯度完全抵消。诊断的第一步是确认解里确实存在浮力驱动的流动，再用相似准则、能量收支和独立基准三路证据交叉验证。
 
-浮力项写错位置或密度模型选得过粗，会让整个算例在正确的网格上解一个错误的方程。本文只讨论建模层面的三个决定：用 Boussinesq 还是变密度、浮力项落在动量方程与 $k$ 方程的哪一处、以及边界与域尺寸如何决定解的物理性。每条结论都给出可核算的数字，便于判断当前工况是否越界。
+## 基础概念与控制关系
 
-### 1 Boussinesq 近似的误差到底有多大
-
-Boussinesq 近似只保留密度随温度变化的一阶项：
-
-$$
-\rho(T) = \rho_0\left[1-\beta\left(T-T_0\right)\right], \qquad \beta = -\frac{1}{\rho}\left(\frac{\partial \rho}{\partial T}\right)_p
-$$
-
-对理想气体 $\beta = 1/T_0$。近似成立的常用判据是 $\beta\Delta T \lesssim 0.1$，即密度变化不超过 10%。核算两档温差：
-
-- $\Delta T = 20\,\mathrm{K}$、$T_0 = 300\,\mathrm{K}$：$\beta\Delta T = 20/300 = 0.067$，密度变化 6.7%，Boussinesq 可用。
-- $\Delta T = 100\,\mathrm{K}$：$\beta\Delta T = 0.333$，密度变化 28%，此时必须改用理想气体状态方程的变密度求解器，否则热羽流上升速度会被系统性低估。
-
-注意除密度外的物性（$\mu$、$k$、$c_p$）在 Boussinesq 框架下仍被当作常数。若 $\Delta T$ 跨越大范围，空气黏度在 300～500 K 间从 $1.85\times10^{-5}$ 升到 $2.67\times10^{-5}\,\mathrm{Pa\cdot s}$（+44%），这个变化与浮力项同阶，也需要一并评估。
-
-### 2 浮力项在动量方程中的写法
+### 浮力项在动量方程中的写法
 
 不可压 Boussinesq 求解器把浮力作为体积力加入动量方程，并把参考密度并入修正压力：
 
@@ -70,7 +54,7 @@ $$
 
 其中 $p_{rgh} = p - \rho_0\,\mathbf{g}\cdot\mathbf{x}$ 是修正压力，它把静水压从压力场中扣除。这一步是浮力算例最容易出错的地方：若求解器使用的是 $p_{rgh}$，那么压力边界必须给修正压力（开口处通常为 0），直接给绝对压力会让整个压力场平移一个 $\rho_0 g H$。对 $H = 2\,\mathrm{m}$ 的空气柱，这个偏差约 $1.18\times9.81\times2 = 23\,\mathrm{Pa}$，看似不大，但对以 Pa 为量级的自然对流压差已经是致命量级。
 
-### 3 湍流方程里的浮力生成项
+### 湍流方程里的浮力生成项
 
 标准 $k$-$\varepsilon$ 需要额外提供浮力生成项，否则热分层对湍流强度的影响完全丢失：
 
@@ -89,7 +73,7 @@ $$
 
 $|Ri_g| \gg 1$ 表示浮力主导湍流生成，必须打开 $G_k$。
 
-### 4 流动区制与临界值
+### 流动区制与临界值
 
 封闭腔的传热强弱由瑞利数决定，封闭腔换热常用 Globe-Dropkin 关联式（$3\times10^{5} < Ra < 7\times10^{9}$）：
 
@@ -101,7 +85,20 @@ $$
 
 底部加热的水平流体层另有硬阈值：Rayleigh-Bénard 对流在 $Ra_c = 1708$ 处起始（刚性上下边界）。低于该值只有纯导热，任何"解出对流胞"的结果都说明边界或初始条件引入了扰动。这条判据在验证求解器时非常有用。
 
-### 5 网格与边界：热边界层才是限制
+## 适用边界与方案选择
+
+### 建模选择清单
+
+1. 由 $\beta\Delta T$ 判断 Boussinesq 是否成立，必要时切换变密度。
+2. 明确求解器的压力口径是绝对压力还是修正压力，边界条件与之匹配。
+3. 热分层显著时打开湍流方程的浮力生成项，并检查其符号与幅值。
+4. 封闭腔传热先核对 $Ra$ 落在哪条关联式的有效区间。
+5. 用 $\delta_T = H/Nu$ 估算热边界层厚度，据此定首层厚度与增长率。
+6. 开口算例的域尺寸要能容纳卷吸流，且外边界给温度与总压。
+
+## 工程设置与实施
+
+### 网格与边界：热边界层才是限制
 
 自然对流不需要解析黏性底层，但必须解析热边界层。其厚度可由 $Nu$ 估计：
 
@@ -124,7 +121,7 @@ thermophysicalProperties
     equationOfState Boussinesq;
     specie          pureMixture;
 
-    mixture
+mixture
     {
         beta        3.33e-03;   // 1/K
         T0          300;        // K
@@ -141,7 +138,19 @@ dimensions      [0 1 -2 0 0 0 0];
 value           (0 -9.81 0);
 ```
 
-### 6 适用边界与失效信号
+### 时间步与统计窗口
+
+自然对流中的羽流与 Bénard 胞以低频摆动，瞬时场永远不会"收敛"。判定办法是把采样窗口对半切开，比较前后半段的时均努塞尔数，相对差小于 2% 才认为统计量稳定。时间步要同时满足对流与浮力两个限制：
+
+$$
+\Delta t \le \min\left(\frac{\Delta x}{U_{\max}},\ \sqrt{\frac{\Delta x}{g\beta\Delta T}}\right)
+$$
+
+取 $\Delta x = 2\,\mathrm{mm}$、$\Delta T = 30\,\mathrm{K}$，浮力限制给出 $\Delta t \le \sqrt{0.002/0.98} \approx 0.045\,\mathrm{s}$，比 $U_{\max} = 0.5\,\mathrm{m/s}$ 给出的 $0.004\,\mathrm{s}$ 宽松，因此实际由对流项主导。
+
+## 异常诊断与失效模式
+
+### 故障模式与判定试验
 
 | 现象 | 根因 | 判定试验 |
 |---|---|---|
@@ -151,28 +160,31 @@ value           (0 -9.81 0);
 | 底加热腔在 $Ra = 800$ 时出现对流胞 | 初始扰动或侧壁边界引入非物理对流 | 用纯导热初值重算，确认 $Ra < 1708$ 时 $Nu \to 1$ |
 | $Nu$ 比关联式高 15% 且随域尺寸变化 | 开口域太小，卷吸被阻断 | 把域扩到 $5H$ 以上重算，看 $Nu$ 是否回落 |
 | 网格加密后 $Nu$ 持续漂移 | 热边界层内单元数不足 | 统计 $\delta_T$ 内层数，补到 5 层以上 |
+| 残差 $10^{-6}$ 但 $Nu$ 比关联式低 40% | 首层太厚，热边界层被数值导热抹平 | 统计壁面 $y^{+}$ 与热边界层内单元数，要求不少于 5 层 |
+| 速度量级只有 $10^{-4}\,\mathrm{m/s}$、温度分层光滑 | 常密度求解器未加浮力源项，或参考密度填错 | 关闭重力重算，结果几乎不变说明浮力项未生效 |
+| 封闭腔两壁热流相差 5% 以上 | 温度场未进入统计稳态 | 比较前后半窗时均 $Nu$，或把时长延长 3 倍 |
+| 对称双涡结构与实验单涡不符 | 忽略辐射，或侧壁绝热假设不成立 | 打开辐射模型并复核侧壁边界条件 |
+| 加密网格后 $Nu$ 单调上升不收敛 | 解仍在网格相关区，或存在未解析的角点奇异 | 用三套网格做 Richardson 外推，看观测阶是否接近 2 |
+| 减小时间步后时均量跳变 | 显式推进越过对流 CFL 限制 | 记录最大 CFL 数，压到 0.5 以下复算 |
 
-### 7 建模选择清单
+## 验证、验收与复现
 
-1. 由 $\beta\Delta T$ 判断 Boussinesq 是否成立，必要时切换变密度。
-2. 明确求解器的压力口径是绝对压力还是修正压力，边界条件与之匹配。
-3. 热分层显著时打开湍流方程的浮力生成项，并检查其符号与幅值。
-4. 封闭腔传热先核对 $Ra$ 落在哪条关联式的有效区间。
-5. 用 $\delta_T = H/Nu$ 估算热边界层厚度，据此定首层厚度与增长率。
-6. 开口算例的域尺寸要能容纳卷吸流，且外边界给温度与总压。
+### Boussinesq 近似的误差到底有多大
 
-### 8 参考文献
+Boussinesq 近似只保留密度随温度变化的一阶项：
 
-1. Gray D.D., Giorgini A., "The Validity of the Boussinesq Approximation for Liquids and Gases," *International Journal of Heat and Mass Transfer*, 1976.
-2. de Vahl Davis G., "Natural Convection of Air in a Square Cavity: A Bench Mark Numerical Solution," *International Journal for Numerical Methods in Fluids*, 1983.
-3. Henkes R.A.W.M., van der Vlugt F.F., Hoogendoorn C.J., "Natural-Convection Flow in a Square Cavity Calculated with Low-Reynolds-Number Turbulence Models," *International Journal of Heat and Mass Transfer*, 1991.
-4. Ferziger J.H., Perić M., Street R.L., *Computational Methods for Fluid Dynamics*, 4th ed., Springer, 2020.
+$$
+\rho(T) = \rho_0\left[1-\beta\left(T-T_0\right)\right], \qquad \beta = -\frac{1}{\rho}\left(\frac{\partial \rho}{\partial T}\right)_p
+$$
 
-## 诊断与可信度验证
+对理想气体 $\beta = 1/T_0$。近似成立的常用判据是 $\beta\Delta T \lesssim 0.1$，即密度变化不超过 10%。核算两档温差：
 
-自然对流算例最典型的失败方式不是发散，而是收敛到一个几乎不流动的解：残差漂亮下降、温度场光滑，但速度只有 $10^{-4}\,\mathrm{m/s}$ 量级，浮力被压力梯度完全抵消。诊断的第一步是确认解里确实存在浮力驱动的流动，再用相似准则、能量收支和独立基准三路证据交叉验证。本文给出可量化的判据与阈值，配竖板与封闭腔两个能用手算核对的算例。
+- $\Delta T = 20\,\mathrm{K}$、$T_0 = 300\,\mathrm{K}$：$\beta\Delta T = 20/300 = 0.067$，密度变化 6.7%，Boussinesq 可用。
+- $\Delta T = 100\,\mathrm{K}$：$\beta\Delta T = 0.333$，密度变化 28%，此时必须改用理想气体状态方程的变密度求解器，否则热羽流上升速度会被系统性低估。
 
-### 1 用瑞利数确定该出现什么流动
+注意除密度外的物性（$\mu$、$k$、$c_p$）在 Boussinesq 框架下仍被当作常数。若 $\Delta T$ 跨越大范围，空气黏度在 300～500 K 间从 $1.85\times10^{-5}$ 升到 $2.67\times10^{-5}\,\mathrm{Pa\cdot s}$（+44%），这个变化与浮力项同阶，也需要一并评估。
+
+### 用瑞利数确定该出现什么流动
 
 竖直等温平板、高度 $L$、温差 $\Delta T$ 的空气自然对流由瑞利数控制：
 
@@ -193,7 +205,7 @@ $$
 
 代入 $Ra^{1/4} = 93.5$、$Pr = 0.71$，分母为 $\left[1+0.693^{9/16}\right]^{4/9} = 1.303$，得 $Nu \approx 48.7$。换算成换热系数 $h = Nu\,k/L = 48.7 \times 0.0262/0.3 = 4.25\,\mathrm{W/(m^2\cdot K)}$，热流密度 $q = h\Delta T \approx 128\,\mathrm{W/m^2}$。这就是写进验收表的硬数字：若 CFD 给出 $q < 60\,\mathrm{W/m^2}$ 或 $> 250\,\mathrm{W/m^2}$，先怀疑解被抹平或网格不足，而不是先改关联式。
 
-### 2 有来流时先分离出浮力份额
+### 有来流时先分离出浮力份额
 
 存在强迫对流时，浮力是否必须保留由理查森数决定：
 
@@ -203,7 +215,7 @@ $$
 
 同一平板置于 $U = 1\,\mathrm{m/s}$ 的来流，$Re = 1\times0.3/1.57\times10^{-5} = 1.91\times10^{4}$，$Ri = 1.07\times10^{8}/(1.91\times10^{4})^{2} = 0.29$。经验分区为：$Ri < 0.1$ 可忽略浮力，$0.1 < Ri < 10$ 属混合对流、惯性项与浮力项都要保留，$Ri > 10$ 以自然对流为主。$Ri = 0.29$ 落在混合对流区，此时关掉重力会带来 10% 量级的热流偏差，这是"结果与实验对不上"最常见的根因。
 
-### 3 能量收支比残差更可靠
+### 能量收支比残差更可靠
 
 稳态下进出控制体的净焓流加壁面换热应闭合：
 
@@ -213,28 +225,7 @@ $$
 
 封闭腔体内则简化为 $\dot{Q}_{\text{热壁}} + \dot{Q}_{\text{冷壁}} \approx 0$（其余壁面绝热），工程上要求相对不平衡量低于 1%～2%。常见情形是残差已降到 $10^{-6}$，两壁热流却相差 8%，原因通常是温度场未进入统计稳态（羽流仍在低频摆动），或近壁热边界层内只有 1～2 个单元。
 
-### 4 时间步与统计窗口
-
-自然对流中的羽流与 Bénard 胞以低频摆动，瞬时场永远不会"收敛"。判定办法是把采样窗口对半切开，比较前后半段的时均努塞尔数，相对差小于 2% 才认为统计量稳定。时间步要同时满足对流与浮力两个限制：
-
-$$
-\Delta t \le \min\left(\frac{\Delta x}{U_{\max}},\ \sqrt{\frac{\Delta x}{g\beta\Delta T}}\right)
-$$
-
-取 $\Delta x = 2\,\mathrm{mm}$、$\Delta T = 30\,\mathrm{K}$，浮力限制给出 $\Delta t \le \sqrt{0.002/0.98} \approx 0.045\,\mathrm{s}$，比 $U_{\max} = 0.5\,\mathrm{m/s}$ 给出的 $0.004\,\mathrm{s}$ 宽松，因此实际由对流项主导。
-
-### 5 失败模式与判定试验
-
-| 现象 | 根因 | 判定试验 |
-|---|---|---|
-| 残差 $10^{-6}$ 但 $Nu$ 比关联式低 40% | 首层太厚，热边界层被数值导热抹平 | 统计壁面 $y^{+}$ 与热边界层内单元数，要求不少于 5 层 |
-| 速度量级只有 $10^{-4}\,\mathrm{m/s}$、温度分层光滑 | 常密度求解器未加浮力源项，或参考密度填错 | 关闭重力重算，结果几乎不变说明浮力项未生效 |
-| 封闭腔两壁热流相差 5% 以上 | 温度场未进入统计稳态 | 比较前后半窗时均 $Nu$，或把时长延长 3 倍 |
-| 对称双涡结构与实验单涡不符 | 忽略辐射，或侧壁绝热假设不成立 | 打开辐射模型并复核侧壁边界条件 |
-| 加密网格后 $Nu$ 单调上升不收敛 | 解仍在网格相关区，或存在未解析的角点奇异 | 用三套网格做 Richardson 外推，看观测阶是否接近 2 |
-| 减小时间步后时均量跳变 | 显式推进越过对流 CFL 限制 | 记录最大 CFL 数，压到 0.5 以下复算 |
-
-### 6 与独立证据对照
+### 与独立证据对照
 
 - **关联式**：竖板用 Churchill-Chu；水平热面朝上用 $Nu = 0.54Ra^{1/4}$（$10^{4}<Ra<10^{7}$）；封闭腔用 Globe-Dropkin。允许偏差 10%～15%，超出即视为模型或网格问题。
 - **网格无关性**：三套网格的 $Nu$ 与最大速度，观测阶应接近 2；若低于 1，说明首层网格仍控制结果。
@@ -253,7 +244,7 @@ print("Nu =", q * L / (k * dT))  # 期望 ~48.7
 PY
 ```
 
-### 7 结论可信前必须回答的问题
+### 结论可信前必须回答的问题
 
 1. $Ra$ 与 $Ri$ 是否落在预期区间，模型选择与流动区制是否匹配？
 2. 壁面热流与关联式是否在 15% 以内一致？
@@ -262,9 +253,13 @@ PY
 5. 三套网格的观测阶是否接近 2？
 6. 常物性与变物性两版计算的 $Nu$ 差异是否在容差内？
 
-### 8 参考文献
+## 参考资料
 
-1. Churchill S.W., Chu H.H.S., "Correlating Equations for Laminar and Turbulent Free Convection from a Vertical Plate," *International Journal of Heat and Mass Transfer*, 1975.
-2. Globe S., Dropkin D., "Natural-Convection Heat Transfer in Liquids Confined by Two Horizontal Plates and Heated from Below," *Journal of Heat Transfer*, 1959.
-3. Bejan A., *Convection Heat Transfer*, 4th ed., Wiley, 2013.
-4. ASME, *Standard for Verification and Validation in Computational Fluid Dynamics and Heat Transfer*, V&V 20-2009.
+1. Gray D.D., Giorgini A., "The Validity of the Boussinesq Approximation for Liquids and Gases," *International Journal of Heat and Mass Transfer*, 1976.
+2. de Vahl Davis G., "Natural Convection of Air in a Square Cavity: A Bench Mark Numerical Solution," *International Journal for Numerical Methods in Fluids*, 1983.
+3. Henkes R.A.W.M., van der Vlugt F.F., Hoogendoorn C.J., "Natural-Convection Flow in a Square Cavity Calculated with Low-Reynolds-Number Turbulence Models," *International Journal of Heat and Mass Transfer*, 1991.
+4. Ferziger J.H., Perić M., Street R.L., *Computational Methods for Fluid Dynamics*, 4th ed., Springer, 2020.
+5. Churchill S.W., Chu H.H.S., "Correlating Equations for Laminar and Turbulent Free Convection from a Vertical Plate," *International Journal of Heat and Mass Transfer*, 1975.
+6. Globe S., Dropkin D., "Natural-Convection Heat Transfer in Liquids Confined by Two Horizontal Plates and Heated from Below," *Journal of Heat Transfer*, 1959.
+7. Bejan A., *Convection Heat Transfer*, 4th ed., Wiley, 2013.
+8. ASME, *Standard for Verification and Validation in Computational Fluid Dynamics and Heat Transfer*, V&V 20-2009.

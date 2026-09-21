@@ -5,7 +5,6 @@ title: 导热与对流耦合：原理与诊断验证
 summary: >-
   从能量方程的对流项与导热项量级出发，用 Pe、Bi、Nu 与热入口长度划出耦合传热的模型层级，给出层流管内换热的解析锚点、Dittus–Boelter 与
   Gnielinski 的适用区间，并完成一次水—钢管算例的完整量级估算。
-  全文同时覆盖原理与适用范围、诊断与可信度验证，保留关键方程、量化参数、可执行示例、失败模式与参考资料。
 category:
   slug: heat-transfer
   name: 传热与可压缩流
@@ -29,7 +28,6 @@ seo:
   description: >-
     从能量方程的对流项与导热项量级出发，用 Pe、Bi、Nu 与热入口长度划出耦合传热的模型层级，给出层流管内换热的解析锚点、Dittus–Boelter
     与 Gnielinski 的适用区间，并完成一次水—钢管算例的完整量级估算。
-    全文同时覆盖原理与适用范围、诊断与可信度验证，保留关键方程、量化参数、可执行示例、失败模式与参考资料。
   keywords:
     - 导热与对流耦合
     - 物理建模与适用边界
@@ -43,9 +41,9 @@ seo:
 ---
 # 导热与对流耦合：原理与诊断验证
 
-## 原理与适用范围
+对流与导热不是可以随意取舍的两种传热方式，它们在同一控制体内按热阻并联：只要流体在动，对流项就一定存在；只有当 Peclet 数小到导热能在流动方向上把热量铺开时，轴向导热才重新变成主导。对流—导热算例很少因为跑不动而失败，多数是因为提取口径不统一：同一份流场，用节点温度反算和用壁面热流反算可以得到相差 20% 的换热系数。
 
-对流与导热不是可以随意取舍的两种传热方式，它们在同一控制体内按热阻并联：只要流体在动，对流项就一定存在；只有当 Peclet 数小到导热能在流动方向上把热量铺开时，轴向导热才重新变成主导。本文给出判断谁主导的三个无量纲数、层流管内的解析锚点，以及一次可以直接复算的水—钢管估算。
+## 基础概念与控制关系
 
 ### 对流项与导热项在同一控制体内的分工
 
@@ -153,7 +151,25 @@ h_chk = St * rho * cp * U       # 113 W/(m^2*K)
 print(alpha, Re, Pe, Lt, h, St, h_chk)
 ```
 
-### 耦合传热的失效信号
+## 适用边界与方案选择
+
+### 边界条件与物性的适用区间
+
+关联式给出的是局部换热系数，边界类型决定用哪个解：恒定壁温对应 $Nu=3.66$，恒定热流对应 $Nu=4.36$，两者在 $L_t$ 内差异可达 20%。物性一律取膜温，气体还需考虑 $k\propto T^{0.7\sim0.8}$ 的弱温变。当 $Bi$ 落在 $0.1\sim10$ 之间时，固体侧温降与流体侧温降同量级，必须双向耦合求解，任何单侧假设都会把误差推到 10% 以上。
+
+## 异常诊断与失效模式
+
+### 诊断表：现象、根因、判定试验
+
+| 现象 | 根因 | 判定试验 |
+|---|---|---|
+| $h$ 随壁面法向网格加密下降 15% | 首层过厚，壁面温度取自第一个节点而非壁面 | 用壁面热流与壁面温度反算 $h$，做三套网格对比 |
+| 沿程 $Nu$ 出现台阶状跳变 | 局部 $T_b$ 用面积平均，采样面位置不一致 | 统一改为质量加权体温度并固定采样面 |
+| $\dot Q_{wall}$ 与 $\dot Q_{fluid}$ 差 8% | 入口段轴向导热或壁面辐射未计入 | 关闭辐射重算，检查入口段温度剖面 |
+| 三套网格的 $p$ 只有 0.8 | 壁面处理随网格切换，误差不单调 | 固定 $y^+$ 区间后重新做网格收敛 |
+| 与关联式偏差 25% 但残差很低 | 关联式超域（$Re<10^4$）或物性取错温度 | 打印 $Re$、$Pr$ 与膜温，按膜温重取物性 |
+
+### 故障模式与判定试验
 
 | 现象 | 根因 | 判定试验 |
 |---|---|---|
@@ -163,22 +179,21 @@ print(alpha, Re, Pe, Lt, h, St, h_chk)
 | $Pe<10$ 时出口焓高于入口能量平衡值 | 轴向导热被丢弃，入口预热未计入 | 加密轴向网格，比较含与不含轴向导热项的解 |
 | 液体算例用常物性却偏差 15% | 黏度随温度变化改变了近壁速度剖面 | 以膜温 $T_f=(T_w+T_b)/2$ 重新取物性重算 |
 
-### 边界条件与物性的适用区间
+## 验证、验收与复现
 
-关联式给出的是局部换热系数，边界类型决定用哪个解：恒定壁温对应 $Nu=3.66$，恒定热流对应 $Nu=4.36$，两者在 $L_t$ 内差异可达 20%。物性一律取膜温，气体还需考虑 $k\propto T^{0.7\sim0.8}$ 的弱温变。当 $Bi$ 落在 $0.1\sim10$ 之间时，固体侧温降与流体侧温降同量级，必须双向耦合求解，任何单侧假设都会把误差推到 10% 以上。
+### 网格与壁面处理引起的伪收敛
 
-### 参考文献
+换热系数对壁面首层高度比对全局网格数敏感得多。做网格收敛时至少取三套，按 Richardson 外推估计离散误差：
 
-1. Incropera F.P., DeWitt D.P., Bergman T.L., Lavine A.S., *Fundamentals of Heat and Mass Transfer*, 7th ed., Wiley, 2011.
-2. Gnielinski V., "New equations for heat and mass transfer in turbulent pipe and channel flow", *International Chemical Engineering*, 16(2), 359–368, 1976.
-3. Dittus F.W., Boelter L.M.K., "Heat transfer in automobile radiators of the tubular type", *University of California Publications in Engineering*, 2, 443–461, 1930.
-4. Shah R.K., London A.L., *Laminar Flow Forced Convection in Ducts*, Academic Press, 1978.
-5. Patankar S.V., *Numerical Heat Transfer and Fluid Flow*, Hemisphere Publishing, 1980.
-6. Moffat R.J., "Describing the uncertainties in experimental results", *Experimental Thermal and Fluid Science*, 1(1), 3–17, 1988.
+$$
+\mathrm{GCI}=\frac{F_s|\varepsilon|}{r^p-1},\qquad \varepsilon=\frac{f_2-f_1}{f_1}
+$$
 
-## 诊断与可信度验证
+$r$ 为网格细化比，$p$ 为表观收敛阶，$F_s$ 取安全因子 1.25。壁面处理的切换会带来阶跃变化：$y^+$ 从 1 变到 40 时 $p$ 会明显偏离 2，此时应先把壁面处理固定，再谈网格收敛。三套网格的 $Nu$ 可取 $36.8$、$38.1$、$38.5$（$r=1.5$），则 $\varepsilon=(38.5-38.1)/38.1=1.05\%$，$\mathrm{GCI}=1.25\times0.0105/(1.5^2-1)=1.31\%$。
 
-对流—导热算例很少因为跑不动而失败，多数是因为提取口径不统一：同一份流场，用节点温度反算和用壁面热流反算可以得到相差 20% 的换热系数。本文给出一套可执行的核对流程——先统一 $h$ 的定义，再用三条线闭合能量，最后由实测热流反算并与关联式对照。
+### 验证报告要留下哪些量
+
+报告里至少并列 $Re$、$Pr$、$y^+$、$T_b$ 的定义、$k$ 的取值温度、$\dot Q_{wall}$ 与 $\dot Q_{fluid}$、三套网格的 $Nu$ 与 GCI，以及所用关联式的适用区间。缺任何一项，后续读者都无法判断这 6% 的偏差来自物性还是提取口径。把 GCI 与关联式容差放在同一张表里，可以直接读出离散误差与模型误差谁更大。
 
 ### 先统一换热系数的提取口径
 
@@ -215,16 +230,6 @@ Nu_{DB}=0.023\,Re^{0.8}Pr^{0.4}
 $$
 
 关联式本身有 ±15% 的散布，网格与湍流模型再贡献几个百分点。偏差超过 15% 时应先怀疑提取口径与边界条件，而不是格式精度；偏差小于 1% 时反而要怀疑是不是把关联式直接当成了壁面热流的输入——两者完全重合通常意味着 $q''_w$ 并非解出来的。
-
-### 网格与壁面处理引起的伪收敛
-
-换热系数对壁面首层高度比对全局网格数敏感得多。做网格收敛时至少取三套，按 Richardson 外推估计离散误差：
-
-$$
-\mathrm{GCI}=\frac{F_s|\varepsilon|}{r^p-1},\qquad \varepsilon=\frac{f_2-f_1}{f_1}
-$$
-
-$r$ 为网格细化比，$p$ 为表观收敛阶，$F_s$ 取安全因子 1.25。壁面处理的切换会带来阶跃变化：$y^+$ 从 1 变到 40 时 $p$ 会明显偏离 2，此时应先把壁面处理固定，再谈网格收敛。三套网格的 $Nu$ 可取 $36.8$、$38.1$、$38.5$（$r=1.5$），则 $\varepsilon=(38.5-38.1)/38.1=1.05\%$，$\mathrm{GCI}=1.25\times0.0105/(1.5^2-1)=1.31\%$。
 
 ### 一次可核对的反算：由壁面热流推 h、Nu 与偏差
 
@@ -267,25 +272,17 @@ postProcess -func "fieldMinMax(T)" -time 2000
 postProcess -func "volFieldValue(volFieldValue1)" -time 2000
 ```
 
-### 诊断表：现象、根因、判定试验
+## 参考资料
 
-| 现象 | 根因 | 判定试验 |
-|---|---|---|
-| $h$ 随壁面法向网格加密下降 15% | 首层过厚，壁面温度取自第一个节点而非壁面 | 用壁面热流与壁面温度反算 $h$，做三套网格对比 |
-| 沿程 $Nu$ 出现台阶状跳变 | 局部 $T_b$ 用面积平均，采样面位置不一致 | 统一改为质量加权体温度并固定采样面 |
-| $\dot Q_{wall}$ 与 $\dot Q_{fluid}$ 差 8% | 入口段轴向导热或壁面辐射未计入 | 关闭辐射重算，检查入口段温度剖面 |
-| 三套网格的 $p$ 只有 0.8 | 壁面处理随网格切换，误差不单调 | 固定 $y^+$ 区间后重新做网格收敛 |
-| 与关联式偏差 25% 但残差很低 | 关联式超域（$Re<10^4$）或物性取错温度 | 打印 $Re$、$Pr$ 与膜温，按膜温重取物性 |
-
-### 验证报告要留下哪些量
-
-报告里至少并列 $Re$、$Pr$、$y^+$、$T_b$ 的定义、$k$ 的取值温度、$\dot Q_{wall}$ 与 $\dot Q_{fluid}$、三套网格的 $Nu$ 与 GCI，以及所用关联式的适用区间。缺任何一项，后续读者都无法判断这 6% 的偏差来自物性还是提取口径。把 GCI 与关联式容差放在同一张表里，可以直接读出离散误差与模型误差谁更大。
-
-### 参考文献
-
-1. ASME, *V&V 20-2009: Standard for Verification and Validation in Computational Fluid Dynamics and Heat Transfer*, American Society of Mechanical Engineers, 2009.
-2. Roache P.J., *Verification and Validation in Computational Science and Engineering*, Hermosa Publishers, 1998.
-3. Celik I.B., Ghia U., Roache P.J., Freitas C.J., "Procedure for estimation and reporting of uncertainty due to discretization in CFD applications", *Journal of Fluids Engineering*, 130(7), 078001, 2008.
-4. Kader B.A., "Temperature and concentration profiles in fully turbulent boundary layers", *International Journal of Heat and Mass Transfer*, 24(9), 1541–1544, 1981.
-5. Bejan A., *Convection Heat Transfer*, 4th ed., Wiley, 2013.
-6. Churchill S.W., "A comprehensive correlating equation for forced convection from flat plates", *AIChE Journal*, 22(2), 264–268, 1976.
+1. Incropera F.P., DeWitt D.P., Bergman T.L., Lavine A.S., *Fundamentals of Heat and Mass Transfer*, 7th ed., Wiley, 2011.
+2. Gnielinski V., "New equations for heat and mass transfer in turbulent pipe and channel flow", *International Chemical Engineering*, 16(2), 359–368, 1976.
+3. Dittus F.W., Boelter L.M.K., "Heat transfer in automobile radiators of the tubular type", *University of California Publications in Engineering*, 2, 443–461, 1930.
+4. Shah R.K., London A.L., *Laminar Flow Forced Convection in Ducts*, Academic Press, 1978.
+5. Patankar S.V., *Numerical Heat Transfer and Fluid Flow*, Hemisphere Publishing, 1980.
+6. Moffat R.J., "Describing the uncertainties in experimental results", *Experimental Thermal and Fluid Science*, 1(1), 3–17, 1988.
+7. ASME, *V&V 20-2009: Standard for Verification and Validation in Computational Fluid Dynamics and Heat Transfer*, American Society of Mechanical Engineers, 2009.
+8. Roache P.J., *Verification and Validation in Computational Science and Engineering*, Hermosa Publishers, 1998.
+9. Celik I.B., Ghia U., Roache P.J., Freitas C.J., "Procedure for estimation and reporting of uncertainty due to discretization in CFD applications", *Journal of Fluids Engineering*, 130(7), 078001, 2008.
+10. Kader B.A., "Temperature and concentration profiles in fully turbulent boundary layers", *International Journal of Heat and Mass Transfer*, 24(9), 1541–1544, 1981.
+11. Bejan A., *Convection Heat Transfer*, 4th ed., Wiley, 2013.
+12. Churchill S.W., "A comprehensive correlating equation for forced convection from flat plates", *AIChE Journal*, 22(2), 264–268, 1976.

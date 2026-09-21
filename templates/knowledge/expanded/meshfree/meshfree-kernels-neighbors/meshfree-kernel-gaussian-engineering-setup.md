@@ -4,7 +4,7 @@ slug: meshfree-kernel-gaussian-engineering-setup
 title: Gaussian 核与截断：工程设置与诊断验证
 summary: >-
   给出 Gaussian 核的落地配置：σ_d=π^{-d/2} 归一化、q_c 与邻居数成本权衡、链表格元与 Verlet 缓冲联动、以及 Shepard
-  重规化与换用 Wendland 核的选择依据。 全文同时覆盖工程设置与参数选择、诊断与可信度验证，保留关键方程、量化参数、可执行示例、失败模式与参考资料。
+  重规化与换用 Wendland 核的选择依据。
 category:
   slug: meshfree-kernels-neighbors
   name: 无网格法核函数与邻域搜索
@@ -28,7 +28,6 @@ seo:
   description: >-
     给出 Gaussian 核的落地配置：σ_d=π^{-d/2} 归一化、q_c 与邻居数成本权衡、链表格元与 Verlet 缓冲联动、以及
     Shepard 重规化与换用 Wendland 核的选择依据。
-    全文同时覆盖工程设置与参数选择、诊断与可信度验证，保留关键方程、量化参数、可执行示例、失败模式与参考资料。
   keywords:
     - Gaussian 核与截断
     - 工程设置与参数选择
@@ -42,9 +41,29 @@ seo:
 ---
 # Gaussian 核与截断：工程设置与诊断验证
 
-## 工程设置与参数选择
+用 Gaussian 核的工程决策其实只有三个：截断半径取几倍 $h$、归一化怎么处理、以及值不值得为它付更高的邻居搜索成本。这三个问题都可以先用公式算出数字再决定，不必先跑一遍再看。Gaussian 核没有紧支撑，工程实现必须人为截断到 $r_c=q_c h$。截断半径取多少，直接决定三件事：丢失多少核质量、截断处梯度跳多大、以及离散归一化偏离 1 多少。这三项都可以手算，也正是诊断 Gaussian 核结果是否可信的入口。
 
-用 Gaussian 核的工程决策其实只有三个：截断半径取几倍 $h$、归一化怎么处理、以及值不值得为它付更高的邻居搜索成本。这三个问题都可以先用公式算出数字再决定，不必先跑一遍再看。本文给出归一化常数的写法、$q_c$ 与邻居数的换算、链表格元与 Verlet 缓冲的联动取值，以及在什么条件下应直接换用 Wendland 核。
+## 适用边界与方案选择
+
+### 截断半径选择：从质量损失到梯度跳变
+
+质量损失只是系统误差，截断处的不连续才是噪声源。Gaussian 核在 $r_c$ 处 $W(r_c,h)\neq0$，而紧支撑核在该处严格为零。取 $h=12\ \text{mm}$，三维核中心值 $W(0)=1/(h^{3}\pi^{3/2})=1/(1.728\times10^{-6}\times5.568)=1.04\times10^{5}\ \text{m}^{-3}$。
+
+$q_c=3$ 时 $W(3h)=1.04\times10^{5}\times e^{-9}=1.04\times10^{5}\times1.234\times10^{-4}=12.8\ \text{m}^{-3}$；$q_c=2$ 时 $W(2h)=1.04\times10^{5}\times e^{-4}=1.90\times10^{3}\ \text{m}^{-3}$，大了 148 倍。更有意义的是梯度跳变相对于峰值梯度的比例。$\left|dW/dr\right|$ 的峰值出现在 $q=1/\sqrt{2}$，为 $2\times0.7071\times W(0)e^{-0.5}/h=2\times0.7071\times6.30\times10^{4}/0.012=7.43\times10^{6}\ \text{m}^{-4}$；截断处 $\left|dW/dr\right|_{r_c}=2q_cW(q_ch)/h$，$q_c=2$ 时为 $6.35\times10^{5}$，占峰值 8.5%；$q_c=3$ 时为 $6.41\times10^{3}$，占 0.086%。
+
+判定阈值：截断处梯度跳变应低于峰值梯度的 1%。据此 $q_c\ge2.6$ 即可，工程上取 $q_c=3.0$ 留余量。若实测力场在 $r_c$ 附近出现"壳层状"的规则噪声（粒子恰好排布在截断球面上），说明 $q_c$ 过小，应直接加大而不是调人工黏性。
+
+## 工程设置与实施
+
+### 邻域网格与 Verlet 缓冲的联动设置
+
+链表格元必须覆盖最大支持半径：
+
+$$L_{cell}\ge r_{c,\max}=q_{c}h_{\max}$$
+
+取 $h_{\max}=20\ \text{mm}$、$q_c=3.0$，则 $L_{cell}\ge60\ \text{mm}$，搜索需检查 $3^{3}=27$ 个格元。若沿用紧支撑核时代的 $L_{cell}=40\ \text{mm}$（按 $\kappa h_{\max}$ 设的），$r_c=60\ \text{mm}$ 已超出一圈，必须搜 $5^{3}=125$ 个格元，遍历成本升 4.6 倍且极易漏邻居。**换核后必须重设格元**，这是 Gaussian 迁移中最常被漏掉的一步。
+
+Verlet 缓冲半径取 $r_{skin}=1.2r_c=72\ \text{mm}$，重建阈值 $\frac{1}{2}(r_{skin}-r_c)=6\ \text{mm}$。以最大流速 $2\ \text{m/s}$、$\Delta t=2.0\times10^{-6}\ \text{s}$ 计，每步位移 $4.0\ \mu\text{m}$，可连续约 1500 步不重建；若实测每 50 步就重建，说明 $r_{skin}$ 取得太保守。
 
 ### 核参数化的两种写法与归一化常数
 
@@ -67,16 +86,6 @@ $$N_{d}=\frac{2^{d}\pi^{d/2}}{\Gamma\!\left(\frac{d}{2}+1\right)}\left(\eta q_{c
 成本随 $q_c^3$ 涨，收益却是 $\mathrm{erfc}$ 型快速饱和。工程推荐 $q_c=2.5\sim3.0$：$q_c$ 从 2.0 提到 2.5，成本涨 1.95 倍而尾部损失从 4.6% 降到 0.13%（改善 35 倍）；再从 2.5 提到 3.0，成本再涨 1.73 倍而损失只从 0.13% 降到 0.044%（改善 3 倍），边际收益已明显递减。
 
 同时要对照紧支撑核：同取 $\eta=1.2$，Wendland C2（$\kappa=2$）的 $N_3=58$，仅相当于 Gaussian $q_c=2.0$ 的成本。若算例对尾部精度要求不高于 0.5%，**换 Wendland 比加大 $q_c$ 更划算**。
-
-### 邻域网格与 Verlet 缓冲的联动设置
-
-链表格元必须覆盖最大支持半径：
-
-$$L_{cell}\ge r_{c,\max}=q_{c}h_{\max}$$
-
-取 $h_{\max}=20\ \text{mm}$、$q_c=3.0$，则 $L_{cell}\ge60\ \text{mm}$，搜索需检查 $3^{3}=27$ 个格元。若沿用紧支撑核时代的 $L_{cell}=40\ \text{mm}$（按 $\kappa h_{\max}$ 设的），$r_c=60\ \text{mm}$ 已超出一圈，必须搜 $5^{3}=125$ 个格元，遍历成本升 4.6 倍且极易漏邻居。**换核后必须重设格元**，这是 Gaussian 迁移中最常被漏掉的一步。
-
-Verlet 缓冲半径取 $r_{skin}=1.2r_c=72\ \text{mm}$，重建阈值 $\frac{1}{2}(r_{skin}-r_c)=6\ \text{mm}$。以最大流速 $2\ \text{m/s}$、$\Delta t=2.0\times10^{-6}\ \text{s}$ 计，每步位移 $4.0\ \mu\text{m}$，可连续约 1500 步不重建；若实测每 50 步就重建，说明 $r_{skin}$ 取得太保守。
 
 ### 归一化策略与替代方案
 
@@ -110,7 +119,9 @@ expected:
   tail_mass: 4.4e-4
 ```
 
-### 失败模式与判定试验
+## 异常诊断与失效模式
+
+### 故障模式与判定试验
 
 | 现象 | 根因 | 判定试验 |
 |---|---|---|
@@ -121,39 +132,13 @@ expected:
 | 自由面附近动量漂移 | 用了 Shepard 重规化 | 切到 `normalized_gradient` 复测总动量 |
 | $q_c$ 提到 3.2 但精度无改善 | 误差已由 $\eta$ 或时间步主导 | 固定 $q_c$ 扫 $\eta=1.1/1.2/1.3$ |
 | 结果与 Wendland 版差 20% | 等效邻居数不同 | 固定 $N=58$ 再对比两核 |
-
-### 参考文献
-
-1. Gingold R.A., Monaghan J.J., "Smoothed particle hydrodynamics: theory and application to non-spherical stars," *Monthly Notices of the Royal Astronomical Society*, 181, 1977.
-2. Monaghan J.J., "Smoothed Particle Hydrodynamics," *Annual Review of Astronomy and Astrophysics*, 30, 1992.
-3. Liu M.B., Liu G.R., "Smoothed Particle Hydrodynamics: An Overview and Recent Developments," *Archives of Computational Methods in Engineering*, 17, 2010.
-4. Wendland H., "Piecewise polynomial, positive definite and compactly supported radial functions of minimal degree," *Advances in Computational Mathematics*, 4, 1995.
-5. Domínguez J.M., Crespo A.J.C., Gómez-Gesteira M., "Optimization strategies for CPU and GPU implementations of a smoothed particle hydrodynamics method," *Computer Physics Communications*, 184, 2013.
-6. Violeau D., Rogers B.D., "Smoothed particle hydrodynamics (SPH) for free-surface flows: past, present and future," *Journal of Hydraulic Research*, 54(1), 2016.
-
-## 诊断与可信度验证
-
-Gaussian 核没有紧支撑，工程实现必须人为截断到 $r_c=q_c h$。截断半径取多少，直接决定三件事：丢失多少核质量、截断处梯度跳多大、以及离散归一化偏离 1 多少。这三项都可以手算，也正是诊断 Gaussian 核结果是否可信的入口。本文给出闭式表达、$q_c=2/3/4$ 三档的定量对照，以及把它与紧支撑核基准对比的判定方法。
-
-### Gaussian 核的归一化与截断质量损失
-
-$d$ 维 Gaussian 核写作
-
-$$W(r,h)=\frac{1}{\left(h\sqrt{\pi}\right)^{d}}\exp\!\left(-\frac{r^{2}}{h^{2}}\right)$$
-
-它在全空间的积分恰为 1，因此没有"归一化常数需要推导"的问题，只有"截掉多少"的问题。三维下 $r_c=q_ch$ 之外的剩余质量占比为
-
-$$E_{3}(q_{c})=\mathrm{erfc}(q_{c})+\frac{2q_{c}}{\sqrt{\pi}}e^{-q_{c}^{2}}$$
-
-代入三档：$q_c=2$ 时 $\mathrm{erfc}(2)=4.678\times10^{-3}$，第二项 $2\times2/1.7725\times e^{-4}=2.257\times0.01832=4.133\times10^{-2}$，合计 $4.60\times10^{-2}$，即损失 4.60%；$q_c=3$ 时 $\mathrm{erfc}(3)=2.209\times10^{-5}$，第二项 $3.385\times1.234\times10^{-4}=4.177\times10^{-4}$，合计 $4.40\times10^{-4}$，损失 0.044%；$q_c=4$ 时合计 $5.23\times10^{-7}$，损失 $5.2\times10^{-5}\%$。**这就是选择 $q_c$ 的第一条硬依据**：要论证 0.1% 量级的物理差异，$q_c$ 至少取 3；取 2 相当于一开始就丢了 4.6% 的质量。
-
-### 截断半径选择：从质量损失到梯度跳变
-
-质量损失只是系统误差，截断处的不连续才是噪声源。Gaussian 核在 $r_c$ 处 $W(r_c,h)\neq0$，而紧支撑核在该处严格为零。取 $h=12\ \text{mm}$，三维核中心值 $W(0)=1/(h^{3}\pi^{3/2})=1/(1.728\times10^{-6}\times5.568)=1.04\times10^{5}\ \text{m}^{-3}$。
-
-$q_c=3$ 时 $W(3h)=1.04\times10^{5}\times e^{-9}=1.04\times10^{5}\times1.234\times10^{-4}=12.8\ \text{m}^{-3}$；$q_c=2$ 时 $W(2h)=1.04\times10^{5}\times e^{-4}=1.90\times10^{3}\ \text{m}^{-3}$，大了 148 倍。更有意义的是梯度跳变相对于峰值梯度的比例。$\left|dW/dr\right|$ 的峰值出现在 $q=1/\sqrt{2}$，为 $2\times0.7071\times W(0)e^{-0.5}/h=2\times0.7071\times6.30\times10^{4}/0.012=7.43\times10^{6}\ \text{m}^{-4}$；截断处 $\left|dW/dr\right|_{r_c}=2q_cW(q_ch)/h$，$q_c=2$ 时为 $6.35\times10^{5}$，占峰值 8.5%；$q_c=3$ 时为 $6.41\times10^{3}$，占 0.086%。
-
-判定阈值：截断处梯度跳变应低于峰值梯度的 1%。据此 $q_c\ge2.6$ 即可，工程上取 $q_c=3.0$ 留余量。若实测力场在 $r_c$ 附近出现"壳层状"的规则噪声（粒子恰好排布在截断球面上），说明 $q_c$ 过小，应直接加大而不是调人工黏性。
+| 内部区 $S_i$ 系统性偏低到 0.95 | $q_c=2$，尾部质量丢 4.6% | 按 $E_3(q_c)$ 手算并与实测 $S_i$ 对照 |
+| 力场出现壳层状规则噪声 | 截断处梯度跳变过大 | 算 jump/peak，要求低于 1%（$q_c\ge2.6$） |
+| 粒子在 $r_c$ 球面上聚集成壳 | 截断核吸引效应 | 加大 $q_c$ 到 3.0 后重跑 |
+| 动量持续漂移 | Shepard 重规化破坏了反对称性 | 换用归一化梯度形式并复测总动量 |
+| 每步耗时是紧支撑核的 3 倍以上 | $N_3=195$ 对 58 | 对比 $\frac{4}{3}\pi(\eta q_c)^3$ 与 $(\eta\kappa)^3$ |
+| 换核后结果差 20% 以上 | $q_c$ 或 $\eta$ 不一致 | 固定 $\eta$ 与等效邻居数再比 |
+| 边界附近结果对 $q_c$ 异常敏感 | 几何截断叠加尾部损失 | 分别统计内部、壁面、自由面的 $S_i$ |
 
 ### 离散归一化与 Shepard 修正的诊断
 
@@ -164,6 +149,8 @@ $$S_{i}=\sum_j V_j W_{ij},\qquad V_j=\frac{m_j}{\rho_j}$$
 在密度均匀的内部区域，$q_c=3$、$\eta=h/\Delta p=1.2$ 时 $S_i$ 应落在 $1.00\pm0.01$；$q_c=2$ 时会系统性偏低到约 0.95（与 4.6% 的尾部损失一致，这是**可核对的一致性**）。自由面与壁面处 $S_i<1$ 属几何截断，不算缺陷，但若内部区也低于 0.98，说明 $q_c$ 不足或求和被静默截断。
 
 修正方式有两种，诊断时要知道自己在用哪一种：一是 Shepard 重规化 $W_{ij}^{corr}=W_{ij}/S_i$，它恢复零阶一致性但会破坏成对力反对称性；二是改用归一化梯度形式 $\nabla W_{ij}^{corr}=(\nabla W_{ij}-\beta_iW_{ij})/S_i$，其中 $\beta_i=\sum_jV_j\nabla_iW_{ij}$。若只做了第一种却报告"动量守恒到机器精度"，结论就是错的——Shepard 修正后的力不再反对称，动量会有可测的漂移。
+
+## 验证、验收与复现
 
 ### 与紧支撑核基准的对照
 
@@ -186,23 +173,25 @@ for qc in (2.0, 2.5, 3.0, 4.0):
 # 参考输出: qc=2.0 jump/peak=8.5% ; qc=3.0 jump/peak=0.086%
 ```
 
-### 失败模式与判定试验
+### Gaussian 核的归一化与截断质量损失
 
-| 现象 | 根因 | 判定试验 |
-|---|---|---|
-| 内部区 $S_i$ 系统性偏低到 0.95 | $q_c=2$，尾部质量丢 4.6% | 按 $E_3(q_c)$ 手算并与实测 $S_i$ 对照 |
-| 力场出现壳层状规则噪声 | 截断处梯度跳变过大 | 算 jump/peak，要求低于 1%（$q_c\ge2.6$） |
-| 粒子在 $r_c$ 球面上聚集成壳 | 截断核吸引效应 | 加大 $q_c$ 到 3.0 后重跑 |
-| 动量持续漂移 | Shepard 重规化破坏了反对称性 | 换用归一化梯度形式并复测总动量 |
-| 每步耗时是紧支撑核的 3 倍以上 | $N_3=195$ 对 58 | 对比 $\frac{4}{3}\pi(\eta q_c)^3$ 与 $(\eta\kappa)^3$ |
-| 换核后结果差 20% 以上 | $q_c$ 或 $\eta$ 不一致 | 固定 $\eta$ 与等效邻居数再比 |
-| 边界附近结果对 $q_c$ 异常敏感 | 几何截断叠加尾部损失 | 分别统计内部、壁面、自由面的 $S_i$ |
+$d$ 维 Gaussian 核写作
 
-### 参考文献
+$$W(r,h)=\frac{1}{\left(h\sqrt{\pi}\right)^{d}}\exp\!\left(-\frac{r^{2}}{h^{2}}\right)$$
+
+它在全空间的积分恰为 1，因此没有"归一化常数需要推导"的问题，只有"截掉多少"的问题。三维下 $r_c=q_ch$ 之外的剩余质量占比为
+
+$$E_{3}(q_{c})=\mathrm{erfc}(q_{c})+\frac{2q_{c}}{\sqrt{\pi}}e^{-q_{c}^{2}}$$
+
+代入三档：$q_c=2$ 时 $\mathrm{erfc}(2)=4.678\times10^{-3}$，第二项 $2\times2/1.7725\times e^{-4}=2.257\times0.01832=4.133\times10^{-2}$，合计 $4.60\times10^{-2}$，即损失 4.60%；$q_c=3$ 时 $\mathrm{erfc}(3)=2.209\times10^{-5}$，第二项 $3.385\times1.234\times10^{-4}=4.177\times10^{-4}$，合计 $4.40\times10^{-4}$，损失 0.044%；$q_c=4$ 时合计 $5.23\times10^{-7}$，损失 $5.2\times10^{-5}\%$。**这就是选择 $q_c$ 的第一条硬依据**：要论证 0.1% 量级的物理差异，$q_c$ 至少取 3；取 2 相当于一开始就丢了 4.6% 的质量。
+
+## 参考资料
 
 1. Gingold R.A., Monaghan J.J., "Smoothed particle hydrodynamics: theory and application to non-spherical stars," *Monthly Notices of the Royal Astronomical Society*, 181, 1977.
 2. Monaghan J.J., "Smoothed Particle Hydrodynamics," *Annual Review of Astronomy and Astrophysics*, 30, 1992.
 3. Liu M.B., Liu G.R., "Smoothed Particle Hydrodynamics: An Overview and Recent Developments," *Archives of Computational Methods in Engineering*, 17, 2010.
-4. Dehnen W., Aly H., "Improving convergence in smoothed particle hydrodynamics simulations without pairing instability," *Monthly Notices of the Royal Astronomical Society*, 425, 2012.
-5. Wendland H., "Piecewise polynomial, positive definite and compactly supported radial functions of minimal degree," *Advances in Computational Mathematics*, 4, 1995.
-6. Colagrossi A., Landrini M., "Numerical simulation of interfacial flows by smoothed particle hydrodynamics," *Journal of Computational Physics*, 191, 2003.
+4. Wendland H., "Piecewise polynomial, positive definite and compactly supported radial functions of minimal degree," *Advances in Computational Mathematics*, 4, 1995.
+5. Domínguez J.M., Crespo A.J.C., Gómez-Gesteira M., "Optimization strategies for CPU and GPU implementations of a smoothed particle hydrodynamics method," *Computer Physics Communications*, 184, 2013.
+6. Violeau D., Rogers B.D., "Smoothed particle hydrodynamics (SPH) for free-surface flows: past, present and future," *Journal of Hydraulic Research*, 54(1), 2016.
+7. Dehnen W., Aly H., "Improving convergence in smoothed particle hydrodynamics simulations without pairing instability," *Monthly Notices of the Royal Astronomical Society*, 425, 2012.
+8. Colagrossi A., Landrini M., "Numerical simulation of interfacial flows by smoothed particle hydrodynamics," *Journal of Computational Physics*, 191, 2003.

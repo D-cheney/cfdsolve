@@ -4,7 +4,6 @@ slug: cfd-equations-energy-equation-modeling
 title: 总能量与焓方程：原理与工程设置
 summary: >-
   从能量形式之间的恒等关系讲起，说明压力功在动能方程与内能方程之间如何转移、低马赫截断丢掉了哪一项、生成焓与显焓的分界在哪，并用等熵关系给出压力功不可忽略的定量门槛。
-  全文同时覆盖原理与适用范围、工程设置与参数选择，保留关键方程、量化参数、可执行示例、失败模式与参考资料。
 category:
   slug: governing-equations
   name: 控制方程与物理建模
@@ -27,7 +26,6 @@ seo:
   title: 总能量与焓方程：原理与工程设置
   description: >-
     从能量形式之间的恒等关系讲起，说明压力功在动能方程与内能方程之间如何转移、低马赫截断丢掉了哪一项、生成焓与显焓的分界在哪，并用等熵关系给出压力功不可忽略的定量门槛。
-    全文同时覆盖原理与适用范围、工程设置与参数选择，保留关键方程、量化参数、可执行示例、失败模式与参考资料。
   keywords:
     - 总能量与焓方程
     - 物理建模与适用边界
@@ -41,9 +39,9 @@ seo:
 ---
 # 总能量与焓方程：原理与工程设置
 
-## 原理与适用范围
+总能量、焓、内能三种形式并不是三套物理，而是同一个守恒律的三种记账方式；差别只在压力功被记在哪一栏。把这个记账关系理清，就能判断某类工况里哪些项可以删、删了之后哪一个目标量会出错。下面先给出形式之间的恒等变换，再逐项交代低马赫截断的后果，最后用等熵关系定出压力功不可忽略的门槛。能量方程的设置错误很少表现为发散，更多表现为"温度场看着对、壁面热流差 20%"。原因集中在三处：求解变量选错、湍流普朗特数照抄默认值、以及该保留的黏性耗散被关掉。下面按这三个问题给出取值依据与自检方法。
 
-总能量、焓、内能三种形式并不是三套物理，而是同一个守恒律的三种记账方式；差别只在压力功被记在哪一栏。把这个记账关系理清，就能判断某类工况里哪些项可以删、删了之后哪一个目标量会出错。下面先给出形式之间的恒等变换，再逐项交代低马赫截断的后果，最后用等熵关系定出压力功不可忽略的门槛。
+## 基础概念与控制关系
 
 ### 三种形式之间的恒等关系
 
@@ -128,31 +126,11 @@ $$
 
 显焓从参考温度起算，不含化学键能；绝对焓在它之上叠加生成焓 $h_f^\circ$。燃烧、分解、相变等工况里，反应热完全来自生成焓差，此时若用显焓变量，放热会整体丢失——温度场仍然"收敛"，只是没有任何温升。反过来，单组分无反应流动用显焓可以少一次查表，且避免参考态不一致带来的偏移。判据是：温度变化是否只由外部换热与做功引起？是则显焓够用，否则必须用绝对焓并核对各组分的 $h_f^\circ$。
 
-### 失败模式与判定试验
-
-| 现象 | 根因 | 判定试验 |
-|---|---|---|
-| 封闭腔持续加热但压力不上升 | 使用不可压能量方程，$\mathrm{D}p/\mathrm{D}t$ 被丢弃 | 由 $\rho R\,\mathrm{d}T/\mathrm{d}t$ 估算压升速率，与计算值对比 |
-| 激波前后总焓不守恒 | 用焓形式且未同步输运动能 | 改用总能量形式，比较波前波后总焓 |
-| 燃烧算例温度不升 | 求解变量是显焓，生成焓未进入能量收支 | 检查是否启用 `absoluteEnthalpy` 并核对各组分 $Hf$ |
-| 低压比工况出现虚假温升 | 保留了压力功而流动实际不可压 | 计算等熵压力比门槛并与实际压力比比较 |
-| 等熵喷管出口温度比实测低 | 边界给静温而目标量是总温 | 用 $T_2/T_1=(p_2/p_1)^{0.2857}$ 换算总温 |
-| 绝热壁面温度低于理论值 | 黏性耗散未计入，恢复因子未校核 | 比较 $\Delta T_{\mathrm{stag}}=U^2/(2c_p)$ 与壁面实际温升 |
-
 ### 三条边界的共同逻辑
 
 上面六行可以归到一句话：能量方程的每一项都对应一个具体的能量搬运通道，删项等于关闭通道，被关闭通道承担的那部分能量会以温度偏差的形式出现。判断是否可删，不看方程复杂度，只看该通道的通量是否小于目标量容差。工程上因此建议同时报告三个无量纲数——压力比、马赫数、$\Delta T_{\mathrm{stag}}/\Delta T$——它们分别对应压力功、动能输运与黏性耗散，任一超出容差就必须升级能量形式。
 
-### 参考资料
-
-1. Anderson J.D., Modern Compressible Flow: With Historical Perspective, 3rd ed., McGraw-Hill, 2003.
-2. Bird R.B., Stewart W.E., Lightfoot E.N., Transport Phenomena, 2nd ed., Wiley, 2002.
-3. Toro E.F., Riemann Solvers and Numerical Methods for Fluid Dynamics, 3rd ed., Springer, 2009.
-4. LeVeque R.J., Finite Volume Methods for Hyperbolic Problems, Cambridge University Press, 2002.
-
-## 工程设置与参数选择
-
-能量方程的设置错误很少表现为发散，更多表现为"温度场看着对、壁面热流差 20%"。原因集中在三处：求解变量选错、湍流普朗特数照抄默认值、以及该保留的黏性耗散被关掉。下面按这三个问题给出取值依据与自检方法。
+## 工程设置与实施
 
 ### 求解变量选哪一个
 
@@ -240,6 +218,31 @@ $$
 
 即空气在 $20\ \mathrm{K}$ 壁面温差下，约 $20\ \mathrm{m/s}$ 以下可以关掉耗散项，以上必须打开。用布林克曼数 $\mathrm{Br}=\mu U^2/(k\Delta T)$ 得到同向结论：$\mu=1.85\times10^{-5}\ \mathrm{Pa\cdot s}$、$k=0.0262\ \mathrm{W/(m\cdot K)}$，$U=30\ \mathrm{m/s}$ 时 $\mathrm{Br}=1.85\times10^{-5}\times900/(0.0262\times20)=0.032$，$U=100\ \mathrm{m/s}$ 时 $\mathrm{Br}=0.353$。两者相差十倍，与温升比例一致。
 
+## 异常诊断与失效模式
+
+### 故障模式与判定试验
+
+| 现象 | 根因 | 判定试验 |
+|---|---|---|
+| 封闭腔持续加热但压力不上升 | 使用不可压能量方程，$\mathrm{D}p/\mathrm{D}t$ 被丢弃 | 由 $\rho R\,\mathrm{d}T/\mathrm{d}t$ 估算压升速率，与计算值对比 |
+| 激波前后总焓不守恒 | 用焓形式且未同步输运动能 | 改用总能量形式，比较波前波后总焓 |
+| 燃烧算例温度不升 | 求解变量是显焓，生成焓未进入能量收支 | 检查是否启用 `absoluteEnthalpy` 并核对各组分 $Hf$ |
+| 低压比工况出现虚假温升 | 保留了压力功而流动实际不可压 | 计算等熵压力比门槛并与实际压力比比较 |
+| 等熵喷管出口温度比实测低 | 边界给静温而目标量是总温 | 用 $T_2/T_1=(p_2/p_1)^{0.2857}$ 换算总温 |
+| 绝热壁面温度低于理论值 | 黏性耗散未计入，恢复因子未校核 | 比较 $\Delta T_{\mathrm{stag}}=U^2/(2c_p)$ 与壁面实际温升 |
+| 壁面热流比实验低三成以上 | 湍流普朗特数沿用 0.85，而工质是液态金属 | 查工质 $Pr$ 与推荐 $Prt$，重算壁面热流 |
+| 高速算例温度整体偏高 | 未开启黏性耗散或动能通量项 | 计算 $\Delta T_{\mathrm{stag}}$ 与壁面温差的比值 |
+| 无粘区总温沿程下降 | `div(phi,K)` 格式耗散强于 `div(phi,h)` | 换 `limitedLinear` 并比较沿程总温 |
+| 瞬态温度响应滞后 | 能量方程外迭代不足，或时间格式一阶 | 加密时间步并改用 `backward`，看滞后是否消失 |
+| 低温工况 $c_p$ 常数假设导致大偏差 | `hConst` 在温度跨度大时失效 | 换 `janaf` 并核对 $c_p(T)$ 曲线 |
+| 封闭腔内温度持续单调上升 | 壁面热流与体源项符号重复计入 | 逐 patch 积分热流并与体源求和，检查是否重复 |
+
+## 验证、验收与复现
+
+### 记录与复核
+
+每个算例至少保存：求解变量类型（`sensibleEnthalpy` / `absoluteEnthalpy` / `totalEnergy`）与选择理由；`Prt` 的取值及其来源；$\Delta T_{\mathrm{stag}}/\Delta T$ 与 $\mathrm{Br}$ 的当前值；整体能量账的四项数值与闭合残差。速度或壁面温差改变一个量级时，耗散项与 $Prt$ 都要重新评估，不能沿用上一次的结论。
+
 ### 能量收支必须单独审计
 
 温度残差收敛不等于能量守恒。可复算的做法是建立一个整体能量账：入口带入焓流 $\dot m c_p T_{\mathrm{in}}$、出口带出焓流、壁面热流积分 $\int q_w\,\mathrm{d}A$、以及体热源。稳态下四者应闭合到 $1\%$ 以内。以 $U=30\ \mathrm{m/s}$、通道截面 $0.02\ \mathrm{m^2}$、空气 $\rho=1.1766\ \mathrm{kg/m^3}$ 为例，质量流量
@@ -250,27 +253,15 @@ $$
 
 若壁面总热流为 $3000\ \mathrm{W}$，则温升 $\Delta T=3000/(0.706\times1005)=4.23\ \mathrm{K}$；用这个数去核对进出口温度差，就能判断壁面热流是否自洽。
 
-### 失败模式与判定试验
+## 参考资料
 
-| 现象 | 根因 | 判定试验 |
-|---|---|---|
-| 壁面热流比实验低三成以上 | 湍流普朗特数沿用 0.85，而工质是液态金属 | 查工质 $Pr$ 与推荐 $Prt$，重算壁面热流 |
-| 高速算例温度整体偏高 | 未开启黏性耗散或动能通量项 | 计算 $\Delta T_{\mathrm{stag}}$ 与壁面温差的比值 |
-| 无粘区总温沿程下降 | `div(phi,K)` 格式耗散强于 `div(phi,h)` | 换 `limitedLinear` 并比较沿程总温 |
-| 瞬态温度响应滞后 | 能量方程外迭代不足，或时间格式一阶 | 加密时间步并改用 `backward`，看滞后是否消失 |
-| 低温工况 $c_p$ 常数假设导致大偏差 | `hConst` 在温度跨度大时失效 | 换 `janaf` 并核对 $c_p(T)$ 曲线 |
-| 封闭腔内温度持续单调上升 | 壁面热流与体源项符号重复计入 | 逐 patch 积分热流并与体源求和，检查是否重复 |
-
-### 记录与复核
-
-每个算例至少保存：求解变量类型（`sensibleEnthalpy` / `absoluteEnthalpy` / `totalEnergy`）与选择理由；`Prt` 的取值及其来源；$\Delta T_{\mathrm{stag}}/\Delta T$ 与 $\mathrm{Br}$ 的当前值；整体能量账的四项数值与闭合残差。速度或壁面温差改变一个量级时，耗散项与 $Prt$ 都要重新评估，不能沿用上一次的结论。
-
-### 参考资料
-
-1. Bird R.B., Stewart W.E., Lightfoot E.N., Transport Phenomena, 2nd ed., Wiley, 2002.
-2. Kays W.M., Crawford M.E., Weigand B., Convective Heat and Mass Transfer, 4th ed., McGraw-Hill, 2005.
-3. Incropera F.P., DeWitt D.P., Fundamentals of Heat and Mass Transfer, 6th ed., Wiley, 2007.
-4. OpenFOAM Foundation, OpenFOAM User Guide, thermophysical modelling and function objects 章节.
-5. White F.M. 《Viscous Fluid Flow》. McGraw-Hill, 2006.
-6. Schlichting H., Gersten K. 《Boundary-Layer Theory》. Springer, 2017.
-7. Greenshields C.J., Weller H.G. 《Notes on Computational Fluid Dynamics: General Principles》. CFD Direct, 2022.
+1. Anderson J.D., Modern Compressible Flow: With Historical Perspective, 3rd ed., McGraw-Hill, 2003.
+2. Bird R.B., Stewart W.E., Lightfoot E.N., Transport Phenomena, 2nd ed., Wiley, 2002.
+3. Toro E.F., Riemann Solvers and Numerical Methods for Fluid Dynamics, 3rd ed., Springer, 2009.
+4. LeVeque R.J., Finite Volume Methods for Hyperbolic Problems, Cambridge University Press, 2002.
+5. Kays W.M., Crawford M.E., Weigand B., Convective Heat and Mass Transfer, 4th ed., McGraw-Hill, 2005.
+6. Incropera F.P., DeWitt D.P., Fundamentals of Heat and Mass Transfer, 6th ed., Wiley, 2007.
+7. OpenFOAM Foundation, OpenFOAM User Guide, thermophysical modelling and function objects 章节.
+8. White F.M. 《Viscous Fluid Flow》. McGraw-Hill, 2006.
+9. Schlichting H., Gersten K. 《Boundary-Layer Theory》. Springer, 2017.
+10. Greenshields C.J., Weller H.G. 《Notes on Computational Fluid Dynamics: General Principles》. CFD Direct, 2022.

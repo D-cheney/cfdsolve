@@ -28,6 +28,7 @@
     "knowledge:import": "tsx scripts/import-knowledge.mjs",
     "knowledge:sync": "tsx scripts/import-knowledge.mjs templates/knowledge",
     "knowledge:sync:articles": "tsx scripts/sync-knowledge-articles.mjs",
+    "knowledge:reorganize": "node scripts/reorganize-knowledge-topics.mjs --apply",
     "generate": "nuxt generate",
     "preview": "nuxt preview"
   },

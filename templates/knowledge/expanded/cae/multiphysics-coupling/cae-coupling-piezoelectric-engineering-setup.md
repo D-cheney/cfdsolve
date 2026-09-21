@@ -4,7 +4,7 @@ slug: cae-coupling-piezoelectric-engineering-setup
 title: 压电耦合：工程设置与诊断验证
 summary: >-
   给出压电耦合分析的落地配置：材料常数 d/e 形式换算、极化坐标系与电极等电位约束、按波长反算网格、扫频与 Rayleigh 阻尼取值，附 ANSYS
-  APDL 关键卡片。 全文同时覆盖工程设置与参数选择、诊断与可信度验证，保留关键方程、量化参数、可执行示例、失败模式与参考资料。
+  APDL 关键卡片。
 category:
   slug: multiphysics-coupling
   name: 多物理场耦合算法
@@ -27,7 +27,7 @@ seo:
   title: 压电耦合：工程设置与诊断验证
   description: >-
     给出压电耦合分析的落地配置：材料常数 d/e 形式换算、极化坐标系与电极等电位约束、按波长反算网格、扫频与 Rayleigh 阻尼取值，附 ANSYS
-    APDL 关键卡片。 全文同时覆盖工程设置与参数选择、诊断与可信度验证，保留关键方程、量化参数、可执行示例、失败模式与参考资料。
+    APDL 关键卡片。
   keywords:
     - 压电耦合
     - 工程设置与参数选择
@@ -41,9 +41,9 @@ seo:
 ---
 # 压电耦合：工程设置与诊断验证
 
-## 工程设置与参数选择
+压电耦合分析的设置清单比普通结构分析多三项：材料常数以哪种形式输入、极化方向如何随几何传递、电极用等电位约束还是逐个节点约束。这三项任一设错，谐振频率和输出电荷都会偏，而且偏得"像物理"。压电分析出错时，位移、电荷和电压三者往往"各自看起来合理"，但彼此不满足本构关系。诊断的关键是建立三条互相独立的闭合验算：本构关系的符号与量纲、电荷-电容-电压三角关系、以及谐振频率与机电耦合系数。本文以 PZT-5H 为例给出每一步的手算值，适用于换能器、超声振子与振动能量收集器的结果复核。
 
-压电耦合分析的设置清单比普通结构分析多三项：材料常数以哪种形式输入、极化方向如何随几何传递、电极用等电位约束还是逐个节点约束。这三项任一设错，谐振频率和输出电荷都会偏，而且偏得"像物理"。本文给出材料常数换算、网格波长约束、电极边界与扫频阻尼的具体取值，工具层面以 ANSYS APDL 的压电耦合单元为例。
+## 适用边界与方案选择
 
 ### 材料常数的形式选择与换算
 
@@ -53,11 +53,7 @@ $$e_{ij}=d_{ik}c_{kj}^{E}$$
 
 以 PZT-5H 为例，$e_{31}\approx-6.62\ \text{C/m}^2$、$e_{33}\approx+23.2\ \text{C/m}^2$。**换算后必须检查符号的相对关系**：$d_{31}$ 为负、$d_{33}$ 为正，因此 $e_{31}$ 为负、$e_{33}$ 为正；若只核对了一个分量的绝对值，符号错误会漏检。另一项常被忽略的是介电常数：恒应力 $\varepsilon_{33}^{T}$ 与恒应变 $\varepsilon_{33}^{S}$ 相差 $(1-k_{33}^{2})$ 倍，$k_{33}=0.751$ 时两者相差 56%，用错会让自由电容从 3.01 nF 变成 4.7 nF。
 
-### 极化坐标系与电极边界的设置
-
-极化方向必须绑定在材料坐标系上，而不是全局坐标系。装配体里每个压电片的极化方向可能不同，要在各自的局部坐标系下定义材料方向，并确认几何旋转后方向随动。判定方法：给单片施加 10 N 轴向力，读取电荷应为 $5.93\ \text{nC}$；若装配后整堆输出接近零，说明各片极化方向未按设计反接。
-
-电极边界有两种：接地电极用 $V=0$ 的 Dirichlet 条件；悬空电极必须用等电位约束（把该电极所有节点的电势耦合为一个自由度），否则求解器会给出电极面上非物理的电势分布，自由电容随之偏大。开路面还要再叠一条总电荷为零的约束，否则等电位约束下电荷会通过接地路径泄漏。
+## 工程设置与实施
 
 ### 网格：波长与电极厚度的约束
 
@@ -72,6 +68,12 @@ $$\Delta x\le\frac{\lambda_{\min}}{6}=\frac{20}{6}=3.3\ \text{mm}$$
 若扫频上限取 500 kHz（$\lambda=5.1\ \text{mm}$），则 $\Delta x\le0.85\ \text{mm}$，单元数增加约 $(3.3/0.85)^{3}=58$ 倍——所以扫频上限必须在建模前定死，不能事后追加。
 
 厚度方向还有一条独立约束：压电片厚度 $t=1.0\ \text{mm}$ 时，厚度方向至少 2 层单元才能捕捉厚度模态（$f\approx c/(2t)=1.27\ \text{MHz}$）；只关心低频驱动时可 1 层，但要显式说明忽略了厚度模态。
+
+### 极化坐标系与电极边界的设置
+
+极化方向必须绑定在材料坐标系上，而不是全局坐标系。装配体里每个压电片的极化方向可能不同，要在各自的局部坐标系下定义材料方向，并确认几何旋转后方向随动。判定方法：给单片施加 10 N 轴向力，读取电荷应为 $5.93\ \text{nC}$；若装配后整堆输出接近零，说明各片极化方向未按设计反接。
+
+电极边界有两种：接地电极用 $V=0$ 的 Dirichlet 条件；悬空电极必须用等电位约束（把该电极所有节点的电势耦合为一个自由度），否则求解器会给出电极面上非物理的电势分布，自由电容随之偏大。开路面还要再叠一条总电荷为零的约束，否则等电位约束下电荷会通过接地路径泄漏。
 
 ### 载荷步、扫频与阻尼参数
 
@@ -102,7 +104,9 @@ D,node_ground,VOLT,0           ! 接地电极
 LOCAL,11,0,0,0,0, 0,0,90
 ```
 
-### 失败模式与判定试验
+## 异常诊断与失效模式
+
+### 故障模式与判定试验
 
 | 现象 | 根因 | 判定试验 |
 |---|---|---|
@@ -113,19 +117,15 @@ LOCAL,11,0,0,0,0, 0,0,90
 | 扫频峰值被削平 | 步长太粗或阻尼过大 | 用 $Q=1/(2\zeta)=25$ 估带宽 5.1 kHz |
 | 整堆输出接近零 | 各片极化方向未交替反接 | 逐片读电荷符号 |
 | 高频段结果发散 | 扫频上限未预先定网格 | 按 500 kHz 的 $\lambda=5.1$ mm 反算网格 |
+| 位移方向与实测相反 | $d_{31}$ 或 $e_{31}$ 符号取正 | 单轴加载算电荷符号，与 5.93 nC 对照 |
+| 输出小 $10^{12}$ 倍 | 输入用 pC/N 而求解器按 SI | 检查材料卡单位，按 m/V 复算 |
+| $V\neq Q/C$ | 短路电荷被当成开路电荷 | 用 3.01 nF 电容反算并三方闭合 |
+| 谐振频率偏高 5% 以上 | 声速用了 $s^{D}$ 而非 $s^{E}$ | 按 $c=\sqrt{1/(\rho s_{33}^{E})}$ 手算 2538 m/s |
+| $f_a/f_r$ 接近 1 | 耦合系数被削弱，$d$ 或 $\varepsilon$ 错 | 用 $k_{33}=0.751$ 反算 $f_a/f_r=1.514$ |
+| 叠堆输出相互抵消 | 各片极化方向未交替反接 | 逐片打印极化矢量方向 |
+| 扫频出现多个伪峰 | 网格未分辨高阶模态 | 加密网格，检查峰位是否随网格移动 |
 
-### 参考文献
-
-1. IEEE Std 176-1987, *IEEE Standard on Piezoelectricity*, IEEE, 1987.
-2. Jaffe B., Cook W.R., Jaffe H., *Piezoelectric Ceramics*, Academic Press, 1971.
-3. APC International, *Piezoelectric Ceramics: Principles and Applications*, 2nd ed., 2011.
-4. Ansys Inc., *Mechanical APDL Coupled-Field Analysis Guide*, 2023.
-5. Yang J., *An Introduction to the Theory of Piezoelectricity*, Springer, 2005.
-6. Crawley E.F., de Luis J., "Use of piezoelectric actuators as elements of intelligent structures," *AIAA Journal*, 25(10), 1987.
-
-## 诊断与可信度验证
-
-压电分析出错时，位移、电荷和电压三者往往"各自看起来合理"，但彼此不满足本构关系。诊断的关键是建立三条互相独立的闭合验算：本构关系的符号与量纲、电荷-电容-电压三角关系、以及谐振频率与机电耦合系数。本文以 PZT-5H 为例给出每一步的手算值，适用于换能器、超声振子与振动能量收集器的结果复核。
+## 验证、验收与复现
 
 ### 本构关系与 d31/d33 的符号约定
 
@@ -188,23 +188,13 @@ $$f_{r}=\frac{1}{2L}\sqrt{\frac{1}{\rho s_{33}^{E}}}$$
 
 上例中 $-6.62$ 与 $23.2\ \text{C/m}^2$ 即 $e_{31}$ 与 $e_{33}$，其负号关系必须与 $d_{31}<0$、$d_{33}>0$ 一致；仅核对一个分量的符号不足以确认，要同时检查两者的相对符号。
 
-### 失败模式与判定试验
-
-| 现象 | 根因 | 判定试验 |
-|---|---|---|
-| 位移方向与实测相反 | $d_{31}$ 或 $e_{31}$ 符号取正 | 单轴加载算电荷符号，与 5.93 nC 对照 |
-| 输出小 $10^{12}$ 倍 | 输入用 pC/N 而求解器按 SI | 检查材料卡单位，按 m/V 复算 |
-| $V\neq Q/C$ | 短路电荷被当成开路电荷 | 用 3.01 nF 电容反算并三方闭合 |
-| 谐振频率偏高 5% 以上 | 声速用了 $s^{D}$ 而非 $s^{E}$ | 按 $c=\sqrt{1/(\rho s_{33}^{E})}$ 手算 2538 m/s |
-| $f_a/f_r$ 接近 1 | 耦合系数被削弱，$d$ 或 $\varepsilon$ 错 | 用 $k_{33}=0.751$ 反算 $f_a/f_r=1.514$ |
-| 叠堆输出相互抵消 | 各片极化方向未交替反接 | 逐片打印极化矢量方向 |
-| 扫频出现多个伪峰 | 网格未分辨高阶模态 | 加密网格，检查峰位是否随网格移动 |
-
-### 参考文献
+## 参考资料
 
 1. IEEE Std 176-1987, *IEEE Standard on Piezoelectricity*, IEEE, 1987.
 2. Jaffe B., Cook W.R., Jaffe H., *Piezoelectric Ceramics*, Academic Press, 1971.
-3. Berlincourt D., Curran D.R., Jaffe H., "Piezoelectric and Piezomagnetic Materials and Their Function in Transducers," *Physical Acoustics*, Vol. 1A, Academic Press, 1964.
-4. APC International, *Piezoelectric Ceramics: Principles and Applications*, 2nd ed., 2011.
-5. Dassault Systèmes, *Abaqus Analysis User's Guide — Piezoelectric Analysis*, 2023.
-6. Yang J., *An Introduction to the Theory of Piezoelectricity*, Springer, 2005.
+3. APC International, *Piezoelectric Ceramics: Principles and Applications*, 2nd ed., 2011.
+4. Ansys Inc., *Mechanical APDL Coupled-Field Analysis Guide*, 2023.
+5. Yang J., *An Introduction to the Theory of Piezoelectricity*, Springer, 2005.
+6. Crawley E.F., de Luis J., "Use of piezoelectric actuators as elements of intelligent structures," *AIAA Journal*, 25(10), 1987.
+7. Berlincourt D., Curran D.R., Jaffe H., "Piezoelectric and Piezomagnetic Materials and Their Function in Transducers," *Physical Acoustics*, Vol. 1A, Academic Press, 1964.
+8. Dassault Systèmes, *Abaqus Analysis User's Guide — Piezoelectric Analysis*, 2023.

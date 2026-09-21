@@ -4,7 +4,6 @@ slug: cfd-equations-moving-reference-frame-modeling
 title: 移动与旋转参考系：原理与工程设置
 summary: >-
   旋转坐标系把动量方程改写为相对速度形式，代价是三项附加加速度。本文给出罗斯贝数与埃克曼数两个独立判据、地转平衡的数值算例、离心项被修正压力吸收的条件，以及分层剪切流的理查森数补充判据。
-  全文同时覆盖原理与适用范围、工程设置与参数选择，保留关键方程、量化参数、可执行示例、失败模式与参考资料。
 category:
   slug: governing-equations
   name: 控制方程与物理建模
@@ -27,7 +26,6 @@ seo:
   title: 移动与旋转参考系：原理与工程设置
   description: >-
     旋转坐标系把动量方程改写为相对速度形式，代价是三项附加加速度。本文给出罗斯贝数与埃克曼数两个独立判据、地转平衡的数值算例、离心项被修正压力吸收的条件，以及分层剪切流的理查森数补充判据。
-    全文同时覆盖原理与适用范围、工程设置与参数选择，保留关键方程、量化参数、可执行示例、失败模式与参考资料。
   keywords:
     - 移动与旋转参考系
     - 物理建模与适用边界
@@ -39,9 +37,9 @@ seo:
 ---
 # 移动与旋转参考系：原理与工程设置
 
-## 原理与适用范围
+在旋转坐标系中写动量方程并不会改变物理，但会把加速度拆成三块，其中两块是坐标系带来的。判断旋转效应是否必须保留，不能只看转速：一台 1450 rpm 的泵和地球大气在同一个判据下会给出完全不同的结论。关键是把旋转效应拆成"惯性力与科氏力之比"和"黏性力与科氏力之比"两个独立的无量纲数，再分别判断。在旋转坐标系里求解的流体变量是相对速度，而用户关心的是绝对量（扬程、效率、噪声源）。两者相差 $\boldsymbol{\Omega}\times\mathbf{r}$，动量方程相应多出科氏项与离心项。设置的核心是四件事：转速换算成 rad/s、旋转轴与原点写对、选择 MRF 冻结转子还是滑移网格、以及在后处理里把相对速度还原成绝对速度。下面用一个 1450 rpm、叶轮外径 200 mm 的离心泵把每一步的数字算出来。
 
-在旋转坐标系中写动量方程并不会改变物理，但会把加速度拆成三块，其中两块是坐标系带来的。判断旋转效应是否必须保留，不能只看转速：一台 1450 rpm 的泵和地球大气在同一个判据下会给出完全不同的结论。关键是把旋转效应拆成"惯性力与科氏力之比"和"黏性力与科氏力之比"两个独立的无量纲数，再分别判断。本文给出加速度分解、两个判据的数值算例、地转平衡换算与离心项被压力吸收的条件。
+## 基础概念与控制关系
 
 ### 旋转坐标系中加速度的完整分解
 
@@ -58,24 +56,6 @@ $$
 $$
 
 四项依次是相对加速度、科氏加速度、离心加速度和欧拉加速度。稳态旋转（$\mathrm{d}\boldsymbol{\Omega}/\mathrm{d}t=0$）时最后一项为零；但启停过程、往复旋转等过程中它不能省，其量级是 $\dot\Omega r$，与角加速度成正比。把四项乘密度后移到右端当作体积力，动量方程就变成相对速度的标准形式。
-
-### 罗斯贝数与埃克曼数：两个独立判据
-
-惯性力与科氏力之比是罗斯贝数，黏性力与科氏力之比是埃克曼数
-
-$$
-Ro = \frac{U}{\Omega L},\qquad Ek = \frac{\nu}{\Omega L^2}
-$$
-
-两者须分别判断，因为"科氏主导"与"黏性主导"可以同时出现。三个量级差极大的例子：
-
-| 场景 | $\Omega$ (rad/s) | $U$ (m/s) | $L$ (m) | $\nu$ (m²/s) | $Ro$ | $Ek$ |
-|---|---|---|---|---|---|---|
-| 中纬度天气系统 | $7.292\times10^{-5}$ | 10 | $1.0\times10^6$ | $1.5\times10^{-5}$ | 0.137 | $2.1\times10^{-13}$ |
-| 转盘实验水槽 | 1.0 | 0.5 | 0.2 | $1.0\times10^{-6}$ | 2.5 | $2.5\times10^{-5}$ |
-| 离心泵叶轮 | 151.84 | 15.18 | 0.1 | $1.0\times10^{-6}$ | 1.00 | $6.6\times10^{-7}$ |
-
-$Ro<1$ 时科氏力超过惯性力，流动趋向二维柱状；$Ro>1$ 时惯性主导，旋转仅作修正。$Ek$ 很小意味着埃克曼层很薄，边界层内外的动量输运被旋转强烈限制。天气系统的 $Ro<1$ 且 $Ek\to0$，正是地转平衡的两个前提；泵叶轮 $Ro=1.00$ 则既不能当地转流也不能当无旋流处理。
 
 ### 地转平衡与泰勒—普劳德曼柱
 
@@ -101,6 +81,26 @@ $$
 这一步成立的唯一条件是 $\Omega$ 与轴方向在空间上均匀（刚体旋转）。若旋转轴随空间变化（如螺旋桨滑流），$\boldsymbol{\Omega}\times(\boldsymbol{\Omega}\times\mathbf{r})$ 不再是某标量的梯度，吸收就会引入误差，必须作为体积力显式保留。吸收只改变压力的解释，不改变压力梯度：出口压力边界按绝对压力给定时，换算到 $p^{*}$ 要减掉该点的 $\frac{1}{2}\rho\Omega^2r^2$。
 
 用泵叶轮核对一下量级：$\frac{1}{2}\rho\Omega^2r_2^2=0.5\times998.2\times151.84^2\times0.1^2=1.151\times10^5\ \mathrm{Pa}$，即 115.1 kPa；进口半径 0.04 m 处为 $1.151\times10^5\times(0.04/0.1)^2=1.84\times10^4\ \mathrm{Pa}$。两者之差 96.7 kPa 正是前面算出的离心压升，说明吸收这一步在数值上自洽。
+
+## 适用边界与方案选择
+
+### 罗斯贝数与埃克曼数：两个独立判据
+
+惯性力与科氏力之比是罗斯贝数，黏性力与科氏力之比是埃克曼数
+
+$$
+Ro = \frac{U}{\Omega L},\qquad Ek = \frac{\nu}{\Omega L^2}
+$$
+
+两者须分别判断，因为"科氏主导"与"黏性主导"可以同时出现。三个量级差极大的例子：
+
+$Ro<1$ 时科氏力超过惯性力，流动趋向二维柱状；$Ro>1$ 时惯性主导，旋转仅作修正。$Ek$ 很小意味着埃克曼层很薄，边界层内外的动量输运被旋转强烈限制。天气系统的 $Ro<1$ 且 $Ek\to0$，正是地转平衡的两个前提；泵叶轮 $Ro=1.00$ 则既不能当地转流也不能当无旋流处理。
+
+| 场景 | $\Omega$ (rad/s) | $U$ (m/s) | $L$ (m) | $\nu$ (m²/s) | $Ro$ | $Ek$ |
+|---|---|---|---|---|---|---|
+| 中纬度天气系统 | $7.292\times10^{-5}$ | 10 | $1.0\times10^6$ | $1.5\times10^{-5}$ | 0.137 | $2.1\times10^{-13}$ |
+| 转盘实验水槽 | 1.0 | 0.5 | 0.2 | $1.0\times10^{-6}$ | 2.5 | $2.5\times10^{-5}$ |
+| 离心泵叶轮 | 151.84 | 15.18 | 0.1 | $1.0\times10^{-6}$ | 1.00 | $6.6\times10^{-7}$ |
 
 ### 曲率与分层：理查森数的补充判据
 
@@ -129,27 +129,7 @@ f = 2 * OMEGA_EARTH * math.sin(math.radians(45.0))
 print(f"f(45deg)={f:.4e} 1/s  ug={1e-3/(1.2*f):.3f} m/s")  # 8.079 m/s
 ```
 
-### 失败模式：现象、根因、判定试验
-
-| 现象 | 根因 | 判定试验 |
-|---|---|---|
-| 旋转槽算例中泰勒柱不出现 | 科氏项未生效或符号反了 | 检查 $Ro<0.1$，并验证科氏力方向垂直于 $\boldsymbol{\Omega}$ 与 $\mathbf{u}_{rel}$ |
-| 地转风大小与天气图差 10 倍 | 压力梯度单位换算错误（hPa 与 Pa 混用） | 用 $1\ \mathrm{hPa}=100\ \mathrm{Pa}$ 重算，$u_g$ 应在 5～20 m/s 区间 |
-| 叶轮出口压力偏高约 115 kPa | 出口压力边界未扣除离心势 | 输出该点 $\frac{1}{2}\rho\Omega^2r^2$，从边界值中减去后重算扬程 |
-| 螺旋桨滑流区出现虚假高压带 | 旋转轴空间不均匀时仍把离心项吸收进压力 | 关闭吸收（显式保留离心体积力），比较两组的压力场差异 |
-| 强分层剪切流算例保持层流 | 湍流模型未考虑浮力生成项 | 手工算 $Ri=N^2/(\partial u/\partial z)^2$，低于 0.25 时应加入浮力项 |
-| 启停算例在角加速度最大处发散 | 忽略欧拉加速度 $\dot\Omega\times\mathbf{r}$ | 输出 $\dot\Omega r$ 与 $\Omega^2 r$ 之比，超过 0.1 就必须显式加入 |
-
-### 参考文献
-
-1. Greenspan H.P., *The Theory of Rotating Fluids*, Cambridge University Press, 1968.
-2. Pedlosky J., *Geophysical Fluid Dynamics*, 2nd ed., Springer, 1987.
-3. Taylor G.I., "Experiments on the motion of solid bodies in rotating fluids", *Proceedings of the Royal Society A*, 104:213–218, 1923.
-4. Tritton D.J., *Physical Fluid Dynamics*, 2nd ed., Oxford University Press, 1988.
-
-## 工程设置与参数选择
-
-在旋转坐标系里求解的流体变量是相对速度，而用户关心的是绝对量（扬程、效率、噪声源）。两者相差 $\boldsymbol{\Omega}\times\mathbf{r}$，动量方程相应多出科氏项与离心项。设置的核心是四件事：转速换算成 rad/s、旋转轴与原点写对、选择 MRF 冻结转子还是滑移网格、以及在后处理里把相对速度还原成绝对速度。下面用一个 1450 rpm、叶轮外径 200 mm 的离心泵把每一步的数字算出来。
+## 工程设置与实施
 
 ### 绝对速度、相对速度与两个惯性力
 
@@ -251,10 +231,18 @@ solidBodyCoeffs
 | 出口压力初值 | 96.7 kPa | 离心压升估算，加速收敛 |
 | 时间步（滑移网格） | $5\times10^{-5}\ \mathrm{s}$ | 叶轮每步转过 $7.6\times10^{-3}\ \mathrm{rad}$，约 0.44° |
 
-### 失败模式：现象、根因、判定试验
+## 异常诊断与失效模式
+
+### 故障模式与判定试验
 
 | 现象 | 根因 | 判定试验 |
 |---|---|---|
+| 旋转槽算例中泰勒柱不出现 | 科氏项未生效或符号反了 | 检查 $Ro<0.1$，并验证科氏力方向垂直于 $\boldsymbol{\Omega}$ 与 $\mathbf{u}_{rel}$ |
+| 地转风大小与天气图差 10 倍 | 压力梯度单位换算错误（hPa 与 Pa 混用） | 用 $1\ \mathrm{hPa}=100\ \mathrm{Pa}$ 重算，$u_g$ 应在 5～20 m/s 区间 |
+| 叶轮出口压力偏高约 115 kPa | 出口压力边界未扣除离心势 | 输出该点 $\frac{1}{2}\rho\Omega^2r^2$，从边界值中减去后重算扬程 |
+| 螺旋桨滑流区出现虚假高压带 | 旋转轴空间不均匀时仍把离心项吸收进压力 | 关闭吸收（显式保留离心体积力），比较两组的压力场差异 |
+| 强分层剪切流算例保持层流 | 湍流模型未考虑浮力生成项 | 手工算 $Ri=N^2/(\partial u/\partial z)^2$，低于 0.25 时应加入浮力项 |
+| 启停算例在角加速度最大处发散 | 忽略欧拉加速度 $\dot\Omega\times\mathbf{r}$ | 输出 $\dot\Omega r$ 与 $\Omega^2 r$ 之比，超过 0.1 就必须显式加入 |
 | 叶轮区域速度场呈刚性旋转，无叶片做功迹象 | `omega` 写成 rpm（1450）而非 rad/s（151.84），离心项被放大 9.5 倍 | 打印 `MRFProperties` 中的 omega，与 $2\pi n/60$ 对比 |
 | 出口压升为负或接近零 | 旋转轴符号与几何坐标系相反，科氏力方向错误 | 检查叶尖处绝对速度方向，应与叶片旋转方向一致 |
 | 稳态 MRF 结果在叶片通道内出现回流 | 冻结转子假设在 $Ro\approx1$ 的强非定常流中不成立 | 改用滑移网格瞬态求解，比较一个叶道通过周期的时均压升 |
@@ -262,9 +250,13 @@ solidBodyCoeffs
 | 瞬态算例每步残差周期性尖峰 | 时间步过大，叶轮每步转过超过 1° 且外迭代不足 | 把 $\Delta t$ 减半，若尖峰幅度按比例下降则是时间离散误差 |
 | 后处理扬程比设计值高 20% 以上 | 用相对速度直接算总压，漏掉了 $\frac{1}{2}|\boldsymbol{\Omega}\times\mathbf{r}|^2$ 项 | 在叶轮区把绝对速度 $u_{abs}=u_{rel}+\Omega\times r$ 还原后再积分总压 |
 
-### 参考文献
+## 参考资料
 
-1. Brennen C.E., *Hydrodynamics of Pumps*, Oxford University Press, 1994.
-2. ANSYS Inc., *ANSYS Fluent Theory Guide*, ANSYS Inc., 2021.
-3. Hirsch C., *Numerical Computation of Internal and External Flows*, 2nd ed., Butterworth-Heinemann, 2007.
-4. Lakshminarayana B., *Fluid Dynamics and Heat Transfer of Turbomachinery*, Wiley, 1996.
+1. Greenspan H.P., *The Theory of Rotating Fluids*, Cambridge University Press, 1968.
+2. Pedlosky J., *Geophysical Fluid Dynamics*, 2nd ed., Springer, 1987.
+3. Taylor G.I., "Experiments on the motion of solid bodies in rotating fluids", *Proceedings of the Royal Society A*, 104:213–218, 1923.
+4. Tritton D.J., *Physical Fluid Dynamics*, 2nd ed., Oxford University Press, 1988.
+5. Brennen C.E., *Hydrodynamics of Pumps*, Oxford University Press, 1994.
+6. ANSYS Inc., *ANSYS Fluent Theory Guide*, ANSYS Inc., 2021.
+7. Hirsch C., *Numerical Computation of Internal and External Flows*, 2nd ed., Butterworth-Heinemann, 2007.
+8. Lakshminarayana B., *Fluid Dynamics and Heat Transfer of Turbomachinery*, Wiley, 1996.

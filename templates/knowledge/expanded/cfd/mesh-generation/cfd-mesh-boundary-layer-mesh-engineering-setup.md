@@ -4,7 +4,7 @@ slug: cfd-mesh-boundary-layer-mesh-engineering-setup
 title: 边界层棱柱网格：工程设置与诊断验证
 summary: >-
   把棱柱层生成器的首层厚度、增长率、层数与最小厚度四个控制量写成互相约束的取值规则，用 1 m 弦长翼型算例算出 29 层方案，并给出
-  snappyHexMesh 加层配置。 全文同时覆盖工程设置与参数选择、诊断与可信度验证，保留关键方程、量化参数、可执行示例、失败模式与参考资料。
+  snappyHexMesh 加层配置。
 category:
   slug: mesh-generation
   name: 网格与离散质量
@@ -27,7 +27,7 @@ seo:
   title: 边界层棱柱网格：工程设置与诊断验证
   description: >-
     把棱柱层生成器的首层厚度、增长率、层数与最小厚度四个控制量写成互相约束的取值规则，用 1 m 弦长翼型算例算出 29 层方案，并给出
-    snappyHexMesh 加层配置。 全文同时覆盖工程设置与参数选择、诊断与可信度验证，保留关键方程、量化参数、可执行示例、失败模式与参考资料。
+    snappyHexMesh 加层配置。
   keywords:
     - 边界层棱柱网格
     - snappyHexMesh 加层
@@ -40,9 +40,56 @@ seo:
 ---
 # 边界层棱柱网格：工程设置与诊断验证
 
-## 工程设置与参数选择
+棱柱层生成器的参数不是四个独立旋钮：首层厚度由目标 $y^+$ 定死，层数由覆盖率与增长率联合决定，增长率反过来受最小层厚约束。棱柱层最容易出现「看起来有、实际没用」的状态：层数足够、云图漂亮，但首层落在了缓冲层，或者棱柱总厚度没盖住边界层外缘。诊断这三个量——面积加权 y+、缓冲层面积占比、覆盖率——比看层数更能说明问题。
 
-棱柱层生成器的参数不是四个独立旋钮：首层厚度由目标 $y^+$ 定死，层数由覆盖率与增长率联合决定，增长率反过来受最小层厚约束。本文用 1 m 弦长翼型算例把四个量一次算清，并给出 snappyHexMesh 的加层字典写法与判据。
+## 工程设置与实施
+
+### 参数台账
+
+交付需留下：$U$、$c$、$\nu$、$Re_c$、$C_f$ 关联式与取值、$\tau_w$、$u_\tau$、目标 $y^+$、$t_1$、$r$、$n$、$H$ 与 $\delta_{99}$ 及覆盖率、`featureAngle`、`minThickness`，以及计算后按面积统计的 $y^+$ 分布。缺少 $u_\tau$ 来源的记录在换流速或换介质后无法复用。
+
+### snappyHexMesh 加层配置
+
+```text
+addLayersControls
+{
+    relativeSizes       false;
+    layers
+    {
+        "airfoil.*"
+        {
+            nSurfaceLayers  29;
+            firstLayerThickness 7.7e-06;
+            expansionRatio  1.25;
+            minThickness    7.7e-07;   // 0.1 * firstLayerThickness
+        }
+    }
+    featureAngle        60;
+    nSmoothSurfaceNormals 10;
+    nSmoothNormals      3;
+    nRelaxIter          5;
+    nLayerIter          50;
+}
+```
+
+`relativeSizes false` 时必须显式给出 `firstLayerThickness`；若设为 `true`，该字段表示相对于局部表面单元尺寸的比例，换网格尺寸后含义会变，不适合交付。`featureAngle 60` 让尾缘等锐边停止加层，避免层在尖角处塌陷。
+
+### 分区复算脚本
+
+壁面剪切沿弦长变化很大，必须分区统计而不是全场平均：
+
+```python
+import numpy as np
+nu, t1 = 1.5e-5, 7.7e-6          # 运动黏度 [m2/s]，首层目标厚度 [m]
+tau  = np.array([6.70, 4.10, 12.5])   # 分区壁面剪应力 [Pa]
+area = np.array([0.30, 0.55, 0.05])   # 分区壁面面积 [m2]
+u_tau = np.sqrt(tau / 1.225)
+yplus = u_tau * (t1 / 2) / nu
+print("分区 y+:", np.round(yplus, 2))
+print("面积加权 y+:", round(float((yplus * area).sum() / area.sum()), 2))
+print("缓冲层面积占比: {:.1%}".format(
+    float(area[(yplus > 5) & (yplus < 30)].sum() / area.sum())))
+```
 
 ### 加层生成器的四个控制量
 
@@ -92,33 +139,9 @@ $$
 
 取 $n = 29$，实际总厚度 $H = 0.0077 \times (1.25^{29}-1)/0.25 = 0.0077 \times 2578 = 19.9\ \mathrm{mm}$，覆盖率 $19.9/18.4 = 1.08$，达标。若强行把 $r$ 提到 1.4，同样 $n = 29$ 时 $H$ 会涨到 0.0077×(1.4^29−1)/0.4 ≈ 0.0077×1.05×10^4 = 81 mm，远超边界层，纯粹浪费单元。
 
-### snappyHexMesh 加层配置
+## 异常诊断与失效模式
 
-```text
-addLayersControls
-{
-    relativeSizes       false;
-    layers
-    {
-        "airfoil.*"
-        {
-            nSurfaceLayers  29;
-            firstLayerThickness 7.7e-06;
-            expansionRatio  1.25;
-            minThickness    7.7e-07;   // 0.1 * firstLayerThickness
-        }
-    }
-    featureAngle        60;
-    nSmoothSurfaceNormals 10;
-    nSmoothNormals      3;
-    nRelaxIter          5;
-    nLayerIter          50;
-}
-```
-
-`relativeSizes false` 时必须显式给出 `firstLayerThickness`；若设为 `true`，该字段表示相对于局部表面单元尺寸的比例，换网格尺寸后含义会变，不适合交付。`featureAngle 60` 让尾缘等锐边停止加层，避免层在尖角处塌陷。
-
-### 失败模式与判定试验
+### 故障模式与判定试验
 
 | 现象 | 根因 | 判定试验 |
 |---|---|---|
@@ -127,21 +150,17 @@ addLayersControls
 | 覆盖率只有 0.6，外缘梯度断裂 | 层数按 $r = 1.25$ 估算但实际被截断 | 统计实际棱柱总厚度，重新解 $n$ |
 | 首层 y+ 全在 3～8 | 按平板关联式估了 $u_\tau$，未考虑顺压梯度 | 用求解器 `wallShearStress` 分区反算 $u_\tau$ |
 | 加层后核心区四面体质量骤降 | 棱柱外缘与四面体尺寸比过大 | 检查棱柱最外层厚度与相邻四面体尺寸之比，控制在 2 以内 |
+| 首层 y+ 云图整片落在 3～10 | 前缘吸力峰使局部 $u_\tau$ 远高于设计估值 | 分区统计 $\tau_w$，对高剪切区单独减小 $t_1$ |
+| 壁面阻力对核心区加密不敏感 | 覆盖率 $C < 1.0$，梯度断点在棱柱外缘 | 实测 $\delta_{99}$，补层数使 $C$ 回到 1.05 以上 |
+| 后缘层数骤降为 2～3 | 锐边两侧法向冲突 | 降低 `featureAngle` 或对后缘单独禁用加层 |
+| 界面处压力出现锯齿 | 棱柱最外层与四面体尺寸比超过 3 | 统计界面两侧单元尺寸比，加一层过渡 |
+| 分离点明显推迟 | 棱柱长宽比过大，流向数值扩散增强 | 表面间距减半，比较分离点位置变化 |
 
-### 参数台账
+## 验证、验收与复现
 
-交付需留下：$U$、$c$、$\nu$、$Re_c$、$C_f$ 关联式与取值、$\tau_w$、$u_\tau$、目标 $y^+$、$t_1$、$r$、$n$、$H$ 与 $\delta_{99}$ 及覆盖率、`featureAngle`、`minThickness`，以及计算后按面积统计的 $y^+$ 分布。缺少 $u_\tau$ 来源的记录在换流速或换介质后无法复用。
+### 复算与验收
 
-### 参考文献
-
-1. OpenFOAM Foundation, *OpenFOAM User Guide*, snappyHexMesh 章节, 2023.
-2. ANSYS Inc., *ANSYS Fluent User's Guide*, Boundary Layer and Prism Layer Meshing 章节, 2023.
-3. Menter F.R., "Two-Equation Eddy-Viscosity Turbulence Models for Engineering Applications", *AIAA Journal*, 32(8): 1598-1605, 1994.
-4. Pope S.B., *Turbulent Flows*, Cambridge University Press, 2000.
-
-## 诊断与可信度验证
-
-棱柱层最容易出现「看起来有、实际没用」的状态：层数足够、云图漂亮，但首层落在了缓冲层，或者棱柱总厚度没盖住边界层外缘。诊断这三个量——面积加权 y+、缓冲层面积占比、覆盖率——比看层数更能说明问题。
+诊断结论需要同时给出：按面积统计的 $y^+$ 最小值、最大值与分布、$f_{buf}$、实测 $\delta_{99}$ 与覆盖率、界面尺寸比、以及棱柱长宽比。任何一项缺失都会让「棱柱层已达标」的结论无法被复核。特别地，$y^+$ 必须与实测 $\tau_w$ 一起给出，只报 $y^+$ 数值无法判断它是在什么剪切条件下得到的。
 
 ### 面积加权 y+ 与缓冲层面积占比
 
@@ -199,40 +218,13 @@ $$
 
 高长宽比本身不破坏守恒，但会把流向的数值扩散放大到与流向梯度同量级，使分离点被推迟。诊断方法：把表面间距从 2 mm 加密到 1 mm（$AR$ 降到 130），观察分离点位置是否前移。若前移超过 2% 弦长，说明当前网格的分离预测不可信。
 
-### 分区复算脚本
+## 参考资料
 
-壁面剪切沿弦长变化很大，必须分区统计而不是全场平均：
-
-```python
-import numpy as np
-nu, t1 = 1.5e-5, 7.7e-6          # 运动黏度 [m2/s]，首层目标厚度 [m]
-tau  = np.array([6.70, 4.10, 12.5])   # 分区壁面剪应力 [Pa]
-area = np.array([0.30, 0.55, 0.05])   # 分区壁面面积 [m2]
-u_tau = np.sqrt(tau / 1.225)
-yplus = u_tau * (t1 / 2) / nu
-print("分区 y+:", np.round(yplus, 2))
-print("面积加权 y+:", round(float((yplus * area).sum() / area.sum()), 2))
-print("缓冲层面积占比: {:.1%}".format(
-    float(area[(yplus > 5) & (yplus < 30)].sum() / area.sum())))
-```
-
-### 失败模式与判定试验
-
-| 现象 | 根因 | 判定试验 |
-|---|---|---|
-| 首层 y+ 云图整片落在 3～10 | 前缘吸力峰使局部 $u_\tau$ 远高于设计估值 | 分区统计 $\tau_w$，对高剪切区单独减小 $t_1$ |
-| 壁面阻力对核心区加密不敏感 | 覆盖率 $C < 1.0$，梯度断点在棱柱外缘 | 实测 $\delta_{99}$，补层数使 $C$ 回到 1.05 以上 |
-| 后缘层数骤降为 2～3 | 锐边两侧法向冲突 | 降低 `featureAngle` 或对后缘单独禁用加层 |
-| 界面处压力出现锯齿 | 棱柱最外层与四面体尺寸比超过 3 | 统计界面两侧单元尺寸比，加一层过渡 |
-| 分离点明显推迟 | 棱柱长宽比过大，流向数值扩散增强 | 表面间距减半，比较分离点位置变化 |
-
-### 复算与验收
-
-诊断结论需要同时给出：按面积统计的 $y^+$ 最小值、最大值与分布、$f_{buf}$、实测 $\delta_{99}$ 与覆盖率、界面尺寸比、以及棱柱长宽比。任何一项缺失都会让「棱柱层已达标」的结论无法被复核。特别地，$y^+$ 必须与实测 $\tau_w$ 一起给出，只报 $y^+$ 数值无法判断它是在什么剪切条件下得到的。
-
-### 参考文献
-
-1. Spalding D.B., "A Single Formula for the Law of the Wall", *Journal of Applied Mechanics*, 28(3): 455-458, 1961.
-2. Kader B.A., Yaglom A.M., "Heat and Mass Transfer Laws for Fully Turbulent Wall Flows", *International Journal of Heat and Mass Transfer*, 15(12): 2329-2351, 1972.
-3. Wilcox D.C., *Turbulence Modeling for CFD*, 3rd ed., DCW Industries, 2006.
-4. White F.M., *Viscous Fluid Flow*, 3rd ed., McGraw-Hill, 2006.
+1. OpenFOAM Foundation, *OpenFOAM User Guide*, snappyHexMesh 章节, 2023.
+2. ANSYS Inc., *ANSYS Fluent User's Guide*, Boundary Layer and Prism Layer Meshing 章节, 2023.
+3. Menter F.R., "Two-Equation Eddy-Viscosity Turbulence Models for Engineering Applications", *AIAA Journal*, 32(8): 1598-1605, 1994.
+4. Pope S.B., *Turbulent Flows*, Cambridge University Press, 2000.
+5. Spalding D.B., "A Single Formula for the Law of the Wall", *Journal of Applied Mechanics*, 28(3): 455-458, 1961.
+6. Kader B.A., Yaglom A.M., "Heat and Mass Transfer Laws for Fully Turbulent Wall Flows", *International Journal of Heat and Mass Transfer*, 15(12): 2329-2351, 1972.
+7. Wilcox D.C., *Turbulence Modeling for CFD*, 3rd ed., DCW Industries, 2006.
+8. White F.M., *Viscous Fluid Flow*, 3rd ed., McGraw-Hill, 2006.

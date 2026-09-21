@@ -1,5 +1,6 @@
 import { existsSync, readFileSync, readdirSync, statSync, unlinkSync, writeFileSync } from 'node:fs'
 import { basename, extname, relative, resolve, sep } from 'node:path'
+import { spawnSync } from 'node:child_process'
 import matter from 'gray-matter'
 
 const expandedRoot = resolve(process.cwd(), 'templates', 'knowledge', 'expanded')
@@ -135,4 +136,12 @@ const removedCount = report.reduce((sum, item) => sum + item.removed.length, 0)
 console.log(`${apply ? '已合并' : '待合并'} ${report.length} 个同主题组，${articles.length} 篇扩展文章将减少 ${removedCount} 篇，保留 ${articles.length - removedCount} 篇。`)
 for (const item of report) {
   console.log(`- [${item.category}] ${item.topic}：${item.sources.length} 篇 -> ${item.target}`)
+}
+
+if (apply && report.length) {
+  const reorganizer = resolve(process.cwd(), 'scripts', 'reorganize-knowledge-topics.mjs')
+  const result = spawnSync(process.execPath, [reorganizer, '--apply'], { cwd: process.cwd(), encoding: 'utf8' })
+  if (result.stdout) process.stdout.write(result.stdout)
+  if (result.stderr) process.stderr.write(result.stderr)
+  if (result.status !== 0) throw new Error(`主题合并后的内容重排失败，退出码 ${result.status}`)
 }

@@ -6,7 +6,6 @@ summary: >-
   按马赫数与雷诺数把问题分流到
   incompressibleFluid、compressibleFluid、shockFluid、incompressibleVoF 等模块，给出
   foamRun -solver 的调用方式、各模块所需的 constant 字典，以及旧求解器名到新模块的映射表。
-  全文同时覆盖工程设置与参数选择、诊断与可信度验证，保留关键方程、量化参数、可执行示例、失败模式与参考资料。
 category:
   slug: openfoam-getting-started
   name: OpenFOAM 入门与案例组织
@@ -31,7 +30,6 @@ seo:
     按马赫数与雷诺数把问题分流到
     incompressibleFluid、compressibleFluid、shockFluid、incompressibleVoF 等模块，给出
     foamRun -solver 的调用方式、各模块所需的 constant 字典，以及旧求解器名到新模块的映射表。
-    全文同时覆盖工程设置与参数选择、诊断与可信度验证，保留关键方程、量化参数、可执行示例、失败模式与参考资料。
   keywords:
     - 求解器与 foamRun 模块选型
     - 工程设置与参数选择
@@ -45,9 +43,9 @@ seo:
 ---
 # 求解器与 foamRun 模块选型：工程设置与诊断验证
 
-## 工程设置与参数选择
+从 v10 起 OpenFOAM 把求解器拆成"一个可执行文件 `foamRun` + 若干物理模块"，模块名由 `-solver` 指定。选型不再靠背求解器清单，而是回答三个问题：流体是否可压、是否存在相界面或固体区域、时间推进是稳态还是瞬态。模块选错很少以"报错"的形式出现，它更常见的表现是：算得下去，收敛曲线也好看，但结果违反一条本应自动成立的守恒关系。因此选型验证的重点不是检查命令，而是检查三类不依赖模型假设的量——连续性误差、能量不平衡率、以及被求解变量是否越出物理界。
 
-从 v10 起 OpenFOAM 把求解器拆成"一个可执行文件 `foamRun` + 若干物理模块"，模块名由 `-solver` 指定。选型不再靠背求解器清单，而是回答三个问题：流体是否可压、是否存在相界面或固体区域、时间推进是稳态还是瞬态。本文给出这三问的定量判据、模块与字典的对应关系，以及旧求解器名的迁移映射。
+## 基础概念与控制关系
 
 ### 用马赫数决定是否求解能量方程
 
@@ -66,6 +64,22 @@ Re = \frac{\rho U L}{\mu}
 $$
 
 取 $20\ ^\circ\mathrm{C}$ 水 $\rho = 998.2\ \mathrm{kg/m^3}$、$\mu = 1.0022\times 10^{-3}\ \mathrm{Pa\cdot s}$、$U = 1.5\ \mathrm{m/s}$、$L = 0.05\ \mathrm{m}$，得 $Re = 7.47\times 10^{4}$。这个数只用来决定 `momentumTransport` 里选层流还是 RAS 模型，模块仍是 `incompressibleFluid`。
+
+## 工程设置与实施
+
+### 从旧求解器名迁移
+
+多区域算例不再由单一求解器承担，而是用 `foamMultiRun` 驱动多个模块，每个区域有自己的 `system/<region>/` 目录与模块名。迁移时最容易漏掉的是区域目录层级——把所有字典平铺在算例根下会导致区域初始化失败。
+
+| 旧求解器 | v14 模块 | 备注 |
+|---|---|---|
+| simpleFoam, pimpleFoam | incompressibleFluid | 由 ddtSchemes 区分稳态与瞬态 |
+| buoyantSimpleFoam, buoyantPimpleFoam | fluid | 需 buoyancy 模型与 g |
+| rhoPimpleFoam | fluid | 含能量方程 |
+| rhoCentralFoam | shockFluid | 密度基，适合激波 |
+| interFoam | incompressibleVoF | 两相不可压 |
+| reactingFoam | combustion | 需反应机理 |
+| chtMultiRegionFoam | foamMultiRun | 多区域耦合，模块按区域分别指定 |
 
 ### 模块名与调用方式
 
@@ -86,6 +100,8 @@ foamRun -solver incompressibleFluid -help    # 查看该模块的可用选项
 
 ### 模块需要的 constant 字典
 
+不可压用 `physicalProperties`，可压用 `thermophysicalProperties`，这个区别是最常见的启动失败来源。`constant/g` 在所有涉及重力的模块中都要提供，2D 竖直流道写 `(0 -9.81 0)`，若写反方向，浮力项会把流动推向相反侧。
+
 | 模块 | 必需字典 | 关键条目 |
 |---|---|---|
 | incompressibleFluid | physicalProperties, momentumTransport | nu, simulationType |
@@ -95,23 +111,9 @@ foamRun -solver incompressibleFluid -help    # 查看该模块的可用选项
 | incompressibleVoF | physicalProperties, momentumTransport | 两相 nu、rho、sigma |
 | solidDisplacement | physicalProperties | mechanicalProperties |
 
-不可压用 `physicalProperties`，可压用 `thermophysicalProperties`，这个区别是最常见的启动失败来源。`constant/g` 在所有涉及重力的模块中都要提供，2D 竖直流道写 `(0 -9.81 0)`，若写反方向，浮力项会把流动推向相反侧。
+## 异常诊断与失效模式
 
-### 从旧求解器名迁移
-
-| 旧求解器 | v14 模块 | 备注 |
-|---|---|---|
-| simpleFoam, pimpleFoam | incompressibleFluid | 由 ddtSchemes 区分稳态与瞬态 |
-| buoyantSimpleFoam, buoyantPimpleFoam | fluid | 需 buoyancy 模型与 g |
-| rhoPimpleFoam | fluid | 含能量方程 |
-| rhoCentralFoam | shockFluid | 密度基，适合激波 |
-| interFoam | incompressibleVoF | 两相不可压 |
-| reactingFoam | combustion | 需反应机理 |
-| chtMultiRegionFoam | foamMultiRun | 多区域耦合，模块按区域分别指定 |
-
-多区域算例不再由单一求解器承担，而是用 `foamMultiRun` 驱动多个模块，每个区域有自己的 `system/<region>/` 目录与模块名。迁移时最容易漏掉的是区域目录层级——把所有字典平铺在算例根下会导致区域初始化失败。
-
-### 选型决策与常见错误
+### 故障模式与判定试验
 
 ```bash
 # 先确认问题类型
@@ -125,8 +127,6 @@ foamRun -solver incompressibleFluid -dry-run
 
 `-dry-run` 用于在正式计算前确认模块能被正确构建、所有必需字典都能读到，代价远低于跑完整算例。对于长周期瞬态，建议先做一次 0.02 s 的短跑，确认时间步与残差行为正常。
 
-### 症状、根因与判定试验
-
 | 现象 | 根因 | 判定试验 |
 |---|---|---|
 | 启动即报未知求解器 | `-solver` 名称拼写错误 | 用 `foamRun -solver <name> -help` 逐个验证名称 |
@@ -134,19 +134,17 @@ foamRun -solver incompressibleFluid -dry-run
 | 稳态算例残差持续震荡不下降 | 误用瞬态 ddt 方案 | `foamDictionary -entry ddtSchemes/default` 应为 steadyState |
 | 温度场完全不变 | 用了 isothermalFluid 或能量方程被关闭 | 检查 `thermophysicalProperties` 的 energy 条目 |
 | 自由液面消失或两相混成一体 | 用了单相模块跑 VOF 算例 | 确认模块为 incompressibleVoF 且存在 alpha 场 |
+| global 连续性误差长期大于 $10^{-2}$ | 出口边界类型与模块假设冲突 | 检查出口是否为 `inletOutlet` 或 `fixedFluxPressure` |
+| 温度场空间均匀且能量不平衡率超过 30% | 模块不含能量方程 | `foamDictionary -entry thermoType/energy` 确认能量项开启 |
+| 温度最低值比环境低 150 K 左右 | 边界值把摄氏度当开尔文填入 | 边界值加 273.15 重跑，最低温度应回到环境值附近 |
+| 时间步被压到 $10^{-8}\ \mathrm{s}$ 且库朗数仍高 | 可压模块用于近似不可压介质 | 改不可压模块后，同 `maxCo` 下步长应回升数个量级 |
+| 压降比同 $Re$ 基准大一个数量级以上 | 物性单位或模块选择错误 | 用 $\rho U L/\mu$ 重算 $Re$，并与基准算例的无量纲压降对比 |
 
-### 参考文献
+## 验证、验收与复现
 
-1. OpenFOAM Foundation, *OpenFOAM User Guide*, v14, Chapter "Solvers and Modules".
-2. C. J. Greenshields, *Notes on Computational Fluid Dynamics: General Principles*, CFD Direct, 2022.
-3. H. K. Versteeg, W. Malalasekera, *An Introduction to Computational Fluid Dynamics: The Finite Volume Method*, 2nd ed., Pearson, 2007.
-4. J. D. Anderson, *Modern Compressible Flow: With Historical Perspective*, 3rd ed., McGraw-Hill, 2003.
-5. R. I. Issa, "Solution of the implicitly discretised fluid flow equations by operator-splitting", *Journal of Computational Physics*, 62(1):40–65, 1986.
-6. Weller, H. G., Tabor, G., Jasak, H., Fureby, C., "A tensorial approach to computational continuum mechanics using object-oriented techniques", *Computers in Physics*, 12(6):620–631, 1998.
+### 与基准算例的对照
 
-## 诊断与可信度验证
-
-模块选错很少以"报错"的形式出现，它更常见的表现是：算得下去，收敛曲线也好看，但结果违反一条本应自动成立的守恒关系。因此选型验证的重点不是检查命令，而是检查三类不依赖模型假设的量——连续性误差、能量不平衡率、以及被求解变量是否越出物理界。本文给出这三类信号的取数方式、阈值与判定试验。
+OpenFOAM 自带教程是选型的基准来源。做法是复制同物理类型的官方教程，只替换几何与物性，先跑通再改。对照量建议选"与模型无关"的积分量：入口流量、出口压力降、总焓流、以及封闭域内的质量守恒。以 $Re = 7.47\times 10^{4}$ 的管流为例，若在教程算例上得到的压降为 $820\ \mathrm{Pa}$，而自己的几何在相同 $Re$ 与相同无量纲长度下得到 $790\ \mathrm{Pa}$，相对差 $3.7\%$，属于网格与入口发展长度带来的正常差异；若得到 $2.4\times 10^{4}\ \mathrm{Pa}$，差 29 倍，则先怀疑模块选错或物性单位错，而不是网格。
 
 ### 连续性误差是最直接的选型信号
 
@@ -184,25 +182,14 @@ foamDictionary -entry thermoType/energy -value constant/thermophysicalProperties
 
 对空气算例，温度合理下界可取 $200\ \mathrm{K}$。若 `fieldMinMax(T)` 报告最低温度 $T_{\min} = 148.6\ \mathrm{K}$，比环境温度 $300\ \mathrm{K}$ 低 $151\ \mathrm{K}$，且位置固定在某个入口角点，那是边界值单位写错（例如把摄氏度数值直接填进以开尔文为单位的场）而非模块问题。判定试验：把该边界的值加 273.15 后重跑，最低温度应回到 $300\ \mathrm{K}$ 附近。
 
-### 与基准算例的对照
-
-OpenFOAM 自带教程是选型的基准来源。做法是复制同物理类型的官方教程，只替换几何与物性，先跑通再改。对照量建议选"与模型无关"的积分量：入口流量、出口压力降、总焓流、以及封闭域内的质量守恒。以 $Re = 7.47\times 10^{4}$ 的管流为例，若在教程算例上得到的压降为 $820\ \mathrm{Pa}$，而自己的几何在相同 $Re$ 与相同无量纲长度下得到 $790\ \mathrm{Pa}$，相对差 $3.7\%$，属于网格与入口发展长度带来的正常差异；若得到 $2.4\times 10^{4}\ \mathrm{Pa}$，差 29 倍，则先怀疑模块选错或物性单位错，而不是网格。
-
-### 症状、根因与判定试验
-
-| 现象 | 根因 | 判定试验 |
-|---|---|---|
-| global 连续性误差长期大于 $10^{-2}$ | 出口边界类型与模块假设冲突 | 检查出口是否为 `inletOutlet` 或 `fixedFluxPressure` |
-| 温度场空间均匀且能量不平衡率超过 30% | 模块不含能量方程 | `foamDictionary -entry thermoType/energy` 确认能量项开启 |
-| 温度最低值比环境低 150 K 左右 | 边界值把摄氏度当开尔文填入 | 边界值加 273.15 重跑，最低温度应回到环境值附近 |
-| 时间步被压到 $10^{-8}\ \mathrm{s}$ 且库朗数仍高 | 可压模块用于近似不可压介质 | 改不可压模块后，同 `maxCo` 下步长应回升数个量级 |
-| 压降比同 $Re$ 基准大一个数量级以上 | 物性单位或模块选择错误 | 用 $\rho U L/\mu$ 重算 $Re$，并与基准算例的无量纲压降对比 |
-
-### 参考文献
+## 参考资料
 
 1. OpenFOAM Foundation, *OpenFOAM User Guide*, v14, Chapter "Solvers and Modules".
 2. C. J. Greenshields, *Notes on Computational Fluid Dynamics: General Principles*, CFD Direct, 2022.
-3. R. I. Issa, "Solution of the implicitly discretised fluid flow equations by operator-splitting", *Journal of Computational Physics*, 62(1):40–65, 1986.
-4. S. V. Patankar, *Numerical Heat Transfer and Fluid Flow*, Hemisphere Publishing, 1980.
-5. J. H. Ferziger, M. Perić, R. L. Street, *Computational Methods for Fluid Dynamics*, 4th ed., Springer, 2020.
-6. F. P. Incropera, D. P. DeWitt, T. L. Bergman, A. S. Lavine, *Fundamentals of Heat and Mass Transfer*, 6th ed., Wiley, 2007.
+3. H. K. Versteeg, W. Malalasekera, *An Introduction to Computational Fluid Dynamics: The Finite Volume Method*, 2nd ed., Pearson, 2007.
+4. J. D. Anderson, *Modern Compressible Flow: With Historical Perspective*, 3rd ed., McGraw-Hill, 2003.
+5. R. I. Issa, "Solution of the implicitly discretised fluid flow equations by operator-splitting", *Journal of Computational Physics*, 62(1):40–65, 1986.
+6. Weller, H. G., Tabor, G., Jasak, H., Fureby, C., "A tensorial approach to computational continuum mechanics using object-oriented techniques", *Computers in Physics*, 12(6):620–631, 1998.
+7. S. V. Patankar, *Numerical Heat Transfer and Fluid Flow*, Hemisphere Publishing, 1980.
+8. J. H. Ferziger, M. Perić, R. L. Street, *Computational Methods for Fluid Dynamics*, 4th ed., Springer, 2020.
+9. F. P. Incropera, D. P. DeWitt, T. L. Bergman, A. S. Lavine, *Fundamentals of Heat and Mass Transfer*, 6th ed., Wiley, 2007.
