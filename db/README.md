@@ -7,7 +7,7 @@
 - `cfdsolve.sqlite` — 线上知识库数据库的一致性快照（`VACUUM INTO` 生成，已 `VACUUM`）。
 - 知识正文与分类全部保留：
   - `content_items` 500（全部为深度文章，与 `templates/knowledge/**` 的 500 篇源文件一一对应）
-  - `categories` 40、`tags`、`content_tags`、`formulas` 5
+  - `categories` 46、`tags` 1261、`content_tags` 2756、`formulas` 5
   - `schema_migrations`、`system_settings`（站点配置）
 - 为保护隐私，上传前已清空以下**个人 / 审计类**数据（表结构保留）：
   - `audit_logs`、`notifications`、`forum_posts`、`forum_topics`、`forum_sections`、`bookmarks`
