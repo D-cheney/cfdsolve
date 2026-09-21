@@ -41,6 +41,8 @@ const errorMessage = ref('')
 const result = ref<Record<string, any> | null>(null)
 const runDuration = ref(0)
 const resultView = ref<'field' | 'residual'>('field')
+const sketchResetToken = ref(0)
+const sketchStats = ref({ entities: 1, closedProfiles: 1, hasDomain: true })
 let currentWorker: Worker | null = null
 
 const steps: Array<{ key: StepKey; index: string; label: string; note: string; icon: any }> = [
@@ -54,7 +56,14 @@ const steps: Array<{ key: StepKey; index: string; label: string; note: string; i
 const activeIndex = computed(() => steps.findIndex((step) => step.key === activeStep.value))
 const re = computed(() => reynoldsNumber(setup))
 const quality = computed(() => meshMetrics(setup))
-const meshLines = computed(() => Array.from({ length: 13 }, (_, index) => 8 + index * 7))
+const geometryAspect = computed(() => setup.model.width / setup.model.height)
+const meshPreview = computed(() => {
+  const width = geometryAspect.value >= 1 ? 84 : 84 * geometryAspect.value
+  const height = geometryAspect.value >= 1 ? 84 / geometryAspect.value : 84
+  return { x: (100 - width) / 2, y: (100 - height) / 2, width, height }
+})
+const meshXLines = computed(() => Array.from({ length: 13 }, (_, index) => meshPreview.value.x + index * meshPreview.value.width / 12))
+const meshYLines = computed(() => Array.from({ length: 13 }, (_, index) => meshPreview.value.y + index * meshPreview.value.height / 12))
 const solverInput = computed(() => buildCavitySolverInput(setup))
 const assessment = computed(() => result.value
   ? assessSimulationResult('lid-driven-cavity', solverInput.value, result.value, result.value.warnings || [])
@@ -78,6 +87,7 @@ function selectStep(key: StepKey) {
 function nextStep() {
   errorMessage.value = ''
   try {
+    if (activeStep.value === 'model' && !sketchStats.value.hasDomain) throw new SolverInputError('请先绘制一个矩形并设为流体域。')
     validateCfdWorkbench(setup)
     const next = steps[Math.min(activeIndex.value + 1, steps.length - 1)]
     if (next.key !== 'post' || result.value) activeStep.value = next.key
@@ -97,6 +107,12 @@ function resetCase() {
   phase.value = '等待计算'
   errorMessage.value = ''
   activeStep.value = 'model'
+  sketchResetToken.value += 1
+}
+
+function handleGeometryChange(value: { entities: number; closedProfiles: number; hasDomain: boolean }) {
+  sketchStats.value = value
+  result.value = null
 }
 
 function solveInWorker(input: Record<string, string | number>) {
@@ -156,7 +172,7 @@ async function runSimulation() {
     const task = store.addTask({
       tool: 'lid-driven-cavity',
       toolName: setup.model.name,
-      params: { ...input, case_name: setup.model.name, length: setup.model.length, density: setup.model.density, viscosity: setup.model.viscosity },
+      params: { ...input, case_name: setup.model.name, width: setup.model.width, height: setup.model.height, density: setup.model.density, viscosity: setup.model.viscosity },
     })
     store.finishTask(
       task.id,
@@ -324,34 +340,23 @@ function exportResult(kind: 'json' | 'csv') {
 
         <template v-if="activeStep === 'model'">
           <div class="stage-head">
-            <div><span>STEP 01</span><h2>建立物理模型</h2><p>定义计算对象、几何尺度和流体物性。</p></div>
+            <div><span>STEP 01</span><h2>二维几何与物理建模</h2><p>像草图软件一样绘制计算域，再为模型指定物性。</p></div>
             <Box :size="34" />
           </div>
-          <div class="two-column-stage">
-            <div class="form-card">
-              <label class="wide-field"><span>算例名称</span><input v-model="setup.model.name" type="text"></label>
-              <div class="form-grid">
-                <label><span>方腔边长 <em>m</em></span><input v-model.number="setup.model.length" type="number" min="0.001" step="0.01"></label>
-                <label><span>计算维度</span><select disabled><option>二维平面</option></select></label>
-                <label><span>流体密度 <em>kg/m³</em></span><input v-model.number="setup.model.density" type="number" min="0.001" step="1"></label>
-                <label><span>动力黏度 <em>Pa·s</em></span><input v-model.number="setup.model.viscosity" type="number" min="0.0000001" step="0.001"></label>
-              </div>
-            </div>
-            <div class="model-preview">
-              <div class="cavity-sketch">
-                <span class="dimension top">L = {{ setup.model.length }} m</span>
-                <span class="dimension side">L</span>
-                <div class="sketch-vortex">↻</div>
-              </div>
-              <dl class="definition-list">
-                <div><dt>控制方程</dt><dd>连续性方程、二维动量方程</dd></div>
-                <div><dt>流动假设</dt><dd>稳态、不可压、牛顿流体、层流</dd></div>
-                <div><dt>求解形式</dt><dd>涡量—流函数，无压力棋盘格</dd></div>
-              </dl>
-            </div>
+          <div class="model-meta form-card">
+            <label><span>算例名称</span><input v-model="setup.model.name" type="text"></label>
+            <label><span>流体密度 <em>kg/m³</em></span><input v-model.number="setup.model.density" type="number" min="0.001" step="1"></label>
+            <label><span>动力黏度 <em>Pa·s</em></span><input v-model.number="setup.model.viscosity" type="number" min="0.0000001" step="0.001"></label>
+            <div><small>当前计算域</small><strong>{{ (setup.model.width*1000).toFixed(1) }} × {{ (setup.model.height*1000).toFixed(1) }} mm</strong></div>
           </div>
+          <CfdSketcher
+            v-model:width="setup.model.width"
+            v-model:height="setup.model.height"
+            :reset-token="sketchResetToken"
+            @geometry-change="handleGeometryChange"
+          />
           <div class="equation-row">
-            <span>∇ · u = 0</span><span>ρ(u · ∇)u = −∇p + μ∇²u</span><strong>Re = {{ formatNumber(re, 1) }}</strong>
+            <span>{{ sketchStats.entities }} 个草图对象</span><span>{{ sketchStats.closedProfiles }} 个封闭轮廓</span><span>∇ · u = 0</span><strong>Re = {{ formatNumber(re, 1) }}</strong>
           </div>
           <div class="stage-actions"><span></span><button class="primary-button" type="button" @click="nextStep">确认模型并划分网格<ArrowRight :size="16" /></button></div>
         </template>
@@ -380,13 +385,11 @@ function exportResult(kind: 'json' | 'csv') {
             <div class="mesh-preview-card">
               <div class="preview-label"><span>网格预览</span><small>显示抽样网格线</small></div>
               <svg viewBox="0 0 100 100" role="img" aria-label="结构化网格预览">
-                <rect x="8" y="8" width="84" height="84" class="mesh-domain" />
-                <template v-for="line in meshLines" :key="line">
-                  <line :x1="line" y1="8" :x2="line" y2="92" />
-                  <line x1="8" :y1="line" x2="92" :y2="line" />
-                </template>
+                <rect v-bind="meshPreview" class="mesh-domain" />
+                <line v-for="line in meshXLines" :key="`x-${line}`" :x1="line" :y1="meshPreview.y" :x2="line" :y2="meshPreview.y+meshPreview.height" />
+                <line v-for="line in meshYLines" :key="`y-${line}`" :x1="meshPreview.x" :y1="line" :x2="meshPreview.x+meshPreview.width" :y2="line" />
               </svg>
-              <p>{{ setup.mesh.nx }} × {{ setup.mesh.ny }} 节点 · {{ quality.cells.toLocaleString() }} 个有限体积控制体</p>
+              <p>{{ (setup.model.width*1000).toFixed(1) }} × {{ (setup.model.height*1000).toFixed(1) }} mm · {{ setup.mesh.nx }} × {{ setup.mesh.ny }} 节点</p>
             </div>
           </div>
           <div class="stage-actions"><button class="ghost-button" type="button" @click="activeStep='model'">返回建模</button><button class="primary-button" type="button" @click="nextStep">接受网格并设置边界<ArrowRight :size="16" /></button></div>
@@ -399,7 +402,7 @@ function exportResult(kind: 'json' | 'csv') {
           </div>
           <div class="boundary-layout">
             <div class="boundary-diagram">
-              <div class="bc-domain">
+              <div class="bc-domain" :style="{ aspectRatio: `${geometryAspect}` }">
                 <div class="bc-edge bc-top"><span>移动壁面</span><i>→ → →</i></div>
                 <div class="bc-edge bc-left"><span>无滑移</span></div>
                 <div class="bc-edge bc-right"><span>无滑移</span></div>
@@ -515,4 +518,7 @@ function exportResult(kind: 'json' | 'csv') {
 .cfd-workbench{min-height:100vh;padding:32px clamp(18px,4vw,64px) 56px;background:#f4f7f9;color:#142a38}.cfd-workbench,.cfd-workbench *{box-sizing:border-box}.workbench-head{display:flex;align-items:flex-end;justify-content:space-between;gap:24px;max-width:1480px;margin:0 auto 22px}.eyebrow,.stage-head span{color:#167cad;font-size:10px;font-weight:800;letter-spacing:.16em}.workbench-head h1{margin:7px 0 6px;font-size:clamp(28px,4vw,46px);letter-spacing:-.045em}.workbench-head p,.stage-head p{margin:0;color:#647783;font-size:13px}.ghost-button,.primary-button,.run-button{display:inline-flex;align-items:center;justify-content:center;gap:8px;border-radius:7px;font-weight:700;cursor:pointer}.ghost-button{min-height:38px;padding:0 14px;border:1px solid #cbd7de;background:#fff;color:#294654}.primary-button{min-height:40px;padding:0 17px;border:0;background:#167cad;color:#fff}.case-strip{display:grid;grid-template-columns:1.4fr 1fr .7fr .8fr auto;align-items:center;gap:1px;max-width:1480px;margin:0 auto 14px;overflow:hidden;border:1px solid #d7e0e5;border-radius:9px;background:#d7e0e5}.case-strip>div{height:66px;padding:13px 18px;background:#fff}.case-strip small,.definition-list dt,.quality-grid small,.run-summary small,.result-summary-grid small{display:block;margin-bottom:4px;color:#7a8b94;font-size:9px;font-weight:700;letter-spacing:.08em;text-transform:uppercase}.case-strip strong{font-size:12px}.case-status{display:flex;align-items:center;gap:7px;height:66px;padding:0 18px;background:#fff;color:#687a84;font-size:11px;font-weight:700}.case-status i,.phase-line i{width:7px;height:7px;border-radius:50%;background:#9caeb7}.case-status.solved{color:#167349}.case-status.solved i{background:#25a268}.workbench-shell{display:grid;grid-template-columns:230px minmax(0,1fr);max-width:1480px;min-height:680px;margin:auto;border:1px solid #d7e0e5;border-radius:10px;background:#fff;box-shadow:0 18px 45px rgba(29,55,70,.07);overflow:hidden}.workflow-nav{display:flex;flex-direction:column;padding:24px 14px;border-right:1px solid #dfe7eb;background:#f9fbfc}.workflow-title{padding:0 12px 18px}.workflow-title small{display:block;color:#8a9aa3;font-size:9px;letter-spacing:.12em}.workflow-title strong{font-size:14px}.workflow-step{display:grid;grid-template-columns:29px 20px 1fr;align-items:center;gap:8px;width:100%;padding:14px 10px;border:0;border-radius:7px;background:transparent;color:#67808e;text-align:left;cursor:pointer}.workflow-step:hover:not(:disabled){background:#edf4f7}.workflow-step.active{background:#e8f3f8;color:#126c99}.workflow-step.done{color:#2a6d5a}.workflow-step:disabled{cursor:not-allowed;opacity:.45}.step-index{display:grid;place-items:center;width:25px;height:25px;border:1px solid #cad8df;border-radius:50%;font-size:9px;font-weight:800}.workflow-step.active .step-index{border-color:#167cad;background:#167cad;color:#fff}.workflow-step.done .step-index{border-color:#7ab69e;background:#e6f5ee}.workflow-step strong,.workflow-step small{display:block}.workflow-step strong{font-size:12px}.workflow-step small{margin-top:3px;color:#91a0a7;font-size:9px}.workflow-foot{display:flex;align-items:flex-start;gap:9px;margin-top:auto;padding:16px 12px 0;border-top:1px solid #e2e9ed;color:#526d7b;font-size:10px;line-height:1.45}.workflow-foot small{color:#91a0a8}.stage-panel{min-width:0;padding:clamp(22px,3vw,42px)}.stage-alert{display:flex;align-items:flex-start;gap:9px;margin-bottom:18px;padding:12px 14px;border-radius:6px;font-size:11px}.stage-alert.error{background:#fff0ee;color:#a44336}.stage-alert.warning{margin-top:16px;background:#fff7e8;color:#8a6019}.stage-alert span{display:grid;gap:3px}.stage-head{display:flex;align-items:flex-start;justify-content:space-between;gap:20px;margin-bottom:28px}.stage-head h2{margin:5px 0 5px;font-size:clamp(24px,3vw,34px);letter-spacing:-.035em}.stage-head>svg{color:#87adbf}.two-column-stage{display:grid;grid-template-columns:minmax(0,1.05fr) minmax(320px,.95fr);gap:22px}.form-card,.model-preview,.mesh-preview-card,.run-console,.result-visual,.verification-panel{border:1px solid #dce5e9;border-radius:9px;background:#fff}.form-card{padding:22px}.form-grid{display:grid;grid-template-columns:1fr 1fr;gap:15px}.form-card label,.boundary-item label{display:grid;gap:7px;min-width:0}.form-card label span{color:#526975;font-size:10px;font-weight:700}.form-card label em{float:right;color:#91a0a8;font-style:normal;font-weight:500}.form-card input,.form-card select,.boundary-item input{width:100%;min-width:0;height:42px;padding:0 11px;border:1px solid #cdd9df;border-radius:5px;background:#fbfcfd;color:#193442;font:inherit;font-size:12px;outline:none}.form-card input:focus,.boundary-item input:focus{border-color:#45a0ca;box-shadow:0 0 0 3px rgba(69,160,202,.12)}.form-card select:disabled{color:#576e79;opacity:1}.wide-field{margin-bottom:16px}.model-preview{display:grid;grid-template-columns:minmax(190px,.8fr) 1.2fr;align-items:center;gap:24px;padding:24px;background:#f8fafb}.cavity-sketch{position:relative;aspect-ratio:1;border:3px solid #678b9d;border-top-color:#1685b8;background:linear-gradient(135deg,#eef5f7,#fff)}.cavity-sketch:before{position:absolute;top:-10px;left:8%;width:84%;border-top:2px solid #1685b8;content:""}.cavity-sketch:after{position:absolute;top:-14px;right:3%;width:0;height:0;border-top:5px solid transparent;border-bottom:5px solid transparent;border-left:8px solid #1685b8;content:""}.dimension{position:absolute;color:#68808d;font-size:9px}.dimension.top{top:-30px;left:35%}.dimension.side{top:47%;left:-20px}.sketch-vortex{display:grid;place-items:center;height:100%;color:#78a8bf;font-size:50px}.definition-list{display:grid;gap:13px;margin:0}.definition-list div{padding-bottom:11px;border-bottom:1px solid #e1e8eb}.definition-list div:last-child{border:0}.definition-list dd{margin:0;color:#284653;font-size:11px;line-height:1.5}.equation-row{display:flex;align-items:center;gap:16px;margin-top:18px;padding:14px 18px;border-left:3px solid #1685b8;background:#f1f7fa;color:#45616e;font-family:Cambria,serif;font-size:14px}.equation-row strong{margin-left:auto;color:#126d99}.stage-actions{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-top:28px;padding-top:20px;border-top:1px solid #e1e8eb}.mesh-stage{grid-template-columns:minmax(330px,.8fr) minmax(320px,1.2fr)}.quality-grid{display:grid;grid-template-columns:1fr 1fr;gap:1px;margin-top:20px;background:#dce6eb}.quality-grid div{padding:12px;background:#f7fafb}.quality-grid strong{font-size:12px}.quality-pass{display:flex;align-items:center;gap:9px;margin-top:16px;padding:12px;border-radius:5px;background:#eaf6f0;color:#267157}.quality-pass span,.quality-pass strong,.quality-pass small{display:block}.quality-pass small{margin-top:3px;font-size:9px}.mesh-preview-card{padding:18px;background:#f8fafb}.preview-label{display:flex;justify-content:space-between;color:#4a6471;font-size:11px;font-weight:700}.preview-label small{color:#8b9ba3;font-weight:500}.mesh-preview-card svg{display:block;width:min(100%,390px);margin:10px auto}.mesh-preview-card line{stroke:#a9c1cc;stroke-width:.35}.mesh-domain{fill:#fdfefe;stroke:#416b7f;stroke-width:1}.mesh-preview-card p{text-align:center;color:#758993;font-size:10px}.boundary-layout{display:grid;grid-template-columns:minmax(300px,.8fr) minmax(400px,1.2fr);gap:28px}.boundary-diagram{display:grid;place-items:center;padding:28px;border-radius:9px;background:#f5f8fa}.bc-domain{position:relative;width:min(82%,320px);aspect-ratio:1;border:4px solid #6e8793;background:linear-gradient(135deg,#fff,#edf5f8)}.bc-edge{position:absolute;color:#617681;font-size:9px;font-weight:700}.bc-top{top:-25px;left:25%;color:#167cad}.bc-top i{display:block;margin-top:3px;color:#1685b8;font-style:normal;letter-spacing:8px}.bc-left{top:46%;left:-42px;transform:rotate(-90deg)}.bc-right{top:46%;right:-42px;transform:rotate(90deg)}.bc-bottom{bottom:-22px;left:34%}.bc-vortex{display:grid;place-items:center;height:100%;color:#7aabc2;font-size:58px}.boundary-list{display:grid;gap:9px}.boundary-item{display:grid;grid-template-columns:8px 1fr minmax(120px,.45fr);align-items:center;gap:14px;padding:14px;border:1px solid #dce5e9;border-radius:7px}.boundary-item.accent{border-color:#93c5dd;background:#f5fbfe}.boundary-item strong,.boundary-item small{display:block}.boundary-item strong{font-size:11px}.boundary-item small{margin-top:4px;color:#80919a;font-size:9px}.bc-swatch{width:4px;height:30px;border-radius:4px;background:#6f8793}.bc-swatch.top{background:#1685b8}.bc-swatch.pressure{background:#d8a843}.bc-swatch.initial{background:#7fae99}.boundary-item label{position:relative}.boundary-item label input{height:36px;padding-right:43px}.boundary-item label em{position:absolute;right:9px;bottom:10px;color:#8b9aa2;font-size:9px;font-style:normal}.locked-value{justify-self:end;padding:5px 8px;border-radius:4px;background:#eef3f5;color:#70838d;font-size:9px}.boundary-check{display:flex;align-items:center;gap:8px;margin-top:16px;padding:12px 14px;border-left:3px solid #4f9f7a;background:#f0f8f4;color:#3f6855;font-size:10px}.solver-layout{display:grid;grid-template-columns:minmax(420px,1.15fr) minmax(300px,.85fr);gap:22px}.solver-settings{display:grid;gap:20px}.numerics-table{display:grid;border-top:1px solid #dce5e9}.numerics-table div{display:flex;justify-content:space-between;gap:12px;padding:10px 2px;border-bottom:1px solid #e6ecef;color:#71838d;font-size:10px}.numerics-table strong{color:#284754}.run-console{padding:24px;background:#163544;color:#e9f5fa}.run-summary{display:grid;grid-template-columns:repeat(3,1fr);gap:1px;background:#3d5662}.run-summary span{padding:11px;background:#163544}.run-summary small{color:#8fb1c0}.run-summary strong{font-size:13px}.progress-track{height:5px;margin:28px 0 10px;border-radius:4px;background:#405d6a;overflow:hidden}.progress-track i{display:block;height:100%;background:#66b8dc;transition:width .15s linear}.phase-line{display:flex;justify-content:space-between;color:#abc0c9;font-size:10px}.phase-line span{display:flex;align-items:center;gap:7px}.phase-line i{background:#6b8793}.phase-line i.pulse{background:#62c596;box-shadow:0 0 0 4px rgba(98,197,150,.13)}.run-button{width:100%;height:48px;margin-top:25px;border:0;background:#eef8fc;color:#126c99;font-size:12px}.run-button:disabled{cursor:wait;opacity:.75}.run-console p{margin:11px 0 0;color:#8ca8b4;font-size:9px;text-align:center}.solve-hint{color:#81929b;font-size:10px}.post-head{align-items:center}.result-status{display:flex;align-items:center;gap:8px;padding:9px 12px;border-radius:5px;background:#e8f6ef;color:#247151;font-size:10px;font-weight:700}.result-status.warning{background:#fff4df;color:#94641d}.result-summary-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:1px;margin-bottom:18px;border:1px solid #d8e2e7;border-radius:7px;background:#d8e2e7;overflow:hidden}.result-summary-grid>div{display:flex;align-items:center;gap:11px;padding:15px;background:#fff}.result-summary-grid svg{color:#4386a5}.result-summary-grid span,.result-summary-grid strong{display:block}.result-summary-grid strong{font-size:12px}.post-layout{display:grid;grid-template-columns:minmax(0,1.35fr) minmax(310px,.65fr);gap:18px}.result-visual{min-width:0;overflow:hidden;background:#f7fafb}.result-toolbar{display:flex;align-items:center;justify-content:space-between;padding:10px 14px;border-bottom:1px solid #dce5e9}.result-toolbar button{padding:7px 10px;border:0;border-radius:4px;background:transparent;color:#748791;font-size:10px;font-weight:700;cursor:pointer}.result-toolbar button.active{background:#e4f1f7;color:#126e9b}.result-toolbar span{font-size:9px;color:#7d9099}.field-view,.residual-view{padding:18px}.field-view svg{display:block;width:min(100%,460px);max-height:440px;margin:auto}.legend{display:flex;align-items:center;justify-content:center;gap:8px;margin-top:10px;color:#78909b;font-size:9px}.legend i{width:150px;height:7px;border-radius:5px;background:linear-gradient(90deg,#f2f6f8,#85beda,#106898)}.residual-view svg{display:block;width:100%;min-height:300px}.residual-view line{stroke:#718892;stroke-width:1}.residual-view .chart-grid{stroke:#dce6ea;stroke-width:1}.chart-labels{display:flex;justify-content:space-between;color:#758a94;font-size:9px}.verification-panel{padding:20px}.score-head{display:flex;align-items:center;gap:12px;padding-bottom:16px;border-bottom:1px solid #e0e7ea}.grade{display:grid;place-items:center;width:42px;height:42px;border-radius:50%;background:#e6f4ed;color:#257052;font-size:18px;font-weight:800}.grade-C,.grade-D{background:#fff0df;color:#97621d}.score-head strong,.score-head small{display:block}.score-head strong{font-size:13px}.score-head small{margin-top:3px;color:#84959d;font-size:9px}.check-list{display:grid;gap:13px;margin-top:17px}.check-list>div{display:grid;grid-template-columns:22px 1fr;gap:8px}.check-list>div.pass>span{color:#2f8a65}.check-list>div.warning>span,.check-list>div.fail>span{color:#c18226}.check-list strong,.check-list small{display:block}.check-list strong{font-size:10px}.check-list small{margin-top:3px;color:#7b8d96;font-size:9px;line-height:1.45}.post-actions{display:flex;align-items:center;justify-content:space-between;gap:14px;margin-top:22px;padding-top:18px;border-top:1px solid #e0e7ea;color:#7d8f98;font-size:9px}.post-actions>div{display:flex;gap:8px}
 @media(max-width:1050px){.case-strip{grid-template-columns:repeat(2,1fr)}.case-status{grid-column:span 2}.workbench-shell{grid-template-columns:190px minmax(0,1fr)}.two-column-stage,.mesh-stage,.boundary-layout,.solver-layout,.post-layout{grid-template-columns:1fr}.model-preview{grid-template-columns:220px 1fr}.result-summary-grid{grid-template-columns:1fr 1fr}}
 @media(max-width:720px){.cfd-workbench{padding:20px 12px 36px}.workbench-head{align-items:flex-start;flex-direction:column}.case-strip{grid-template-columns:1fr 1fr}.case-strip>div{padding:12px}.workbench-shell{display:block}.workflow-nav{position:sticky;top:0;z-index:4;display:flex;flex-direction:row;overflow-x:auto;padding:8px;border-right:0;border-bottom:1px solid #dfe7eb}.workflow-title,.workflow-foot{display:none}.workflow-step{display:flex;flex:0 0 auto;width:auto;padding:9px}.workflow-step>svg,.workflow-step small{display:none}.stage-panel{padding:22px 15px}.form-grid{grid-template-columns:1fr}.model-preview{grid-template-columns:1fr}.cavity-sketch{width:70%;margin:25px auto 5px}.equation-row{align-items:flex-start;flex-direction:column}.equation-row strong{margin-left:0}.boundary-item{grid-template-columns:7px 1fr}.boundary-item label,.locked-value{grid-column:2}.result-summary-grid{grid-template-columns:1fr 1fr}.post-actions{align-items:stretch;flex-direction:column}.post-actions>div{display:grid}.stage-actions{align-items:stretch;flex-direction:column-reverse}.stage-actions>*{width:100%}.stage-actions>span:empty{display:none}}
+.model-meta{display:grid;grid-template-columns:minmax(240px,1.4fr) repeat(2,minmax(150px,.8fr)) minmax(180px,.8fr);align-items:end;gap:12px;margin-bottom:14px;padding:14px 16px}.model-meta>div{align-self:stretch;display:flex;flex-direction:column;justify-content:center;padding:0 12px;border-left:1px solid #dce5e9}.model-meta>div small,.model-meta>div strong{display:block}.model-meta>div small{color:#7a8d96;font-size:8px;text-transform:uppercase;letter-spacing:.08em}.model-meta>div strong{margin-top:5px;font-size:11px}
+@media(max-width:1050px){.model-meta{grid-template-columns:1fr 1fr}}
+@media(max-width:720px){.model-meta{grid-template-columns:1fr}.model-meta>div{padding:8px 0;border-top:1px solid #dce5e9;border-left:0}}
 </style>

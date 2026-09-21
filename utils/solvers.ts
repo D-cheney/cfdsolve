@@ -110,8 +110,9 @@ function solveCavity(p: NumParams) {
   const re = finite(p, 'reynolds', 'Reynolds 数', 10, 1000), nx = integer(p, 'nx', 'x 网格数', 33, 129), ny = integer(p, 'ny', 'y 网格数', 33, 129)
   const lid = finite(p, 'lid_velocity', '顶盖速度', .01, 100), maxIterations = integer(p, 'max_iterations', '最大迭代数', 100, 20000), tolerance = finite(p, 'tolerance', '收敛容差', 1e-8, 1e-4)
   const pressureRelax = finite(p, 'pressure_relaxation', '压力松弛因子', .1, .8), velocityRelax = finite(p, 'velocity_relaxation', '速度松弛因子', .1, 1)
+  const aspectRatio = p.aspect_ratio === undefined ? 1 : finite(p, 'aspect_ratio', '计算域宽高比', .2, 5)
   const actualNx = Math.min(65, nx), actualNy = Math.min(65, ny)
-  const hx = 1 / (actualNx - 1), hy = 1 / (actualNy - 1), minSpacing = Math.min(hx, hy), size = actualNx * actualNy
+  const hx = aspectRatio / (actualNx - 1), hy = 1 / (actualNy - 1), minSpacing = Math.min(hx, hy), size = actualNx * actualNy
   let psi = new Float64Array(size), omega = new Float64Array(size), nextOmega = new Float64Array(size)
   const viscosity = lid / re
   const diffusionStep = .1 / (viscosity * (1 / (hx * hx) + 1 / (hy * hy)))
@@ -157,5 +158,6 @@ function solveCavity(p: NumParams) {
   if (actualNx !== nx || actualNy !== ny) warnings.push(`浏览器求解器将 ${nx}×${ny} 网格降采样为 ${actualNx}×${actualNy}；高分辨率计算应使用后端求解器。`)
   if (maxIterations > 5000) warnings.push('浏览器计算最多执行 5000 次迭代，以避免页面长时间无响应。')
   if (!converged) warnings.push('迭代未达到目标容差；请降低 Reynolds 数、调整松弛因子或增加后端计算能力。')
-  return { x: iterationsAxis, series: residuals, exact: [], reynolds: re, iterations, converged, finalResidual: residuals.at(-1)!, vortexX: vortexI * hx, vortexY: vortexJ * hy, actualNx, actualNy, field: { nx: fieldNx, ny: fieldNy, u: fieldU, v: fieldV, speed: fieldSpeed }, summary: [{ label: '收敛状态', value: converged ? '已收敛' : '未收敛' }, { label: '实际网格', value: `${actualNx} × ${actualNy}` }, { label: '迭代次数', value: String(iterations) }, { label: '最终残差', value: residuals.at(-1)!.toExponential(2) }, { label: '主涡中心', value: `(${(vortexI * hx).toFixed(3)}, ${(vortexJ * hy).toFixed(3)})` }], warnings }
+  const vortexX = vortexI * hx / aspectRatio, vortexY = vortexJ * hy
+  return { x: iterationsAxis, series: residuals, exact: [], reynolds: re, aspectRatio, iterations, converged, finalResidual: residuals.at(-1)!, vortexX, vortexY, actualNx, actualNy, field: { nx: fieldNx, ny: fieldNy, u: fieldU, v: fieldV, speed: fieldSpeed }, summary: [{ label: '收敛状态', value: converged ? '已收敛' : '未收敛' }, { label: '实际网格', value: `${actualNx} × ${actualNy}` }, { label: '迭代次数', value: String(iterations) }, { label: '最终残差', value: residuals.at(-1)!.toExponential(2) }, { label: '主涡中心', value: `(${vortexX.toFixed(3)}, ${vortexY.toFixed(3)})` }], warnings }
 }

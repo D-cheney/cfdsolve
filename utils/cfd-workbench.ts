@@ -2,7 +2,8 @@ import { SolverInputError } from './solvers'
 
 export interface CfdModelSetup {
   name: string
-  length: number
+  width: number
+  height: number
   density: number
   viscosity: number
 }
@@ -34,7 +35,8 @@ export interface CfdWorkbenchSetup {
 export const defaultCfdWorkbenchSetup = (): CfdWorkbenchSetup => ({
   model: {
     name: '二维方腔顶盖驱动流',
-    length: 0.1,
+    width: 0.1,
+    height: 0.1,
     density: 1000,
     viscosity: 0.01,
   },
@@ -68,12 +70,12 @@ function integer(value: unknown, label: string, min: number, max: number) {
 }
 
 export function reynoldsNumber(setup: Pick<CfdWorkbenchSetup, 'model' | 'boundary'>) {
-  return setup.model.density * setup.boundary.lidVelocity * setup.model.length / setup.model.viscosity
+  return setup.model.density * setup.boundary.lidVelocity * setup.model.height / setup.model.viscosity
 }
 
 export function meshMetrics(setup: Pick<CfdWorkbenchSetup, 'model' | 'mesh'>) {
-  const dx = setup.model.length / (setup.mesh.nx - 1)
-  const dy = setup.model.length / (setup.mesh.ny - 1)
+  const dx = setup.model.width / (setup.mesh.nx - 1)
+  const dy = setup.model.height / (setup.mesh.ny - 1)
   return {
     cells: (setup.mesh.nx - 1) * (setup.mesh.ny - 1),
     nodes: setup.mesh.nx * setup.mesh.ny,
@@ -85,7 +87,8 @@ export function meshMetrics(setup: Pick<CfdWorkbenchSetup, 'model' | 'mesh'>) {
 
 export function validateCfdWorkbench(setup: CfdWorkbenchSetup) {
   if (!setup.model.name.trim()) throw new SolverInputError('算例名称不能为空。')
-  finite(setup.model.length, '方腔边长', 0.001, 100)
+  finite(setup.model.width, '计算域宽度', 0.005, 0.2)
+  finite(setup.model.height, '计算域高度', 0.005, 0.15)
   finite(setup.model.density, '流体密度', 0.001, 20000)
   finite(setup.model.viscosity, '动力黏度', 1e-7, 1000)
   integer(setup.mesh.nx, 'x 方向节点数', 33, 129)
@@ -114,6 +117,7 @@ export function buildCavitySolverInput(setup: CfdWorkbenchSetup) {
     tolerance: setup.solver.tolerance,
     pressure_relaxation: setup.solver.pressureRelaxation,
     velocity_relaxation: setup.solver.velocityRelaxation,
+    aspect_ratio: setup.model.width / setup.model.height,
   }
 }
 
