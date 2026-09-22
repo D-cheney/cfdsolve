@@ -28,10 +28,14 @@ import {
   reynoldsNumber,
   validateCfdWorkbench,
 } from '~/utils/cfd-workbench'
+import type { ModelingSummary } from '~/types/modeling'
+import { useMeshingStore } from '~/stores/meshing'
+import { checkLegacyCavityCompatibility } from '~/utils/meshing/legacy-cavity'
 
 type StepKey = 'model' | 'mesh' | 'boundary' | 'solve' | 'post'
 
 const store = usePlatformStore()
+const meshingStore = useMeshingStore()
 const setup = reactive(defaultCfdWorkbenchSetup())
 const activeStep = ref<StepKey>('model')
 const running = ref(false)
@@ -42,11 +46,11 @@ const result = ref<Record<string, any> | null>(null)
 const runDuration = ref(0)
 const resultView = ref<'field' | 'residual'>('field')
 const sketchResetToken = ref(0)
-const sketchStats = ref({ entities: 1, closedProfiles: 1, hasDomain: true })
+const sketchStats = ref<Pick<ModelingSummary, 'entities' | 'closedProfiles' | 'hasDomain'> & Partial<ModelingSummary>>({ entities: 0, closedProfiles: 0, hasDomain: false })
 let currentWorker: Worker | null = null
 
 const steps: Array<{ key: StepKey; index: string; label: string; note: string; icon: any }> = [
-  { key: 'model', index: '01', label: '建模', note: '几何与物性', icon: Box },
+  { key: 'model', index: '01', label: '建模', note: '精确二维几何', icon: Box },
   { key: 'mesh', index: '02', label: '网格划分', note: '离散与质量', icon: Grid3X3 },
   { key: 'boundary', index: '03', label: '边界设置', note: '壁面与参考量', icon: SquareDashed },
   { key: 'solve', index: '04', label: '计算求解', note: '算法与收敛', icon: Settings2 },
@@ -68,6 +72,10 @@ const solverInput = computed(() => buildCavitySolverInput(setup))
 const assessment = computed(() => result.value
   ? assessSimulationResult('lid-driven-cavity', solverInput.value, result.value, result.value.warnings || [])
   : null)
+const namedBoundaries = computed(() => meshingStore.project?.boundarySets ?? [])
+const namedZones = computed(() => meshingStore.project?.cellZones ?? [])
+const boundarySemanticLabel = (value: string) => ({ inlet: '入口', outlet: '出口', wall: '壁面', symmetry: '对称', farfield: '远场', interface: '接口', periodic: '周期', custom: '自定义' }[value] ?? value)
+const legacyCavityCompatibility = computed(() => checkLegacyCavityCompatibility(meshingStore.project))
 
 function stepState(key: StepKey) {
   const index = steps.findIndex((step) => step.key === key)
@@ -80,6 +88,7 @@ function stepState(key: StepKey) {
 
 function selectStep(key: StepKey) {
   if (key === 'post' && !result.value) return
+  if (key === 'solve' && !legacyCavityCompatibility.value.ok) { errorMessage.value = legacyCavityCompatibility.value.reason; return }
   errorMessage.value = ''
   activeStep.value = key
 }
@@ -87,13 +96,26 @@ function selectStep(key: StepKey) {
 function nextStep() {
   errorMessage.value = ''
   try {
-    if (activeStep.value === 'model' && !sketchStats.value.hasDomain) throw new SolverInputError('请先绘制一个矩形并设为流体域。')
+    if (activeStep.value === 'model' && !sketchStats.value.hasDomain) throw new SolverInputError('请先建立至少一个有效封闭轮廓。')
+    if (activeStep.value === 'boundary' && !legacyCavityCompatibility.value.ok) throw new SolverInputError(legacyCavityCompatibility.value.reason)
     validateCfdWorkbench(setup)
     const next = steps[Math.min(activeIndex.value + 1, steps.length - 1)]
     if (next.key !== 'post' || result.value) activeStep.value = next.key
   } catch (error) {
     errorMessage.value = error instanceof Error ? error.message : '当前设置不完整。'
   }
+}
+
+function acceptMesh() {
+  errorMessage.value = ''
+  const compatibility = legacyCavityCompatibility.value
+  if (compatibility.ok) {
+    setup.model.width = compatibility.widthMm! / 1000
+    setup.model.height = compatibility.heightMm! / 1000
+    setup.mesh.nx = compatibility.nx!
+    setup.mesh.ny = compatibility.ny!
+  }
+  activeStep.value = 'boundary'
 }
 
 function resetCase() {
@@ -110,7 +132,7 @@ function resetCase() {
   sketchResetToken.value += 1
 }
 
-function handleGeometryChange(value: { entities: number; closedProfiles: number; hasDomain: boolean }) {
+function handleGeometryChange(value: ModelingSummary) {
   sketchStats.value = value
   result.value = null
 }
@@ -292,15 +314,15 @@ function exportResult(kind: 'json' | 'csv') {
     <header class="workbench-head">
       <div>
         <span class="eyebrow">CFD WORKBENCH</span>
-        <h1>二维流场仿真工作台</h1>
-        <p>从物理模型到速度场结果，按工程步骤完成一次可复现计算。</p>
+        <h1>{{ activeStep === 'model' ? '二维建模工作区' : activeStep === 'mesh' ? '二维网格划分工作区' : '二维流场仿真工作台' }}</h1>
+        <p>{{ activeStep === 'model' ? '绘制、约束、检查并组织可计算的二维封闭区域。' : activeStep === 'mesh' ? '划分真实计算网格，同时完成边界与面域命名。' : '从物理模型到速度场结果，按工程步骤完成一次可复现计算。' }}</p>
       </div>
       <button class="ghost-button" type="button" @click="resetCase">
-        <RotateCcw :size="15" />重置算例
+        <RotateCcw :size="15" />{{ activeStep === 'model' ? '重置模型' : '重置算例' }}
       </button>
     </header>
 
-    <section class="case-strip" aria-label="当前算例摘要">
+    <section v-if="activeStep !== 'model' && activeStep !== 'mesh'" class="case-strip" aria-label="当前算例摘要">
       <div><small>算例</small><strong>{{ setup.model.name }}</strong></div>
       <div><small>物理模型</small><strong>二维 · 稳态 · 层流</strong></div>
       <div><small>Reynolds 数</small><strong>{{ formatNumber(re, 1) }}</strong></div>
@@ -308,8 +330,8 @@ function exportResult(kind: 'json' | 'csv') {
       <span class="case-status" :class="{ solved: result }"><i></i>{{ result ? '已有计算结果' : '设置中' }}</span>
     </section>
 
-    <div class="workbench-shell">
-      <aside class="workflow-nav">
+    <div class="workbench-shell" :class="{ 'model-shell': activeStep === 'model', 'mesh-shell': activeStep === 'mesh' }">
+      <aside v-if="activeStep !== 'model' && activeStep !== 'mesh'" class="workflow-nav">
         <div class="workflow-title">
           <small>工作流程</small>
           <strong>完成五个步骤</strong>
@@ -333,72 +355,31 @@ function exportResult(kind: 'json' | 'csv') {
         </div>
       </aside>
 
-      <section class="stage-panel">
+      <section class="stage-panel" :class="{ 'model-stage-panel': activeStep === 'model', 'mesh-stage-panel': activeStep === 'mesh' }">
         <div v-if="errorMessage" class="stage-alert error" role="alert">
           <AlertTriangle :size="17" />{{ errorMessage }}
         </div>
 
         <template v-if="activeStep === 'model'">
-          <div class="stage-head">
-            <div><span>STEP 01</span><h2>二维几何与物理建模</h2><p>像草图软件一样绘制计算域，再为模型指定物性。</p></div>
-            <Box :size="34" />
-          </div>
-          <div class="model-meta form-card">
-            <label><span>算例名称</span><input v-model="setup.model.name" type="text"></label>
-            <label><span>流体密度 <em>kg/m³</em></span><input v-model.number="setup.model.density" type="number" min="0.001" step="1"></label>
-            <label><span>动力黏度 <em>Pa·s</em></span><input v-model.number="setup.model.viscosity" type="number" min="0.0000001" step="0.001"></label>
-            <div><small>当前计算域</small><strong>{{ (setup.model.width*1000).toFixed(1) }} × {{ (setup.model.height*1000).toFixed(1) }} mm</strong></div>
-          </div>
           <CfdSketcher
-            v-model:width="setup.model.width"
-            v-model:height="setup.model.height"
             :reset-token="sketchResetToken"
             @geometry-change="handleGeometryChange"
+            @go-mesh="activeStep='mesh'"
           />
-          <div class="equation-row">
-            <span>{{ sketchStats.entities }} 个草图对象</span><span>{{ sketchStats.closedProfiles }} 个封闭轮廓</span><span>∇ · u = 0</span><strong>Re = {{ formatNumber(re, 1) }}</strong>
-          </div>
-          <div class="stage-actions"><span></span><button class="primary-button" type="button" @click="nextStep">确认模型并划分网格<ArrowRight :size="16" /></button></div>
         </template>
 
         <template v-else-if="activeStep === 'mesh'">
-          <div class="stage-head">
-            <div><span>STEP 02</span><h2>划分计算网格</h2><p>生成结构化正交网格，并在求解前检查离散质量。</p></div>
-            <Grid3X3 :size="34" />
-          </div>
-          <div class="two-column-stage mesh-stage">
-            <div class="form-card">
-              <div class="form-grid">
-                <label><span>x 方向节点数</span><input v-model.number="setup.mesh.nx" type="number" min="33" max="129" step="2"></label>
-                <label><span>y 方向节点数</span><input v-model.number="setup.mesh.ny" type="number" min="33" max="129" step="2"></label>
-                <label><span>网格拓扑</span><select disabled><option>结构化正交</option></select></label>
-                <label><span>节点分布</span><select disabled><option>均匀分布</option></select></label>
-              </div>
-              <div class="quality-grid">
-                <div><small>控制体</small><strong>{{ quality.cells.toLocaleString() }}</strong></div>
-                <div><small>节点数</small><strong>{{ quality.nodes.toLocaleString() }}</strong></div>
-                <div><small>Δx</small><strong>{{ formatNumber(quality.dx) }} m</strong></div>
-                <div><small>纵横比</small><strong>{{ formatNumber(quality.aspectRatio, 2) }}</strong></div>
-              </div>
-              <div class="quality-pass"><CheckCircle2 :size="17" /><span><strong>网格质量可用</strong><small>正交度 1.00，纵横比小于 5</small></span></div>
-            </div>
-            <div class="mesh-preview-card">
-              <div class="preview-label"><span>网格预览</span><small>显示抽样网格线</small></div>
-              <svg viewBox="0 0 100 100" role="img" aria-label="结构化网格预览">
-                <rect v-bind="meshPreview" class="mesh-domain" />
-                <line v-for="line in meshXLines" :key="`x-${line}`" :x1="line" :y1="meshPreview.y" :x2="line" :y2="meshPreview.y+meshPreview.height" />
-                <line v-for="line in meshYLines" :key="`y-${line}`" :x1="meshPreview.x" :y1="line" :x2="meshPreview.x+meshPreview.width" :y2="line" />
-              </svg>
-              <p>{{ (setup.model.width*1000).toFixed(1) }} × {{ (setup.model.height*1000).toFixed(1) }} mm · {{ setup.mesh.nx }} × {{ setup.mesh.ny }} 节点</p>
-            </div>
-          </div>
-          <div class="stage-actions"><button class="ghost-button" type="button" @click="activeStep='model'">返回建模</button><button class="primary-button" type="button" @click="nextStep">接受网格并设置边界<ArrowRight :size="16" /></button></div>
+          <MeshingWorkspace @back="activeStep='model'" @accepted="acceptMesh" />
         </template>
 
         <template v-else-if="activeStep === 'boundary'">
           <div class="stage-head">
             <div><span>STEP 03</span><h2>设置边界条件</h2><p>为每一条边界指定物理类型和数值约束。</p></div>
             <SquareDashed :size="34" />
+          </div>
+          <div class="mesh-name-summary">
+            <div><small>网格面域</small><strong v-for="zone in namedZones" :key="zone.id">{{ zone.name }} <em>{{ zone.exportName }} · {{ zone.role }}</em></strong></div>
+            <div><small>已命名边界</small><strong v-for="item in namedBoundaries" :key="item.id"><i :style="{ background: item.color }"></i>{{ item.name }} <em>{{ item.exportName }} · {{ boundarySemanticLabel(item.semantic) }}</em></strong></div>
           </div>
           <div class="boundary-layout">
             <div class="boundary-diagram">
@@ -417,8 +398,9 @@ function exportResult(kind: 'json' | 'csv') {
               <div class="boundary-item"><span class="bc-swatch initial"></span><div><strong>初始场</strong><small>全域静止，u₀ = v₀ = 0</small></div><span class="locked-value">自动</span></div>
             </div>
           </div>
-          <div class="boundary-check"><Check :size="16" />四条几何边界均已闭合，没有未定义面；当前 Reynolds 数为 {{ formatNumber(re, 1) }}。</div>
-          <div class="stage-actions"><button class="ghost-button" type="button" @click="activeStep='mesh'">返回网格</button><button class="primary-button" type="button" @click="nextStep">确认边界并配置求解器<ArrowRight :size="16" /></button></div>
+          <div class="boundary-check"><Check :size="16" />{{ namedBoundaries.length }} 个网格边界、{{ namedZones.length }} 个面域已由网格工程传入；当前 Reynolds 数为 {{ formatNumber(re, 1) }}。</div>
+          <div v-if="!legacyCavityCompatibility.ok" class="stage-alert warning"><AlertTriangle :size="17"/><span><strong>当前网格不会传给旧方腔求解器</strong>{{ legacyCavityCompatibility.reason }}</span></div>
+          <div class="stage-actions"><button class="ghost-button" type="button" @click="activeStep='mesh'">返回网格</button><button class="primary-button" type="button" :disabled="!legacyCavityCompatibility.ok" @click="nextStep">确认边界并配置求解器<ArrowRight :size="16" /></button></div>
         </template>
 
         <template v-else-if="activeStep === 'solve'">
@@ -521,4 +503,10 @@ function exportResult(kind: 'json' | 'csv') {
 .model-meta{display:grid;grid-template-columns:minmax(240px,1.4fr) repeat(2,minmax(150px,.8fr)) minmax(180px,.8fr);align-items:end;gap:12px;margin-bottom:14px;padding:14px 16px}.model-meta>div{align-self:stretch;display:flex;flex-direction:column;justify-content:center;padding:0 12px;border-left:1px solid #dce5e9}.model-meta>div small,.model-meta>div strong{display:block}.model-meta>div small{color:#7a8d96;font-size:8px;text-transform:uppercase;letter-spacing:.08em}.model-meta>div strong{margin-top:5px;font-size:11px}
 @media(max-width:1050px){.model-meta{grid-template-columns:1fr 1fr}}
 @media(max-width:720px){.model-meta{grid-template-columns:1fr}.model-meta>div{padding:8px 0;border-top:1px solid #dce5e9;border-left:0}}
+.stage-panel.model-stage-panel{padding:14px;background:#f7f9fa}
+.workbench-shell.model-shell{display:block;max-width:none;min-height:0;border:0;background:transparent;box-shadow:none;overflow:visible}
+.workbench-shell.model-shell .model-stage-panel{padding:0;background:transparent}
+.workbench-shell.mesh-shell{display:block;max-width:none;min-height:0;border:0;background:transparent;box-shadow:none;overflow:visible}.workbench-shell.mesh-shell .mesh-stage-panel{padding:0;background:transparent}
+.mesh-name-summary{display:grid;grid-template-columns:minmax(0,.8fr) minmax(0,1.2fr);gap:12px;margin-bottom:18px}.mesh-name-summary>div{display:flex;flex-wrap:wrap;gap:6px;padding:13px;border:1px solid #dce5e9;border-radius:8px;background:#f8fafb}.mesh-name-summary small{width:100%;margin-bottom:3px;color:#728692;font-size:9px;font-weight:800;letter-spacing:.08em}.mesh-name-summary strong{display:flex;align-items:center;gap:6px;padding:6px 8px;border-radius:5px;background:#fff;color:#294754;font-size:10px}.mesh-name-summary strong i{width:5px;height:18px;border-radius:3px}.mesh-name-summary em{color:#82939b;font-size:9px;font-style:normal;font-weight:500}
+@media(max-width:720px){.stage-panel.model-stage-panel{padding:0}.mesh-name-summary{grid-template-columns:1fr}}
 </style>

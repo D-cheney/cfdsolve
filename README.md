@@ -30,6 +30,21 @@ npm run deploy:local
 
 该命令会完成依赖安装、数据库备份与初始化、11,247 篇知识源校验与 340 篇主库文章同步、检查测试、生产构建、后台启动和健康检查。详细说明见 `docs/LOCAL_DEPLOYMENT.md`。
 
+Linux 生产环境需要 Node.js 22.5 或更高版本、Python 3.12 和 Gmsh 4.15.2。Debian／Ubuntu 可按以下方式准备网格运行环境：
+
+```bash
+sudo apt-get install -y libglu1-mesa python3-venv
+python3 -m venv .venv
+.venv/bin/python3 -m pip install -r services/meshing/requirements.txt
+export CFDSOLVE_PYTHON_BIN="$PWD/.venv/bin/python3"
+npm ci
+npm run check:meshing-runtime
+npm run build
+npm start
+```
+
+生产构建会将网格脚本和依赖清单复制到 `.output/server/meshing`，因此只部署 `.output` 时网格 API 也能找到运行内核。若虚拟环境不在项目目录，可通过 `CFDSOLVE_PYTHON_BIN` 指定 Python；也可用 `CFDSOLVE_MESHING_SCRIPT` 指定网格脚本的绝对路径。
+
 打开终端显示的本地地址即可。生产构建使用：
 
 ```bash

@@ -2,9 +2,13 @@
   "name": "flowforge-cfd-platform",
   "private": true,
   "type": "module",
+  "engines": {
+    "node": ">=22.5.0"
+  },
   "scripts": {
     "dev": "nuxt dev",
-    "build": "nuxt build",
+    "build": "nuxt build && node scripts/copy-meshing-runtime.mjs",
+    "postinstall": "nuxt prepare",
     "start": "node .output/server/index.mjs",
     "deploy:local": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/deploy-local.ps1",
     "local:start": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/start-local.ps1",
@@ -17,6 +21,9 @@
     "test:solvers": "tsx tests/solvers.test.mjs",
     "test:cfd-workbench": "tsx tests/cfd-workbench.test.mjs",
     "test:sketch": "tsx tests/sketch-geometry.test.mjs",
+    "test:modeling": "tsx tests/modeling-core.test.mjs",
+    "test:meshing": "tsx tests/meshing-core.test.mjs",
+    "check:meshing-runtime": "node scripts/check-meshing-runtime.mjs",
     "test:lab": "tsx tests/simulation-lab.test.mjs",
     "test:database": "tsx tests/database-workspace.test.mjs",
     "test:knowledge": "tsx tests/knowledge-importer.test.mjs",
@@ -36,12 +43,15 @@
   },
   "dependencies": {
     "@pinia/nuxt": "^0.11.2",
+    "@salusoft89/planegcs": "^1.2.0",
     "gray-matter": "^4.0.3",
     "katex": "^0.16.47",
     "lucide-vue-next": "^0.468.0",
     "markdown-it": "^14.3.0",
     "nuxt": "^3.21.0",
+    "opencascade.js": "^2.0.0-beta.b5ff984",
     "pinia": "^3.0.3",
+    "polygon-clipping": "^0.15.7",
     "sanitize-html": "^2.17.6",
     "vue": "^3.5.24"
   },

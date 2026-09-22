@@ -1,0 +1,36 @@
+name: Linux compatibility
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    env:
+      CFDSOLVE_PYTHON_BIN: ${{ github.workspace }}/.venv-ci/bin/python3
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Install Gmsh runtime
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libglu1-mesa
+          python3 -m venv .venv-ci
+          .venv-ci/bin/python3 -m pip install -r services/meshing/requirements.txt
+      - run: npm ci
+      - run: npm run check:meshing-runtime
+      - run: npm run typecheck
+      - run: npm run test:modeling
+      - run: npm run test:meshing
+      - run: npm run test:cfd-workbench
+      - run: npm run build
+      - name: Verify packaged meshing runtime
+        run: test -f .output/server/meshing/generate_mesh.py && test -f .output/server/meshing/requirements.txt
