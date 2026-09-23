@@ -12,6 +12,7 @@
 - [布局系统与响应式规范](docs/LAYOUT_SYSTEM.md)
 - [参数扫描与工况对比实验室](docs/SIMULATION_EXPERIMENT_LAB.md)
 - [文档索引](docs/README.md)
+- [Linux 计算服务部署](docs/Linux计算服务部署.md)
 
 ## 本地运行
 
@@ -42,6 +43,8 @@ npm run check:meshing-runtime
 npm run build
 npm start
 ```
+
+计算求解还需启动独立 Linux 服务：`npm run solver:worker`。网站与计算服务应使用相同的 `CFD_DATA_ROOT`；生产 systemd 配置及当前支持范围见 [Linux 计算服务部署](docs/Linux计算服务部署.md)。
 
 生产构建会将网格脚本和依赖清单复制到 `.output/server/meshing`，因此只部署 `.output` 时网格 API 也能找到运行内核。若虚拟环境不在项目目录，可通过 `CFDSOLVE_PYTHON_BIN` 指定 Python；也可用 `CFDSOLVE_MESHING_SCRIPT` 指定网格脚本的绝对路径。
 

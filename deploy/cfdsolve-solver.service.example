@@ -1,0 +1,20 @@
+[Unit]
+Description=CFD菜鸟独立计算服务
+After=network.target
+
+[Service]
+Type=simple
+User=cfdsolve
+Group=cfdsolve
+WorkingDirectory=/opt/cfdsolve
+Environment=NODE_ENV=production
+Environment=CFD_DATA_ROOT=/var/lib/cfdsolve
+ExecStart=/usr/bin/node /opt/cfdsolve/.output/server/worker-service.mjs
+Restart=always
+RestartSec=3
+NoNewPrivileges=true
+ProtectSystem=strict
+ReadWritePaths=/var/lib/cfdsolve
+
+[Install]
+WantedBy=multi-user.target
